@@ -9,3 +9,4 @@
 - Connected the local Git repository to `https://github.com/astera-blip/Astera-OMS.git`.
 - Created and pushed the initial app commit.
 - Added Day 1 foundation documentation and Firebase scaffolding.
+- Added CI, Dependabot, local test tooling, Firebase rules tests, and local development guide.

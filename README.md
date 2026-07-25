@@ -49,6 +49,7 @@ PowerShell may block `npm` because of script execution policy. Use `npm.cmd` on 
 - `docs/12_DecisionLog.md`
 - `docs/99_PendingOwnerReview.md`
 - `docs/14_Deployment.md`
+- `docs/15_LocalDevelopment.md`
 
 ## Security Baseline
 

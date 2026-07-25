@@ -5,6 +5,7 @@ const root = process.cwd();
 
 const ignoredDirectories = new Set([
   ".git",
+  ".firebase-local",
   ".next",
   "node_modules",
   "out",
@@ -13,6 +14,8 @@ const ignoredDirectories = new Set([
 ]);
 
 const allowedFiles = new Set([".env.example", "scripts/check-no-secrets.mjs"]);
+
+const ignoredFilePatterns = [/(^|\/).*?-debug\.log$/];
 
 const forbiddenPathPatterns = [
   /^\.env($|\.)/,
@@ -70,6 +73,10 @@ const contentViolations = [];
 
 for (const file of files) {
   if (allowedFiles.has(file)) {
+    continue;
+  }
+
+  if (ignoredFilePatterns.some((pattern) => pattern.test(file))) {
     continue;
   }
 
