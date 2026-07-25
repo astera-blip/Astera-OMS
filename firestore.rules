@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Day 1 baseline: deny all access until role-aware rules and emulator tests exist.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

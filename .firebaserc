@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "astera-oms-dev-placeholder",
+    "dev": "astera-oms-dev-placeholder",
+    "prod": "astera-oms-prod-placeholder"
+  }
+}
