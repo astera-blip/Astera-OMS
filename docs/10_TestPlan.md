@@ -3,9 +3,13 @@
 ## Day 1 Checks
 
 - `npm.cmd run lint`
+- `npm.cmd run typecheck`
+- `npm.cmd run test:unit`
 - `npm.cmd run check:secrets`
 - `npm.cmd audit --audit-level=high`
 - `npm.cmd run build`
+- `npm.cmd run firebase:version`
+- `npm.cmd run firebase:rules:test` once Firebase Emulator is ready on the machine.
 - Confirm no `.env` or secret files are tracked.
 - Confirm Firebase rules are deny-by-default.
 

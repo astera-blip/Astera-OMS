@@ -4,7 +4,8 @@ These items require the owner to log in, confirm policy, provide files, or make 
 
 ## Account and Service Setup
 
-- Resolve Firebase CLI first-run update-check permission on this Windows user profile if it continues to exit after printing the version.
+- Confirm whether GitHub Actions can run on the private repository without billing or policy blockers.
+- Connect Vercel account and import the GitHub repository when ready for preview deployment.
 - Create or confirm Firebase development project.
 - Create or confirm Firebase production project.
 - Enable Google login in Firebase Authentication.

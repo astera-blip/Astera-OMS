@@ -27,6 +27,8 @@ Run checks:
 
 ```bash
 npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run test:unit
 npm.cmd run check:secrets
 npm.cmd audit --audit-level=high
 npm.cmd run build
@@ -46,6 +48,7 @@ PowerShell may block `npm` because of script execution policy. Use `npm.cmd` on 
 - `docs/11_Changelog.md`
 - `docs/12_DecisionLog.md`
 - `docs/99_PendingOwnerReview.md`
+- `docs/14_Deployment.md`
 
 ## Security Baseline
 
