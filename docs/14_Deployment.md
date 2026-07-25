@@ -7,6 +7,7 @@ This project is prepared for deployment, but production deployment is intentiona
 - GitHub repository connected.
 - `main` branch pushed.
 - GitHub Actions CI workflow added.
+- GitHub Actions confirmed on `main`.
 - CI blocks high-severity production dependency audit failures.
 - Node.js version pinned in `.node-version` and `.nvmrc`.
 - Firebase configuration files added.

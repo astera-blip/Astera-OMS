@@ -4,7 +4,6 @@ These items require the owner to log in, confirm policy, provide files, or make 
 
 ## Account and Service Setup
 
-- Confirm whether GitHub Actions can run on the private repository without billing or policy blockers.
 - Confirm the Firestore and Storage location before enabling real databases or buckets.
 - Connect Vercel account and import the GitHub repository when ready for preview deployment.
 - Add production environment variables to the hosting provider after Vercel is connected.

@@ -17,3 +17,4 @@
 - Connected Firebase project aliases in `.firebaserc`.
 - Added production dependency audit script for CI.
 - Overrode vulnerable Next.js transitive production dependencies while waiting for an upstream Next.js release.
+- Confirmed GitHub Actions CI passes on `main`.
