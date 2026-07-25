@@ -8,20 +8,22 @@ This project is prepared for deployment, but production deployment is intentiona
 - `main` branch pushed.
 - GitHub Actions CI workflow added.
 - Node.js version pinned in `.node-version` and `.nvmrc`.
-- Firebase configuration files added with placeholder project IDs.
+- Firebase configuration files added.
+- Firebase development project connected: `astera-oms-dev-b2b2e`.
+- Firebase production project connected: `astera-oms-prod`.
+- Firebase Google Authentication provider enabled for both projects.
+- Firebase web apps registered for development and production.
+- Local Firebase environment files created and intentionally kept out of Git.
 - Environment variable names documented in `.env.example`.
 - Secret scan script added.
 - Build verified locally.
 
 ## Not Completed Without Owner Confirmation
 
-- Firebase dev project creation.
-- Firebase production project creation.
-- Firebase Google login enablement.
-- Firebase project aliases in `.firebaserc`.
+- Firestore database and Storage bucket creation, because the region/location decision should be confirmed first.
 - Vercel account connection.
 - Vercel project import.
-- Production environment variables.
+- Production environment variables in Vercel.
 - Domain purchase or DNS setup.
 - Email provider verified sender/domain.
 
@@ -37,13 +39,11 @@ This project is prepared for deployment, but production deployment is intentiona
 
 ## Firebase Future Steps
 
-1. Owner logs in to Firebase Console.
-2. Create separate development and production projects.
-3. Enable Google Authentication provider.
-4. Add web app configuration to local `.env.local`.
-5. Replace placeholder aliases in `.firebaserc`.
-6. Start emulator locally.
-7. Run rules tests before real data is added.
+1. Confirm the Firestore and Storage location.
+2. Create Firestore databases for development and production.
+3. Create Storage buckets for development and production.
+4. Run rules tests before real data is added.
+5. Add the production web app environment variables to Vercel after import.
 
 ## GitHub Actions
 

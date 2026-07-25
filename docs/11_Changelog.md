@@ -10,3 +10,8 @@
 - Created and pushed the initial app commit.
 - Added Day 1 foundation documentation and Firebase scaffolding.
 - Added CI, Dependabot, local test tooling, Firebase rules tests, and local development guide.
+- Created Firebase development project `astera-oms-dev-b2b2e`.
+- Created Firebase production project `astera-oms-prod`.
+- Enabled Google Authentication provider for both Firebase projects.
+- Registered Firebase web apps for development and production.
+- Connected Firebase project aliases in `.firebaserc`.

@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "astera-oms-dev-placeholder",
-    "dev": "astera-oms-dev-placeholder",
-    "prod": "astera-oms-prod-placeholder"
+    "default": "astera-oms-dev-b2b2e",
+    "dev": "astera-oms-dev-b2b2e",
+    "prod": "astera-oms-prod"
   }
 }

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -11,6 +12,7 @@ const ignoredDirectories = new Set([
   "out",
   "build",
   "coverage",
+  ".vercel",
 ]);
 
 const allowedFiles = new Set([".env.example", "scripts/check-no-secrets.mjs"]);
@@ -59,10 +61,40 @@ function walk(directory) {
   return results;
 }
 
-const files = walk(root).map((file) => relative(root, file).replaceAll("\\", "/"));
+function listGitVisibleFiles() {
+  try {
+    const output = execFileSync(
+      "git",
+      ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+
+    return output
+      .split("\0")
+      .filter(Boolean)
+      .map((file) => file.replaceAll("\\", "/"));
+  } catch {
+    return null;
+  }
+}
+
+const gitVisibleFiles = listGitVisibleFiles();
+const isFallbackScan = gitVisibleFiles === null;
+const ignoredFallbackPathPatterns = [/^\.env($|\.)/];
+const files =
+  gitVisibleFiles ??
+  walk(root).map((file) => relative(root, file).replaceAll("\\", "/"));
 
 const pathViolations = files.filter((file) => {
   if (allowedFiles.has(file)) {
+    return false;
+  }
+
+  if (isFallbackScan && ignoredFallbackPathPatterns.some((pattern) => pattern.test(file))) {
     return false;
   }
 
@@ -76,12 +108,22 @@ for (const file of files) {
     continue;
   }
 
+  if (isFallbackScan && ignoredFallbackPathPatterns.some((pattern) => pattern.test(file))) {
+    continue;
+  }
+
   if (ignoredFilePatterns.some((pattern) => pattern.test(file))) {
     continue;
   }
 
   const absolutePath = join(root, file);
-  const stats = statSync(absolutePath);
+  let stats;
+
+  try {
+    stats = statSync(absolutePath);
+  } catch {
+    continue;
+  }
 
   if (stats.size > 1024 * 1024) {
     continue;
