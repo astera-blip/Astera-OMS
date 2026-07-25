@@ -18,3 +18,5 @@
 - Added production dependency audit script for CI.
 - Overrode vulnerable Next.js transitive production dependencies while waiting for an upstream Next.js release.
 - Confirmed GitHub Actions CI passes on `main`.
+- Created development and production Firestore databases in `asia-east1`.
+- Intentionally skipped Firebase Storage bucket creation until the owner is ready for the billing/location decision.

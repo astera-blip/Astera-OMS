@@ -4,7 +4,7 @@ These items require the owner to log in, confirm policy, provide files, or make 
 
 ## Account and Service Setup
 
-- Confirm the Firestore and Storage location before enabling real databases or buckets.
+- Create Firebase Storage buckets later. This was intentionally skipped because `ASIA-EAST1` Storage appears to require moving beyond the Spark free-plan default location.
 - Connect Vercel account and import the GitHub repository when ready for preview deployment.
 - Add production environment variables to the hosting provider after Vercel is connected.
 - Decide when to connect Vercel.

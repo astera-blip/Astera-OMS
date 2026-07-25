@@ -15,6 +15,8 @@ This project is prepared for deployment, but production deployment is intentiona
 - Firebase production project connected: `astera-oms-prod`.
 - Firebase Google Authentication provider enabled for both projects.
 - Firebase web apps registered for development and production.
+- Firestore databases created for development and production in `asia-east1`.
+- Firebase Storage buckets intentionally not created yet.
 - Local Firebase environment files created and intentionally kept out of Git.
 - Environment variable names documented in `.env.example`.
 - Secret scan script added.
@@ -22,7 +24,7 @@ This project is prepared for deployment, but production deployment is intentiona
 
 ## Not Completed Without Owner Confirmation
 
-- Firestore database and Storage bucket creation, because the region/location decision should be confirmed first.
+- Firebase Storage bucket creation. `ASIA-EAST1` was selected, but bucket creation was skipped to avoid upgrading or adding billing before the owner is ready.
 - Vercel account connection.
 - Vercel project import.
 - Production environment variables in Vercel.
@@ -41,11 +43,10 @@ This project is prepared for deployment, but production deployment is intentiona
 
 ## Firebase Future Steps
 
-1. Confirm the Firestore and Storage location.
-2. Create Firestore databases for development and production.
-3. Create Storage buckets for development and production.
-4. Run rules tests before real data is added.
-5. Add the production web app environment variables to Vercel after import.
+1. Decide when to enable billing if `ASIA-EAST1` Storage is still required.
+2. Create Storage buckets for development and production.
+3. Run rules tests before real files are added.
+4. Add the production web app environment variables to Vercel after import.
 
 ## GitHub Actions
 
