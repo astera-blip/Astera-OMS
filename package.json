@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:secrets": "node scripts/check-no-secrets.mjs",
     "firebase:emulators": "firebase emulators:start --only auth,firestore,storage",
     "firebase:rules:test": "firebase emulators:exec --only firestore,storage \"npm.cmd run lint\""
   },

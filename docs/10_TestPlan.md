@@ -3,6 +3,7 @@
 ## Day 1 Checks
 
 - `npm.cmd run lint`
+- `npm.cmd run check:secrets`
 - `npm.cmd audit --audit-level=high`
 - `npm.cmd run build`
 - Confirm no `.env` or secret files are tracked.

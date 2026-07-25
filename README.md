@@ -27,6 +27,7 @@ Run checks:
 
 ```bash
 npm.cmd run lint
+npm.cmd run check:secrets
 npm.cmd audit --audit-level=high
 npm.cmd run build
 ```
