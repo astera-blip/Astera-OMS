@@ -7,6 +7,7 @@ This project is prepared for deployment, but production deployment is intentiona
 - GitHub repository connected.
 - `main` branch pushed.
 - GitHub Actions CI workflow added.
+- CI blocks high-severity production dependency audit failures.
 - Node.js version pinned in `.node-version` and `.nvmrc`.
 - Firebase configuration files added.
 - Firebase development project connected: `astera-oms-dev-b2b2e`.

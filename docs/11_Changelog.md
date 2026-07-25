@@ -15,3 +15,5 @@
 - Enabled Google Authentication provider for both Firebase projects.
 - Registered Firebase web apps for development and production.
 - Connected Firebase project aliases in `.firebaserc`.
+- Added production dependency audit script for CI.
+- Overrode vulnerable Next.js transitive production dependencies while waiting for an upstream Next.js release.

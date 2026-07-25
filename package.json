@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:rules": "vitest run tests/firebase",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "firebase:version": "node scripts/run-firebase.mjs --version",
     "firebase:emulators": "node scripts/run-firebase.mjs emulators:start --only auth,firestore,storage --project demo-astera-oms",
@@ -25,6 +26,10 @@
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4"
+  },
+  "overrides": {
+    "postcss": "8.5.23",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
