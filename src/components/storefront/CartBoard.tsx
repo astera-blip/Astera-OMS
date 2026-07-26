@@ -58,7 +58,10 @@ export function CartBoard() {
         import("@/lib/firebase/client"),
         import("@/lib/cart/repository"),
       ]);
-      setCart(await loadMemberCart(db, user.uid));
+      const cloudCart = await loadMemberCart(db, user.uid);
+      const localCart = loadCart();
+
+      setCart(cloudCart.length > 0 ? cloudCart : localCart);
     }
 
     void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));

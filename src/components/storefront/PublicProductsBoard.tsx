@@ -108,13 +108,14 @@ export function PublicProductsBoard() {
           line.saleCampaignId === nextItem.saleCampaignId,
       );
 
-      if (existing) {
-        return current.map((line) =>
+      const nextCart = existing
+        ? current.map((line) =>
           line === existing ? { ...line, quantity: line.quantity + 1 } : line,
-        );
-      }
+        )
+        : [...current, nextItem];
 
-      return [...current, nextItem];
+      saveCart(nextCart);
+      return nextCart;
     });
     setMessage(`已加入 ${item.product.name}。`);
   }
