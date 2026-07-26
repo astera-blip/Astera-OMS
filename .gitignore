@@ -40,6 +40,7 @@ yarn-error.log*
 
 # local tool state
 .firebase-local/
+.worktrees/
 
 # typescript
 *.tsbuildinfo
