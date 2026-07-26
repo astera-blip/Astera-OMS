@@ -218,7 +218,7 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(helperDb, "members/member-a")));
   });
 
-  it("allows the bootstrap owner email to use owner-only reads before custom claims are configured", async () => {
+  it("requires a custom claim for owner-only reads", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "auditLogs/audit-bootstrap"), {
         id: "audit-bootstrap",
@@ -227,14 +227,12 @@ describe("Day 1 Firestore rules", () => {
       });
     });
 
-    const bootstrapOwnerDb = testEnv
-      .authenticatedContext("bootstrap-owner", { email: "astera.0920@gmail.com" })
+    const ownerDb = testEnv
+      .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
-    const memberDb = testEnv
-      .authenticatedContext("member-a", { email: "member@example.com" })
-      .firestore();
+    const memberDb = testEnv.authenticatedContext("member-a", { email: "astera.0920@gmail.com" }).firestore();
 
-    await assertSucceeds(getDoc(doc(bootstrapOwnerDb, "auditLogs/audit-bootstrap")));
+    await assertSucceeds(getDoc(doc(ownerDb, "auditLogs/audit-bootstrap")));
     await assertFails(getDoc(doc(memberDb, "auditLogs/audit-bootstrap")));
   });
 

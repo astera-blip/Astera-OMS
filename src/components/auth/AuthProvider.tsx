@@ -13,7 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
 import type { RoleKey } from "@/domain/identity";
 import type { StoredMemberProfile } from "@/lib/member/repository";
-import { getRoleFromToken } from "@/lib/member/role";
+import { getRoleFromClaims } from "@/lib/member/role";
 
 type AuthStatus = "loading" | "signedOut" | "signedIn";
 
@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const [memberProfile, token] = await Promise.all([
             loadProfile(currentUser),
-            currentUser.getIdTokenResult(),
+            currentUser.getIdTokenResult(true),
           ]);
 
           if (!active) {
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           setProfile(memberProfile);
-          setRole(getRoleFromToken({ email: currentUser.email, role: token.claims.role }));
+          setRole(getRoleFromClaims(token.claims));
           setStatus("signedIn");
         } catch {
           if (active) {

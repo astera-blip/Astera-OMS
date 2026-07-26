@@ -17,6 +17,7 @@
     "test:rules": "vitest run tests/firebase",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "check:secrets": "node scripts/check-no-secrets.mjs",
+    "admin:set-role": "node scripts/set-user-role.mjs",
     "firebase:version": "node scripts/run-firebase.mjs --version",
     "firebase:emulators": "node scripts/run-firebase.mjs emulators:start --only auth,firestore,storage --project demo-astera-oms",
     "firebase:rules:test": "node scripts/run-firebase.mjs emulators:exec --only firestore --project demo-astera-oms \"npm run test:rules\""
@@ -40,6 +41,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
     "tailwindcss": "^4",
     "typescript": "^5",
