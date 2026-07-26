@@ -183,7 +183,9 @@ function getSaleTypeForItem(
   item: CartLineItem,
   catalog: readonly CatalogProduct[],
 ): CatalogCampaign["saleType"] | null {
-  return findCampaign(catalog, item.saleCampaignId)?.saleType ?? null;
+  const campaign = findCampaign(catalog, item.saleCampaignId);
+
+  return campaign && campaign.status === "open" ? campaign.saleType : null;
 }
 
 function findProduct(catalog: readonly CatalogProduct[], productId: string) {

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { buildPublicProductProjection, normalizeProductDraft } from "../../src/lib/product/catalog";
 import {
-  buildPublicProductProjection,
-  normalizeProductDraft,
-} from "../../src/lib/product/catalog";
+  getDefaultCampaign,
+  getDefaultVariant,
+  mapPublicCatalogItem,
+  type PublicCatalogItem,
+} from "../../src/lib/catalog/publicCatalog";
 
 describe("normalizeProductDraft", () => {
   it("trims product data and creates a default variant when none is provided", () => {
@@ -185,5 +188,119 @@ describe("buildPublicProductProjection", () => {
       series: { id: "series_001", label: "2026 Summer" },
     });
     expect(JSON.stringify(projection)).not.toContain("originalCost");
+  });
+});
+
+describe("mapPublicCatalogItem", () => {
+  it("converts a flat Firestore projection to the nested public catalog model", () => {
+    expect(
+      mapPublicCatalogItem({
+        id: "prod_001",
+        name: "星星耳環",
+        publicDescription: "限量現貨",
+        publishState: "published",
+        classifications: {
+          company: { id: "company_001", label: "Astera Goods" },
+        },
+        variants: [
+          {
+            id: "var_001",
+            productId: "prod_001",
+            sku: "STAR-001",
+            name: "Default Variant",
+            isDefault: true,
+            priceTwd: 880,
+          },
+        ],
+        campaigns: [
+          {
+            id: "camp_001",
+            productId: "prod_001",
+            title: "七夕檔期",
+            saleType: "preorder",
+            status: "open",
+            requiresSupplement: true,
+          },
+        ],
+      }),
+    ).toEqual({
+      product: {
+        id: "prod_001",
+        name: "星星耳環",
+        publicDescription: "限量現貨",
+        publishState: "published",
+        classifications: {
+          company: { id: "company_001", label: "Astera Goods" },
+        },
+      },
+      variants: [
+        {
+          id: "var_001",
+          productId: "prod_001",
+          sku: "STAR-001",
+          name: "Default Variant",
+          isDefault: true,
+          priceTwd: 880,
+        },
+      ],
+      campaigns: [
+        {
+          id: "camp_001",
+          productId: "prod_001",
+          title: "七夕檔期",
+          saleType: "preorder",
+          status: "open",
+          requiresSupplement: true,
+        },
+      ],
+    });
+  });
+
+  it("returns null for malformed projections", () => {
+    expect(mapPublicCatalogItem({ id: "prod_001" })).toBeNull();
+  });
+});
+
+describe("public catalog purchase selection", () => {
+  it("chooses the default purchasable variant and open campaign", () => {
+    const item: PublicCatalogItem = {
+      product: {
+        id: "prod_001",
+        name: "星星耳環",
+        publicDescription: "限量現貨",
+        publishState: "published" as const,
+      },
+      variants: [
+        {
+          id: "var_001",
+          productId: "prod_001",
+          sku: "STAR-001",
+          name: "Default Variant",
+          isDefault: true,
+          priceTwd: 880,
+        },
+      ],
+      campaigns: [
+        {
+          id: "camp_001",
+          productId: "prod_001",
+          title: "七夕檔期",
+          saleType: "preorder" as const,
+          status: "open" as const,
+          requiresSupplement: true,
+        },
+        {
+          id: "camp_002",
+          productId: "prod_001",
+          title: "草稿活動",
+          saleType: "preorder" as const,
+          status: "draft" as const,
+          requiresSupplement: false,
+        },
+      ],
+    };
+
+    expect(getDefaultVariant(item)?.id).toBe("var_001");
+    expect(getDefaultCampaign(item)?.id).toBe("camp_001");
   });
 });

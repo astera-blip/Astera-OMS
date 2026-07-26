@@ -7,7 +7,7 @@ import {
   buildCartSummary,
   type CartLineItem,
 } from "@/lib/order/checkout";
-import { publicCatalogSeed } from "@/lib/catalog/publicCatalog";
+import type { PublicCatalogItem } from "@/lib/catalog/publicCatalog";
 import {
   clearCart,
   loadCart,
@@ -26,6 +26,7 @@ import { createOrderCreatedNotificationEvent } from "@/lib/notification/events";
 export function CartBoard() {
   const { user } = useAuth();
   const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
+  const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [message, setMessage] = useState("已載入購物車。");
 
   useEffect(() => {
@@ -67,7 +68,19 @@ export function CartBoard() {
     void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));
   }, [user]);
 
-  const summary = useMemo(() => buildCartSummary(cart, publicCatalogSeed), [cart]);
+  useEffect(() => {
+    async function loadCatalog() {
+      const [{ db }, { listPublicProducts }] = await Promise.all([
+        import("@/lib/firebase/client"),
+        import("@/lib/product/repository"),
+      ]);
+      setCatalog(await listPublicProducts(db));
+    }
+
+    void loadCatalog().catch(() => setCatalog([]));
+  }, []);
+
+  const summary = useMemo(() => buildCartSummary(cart, catalog), [cart, catalog]);
 
   function updateQuantity(index: number, quantity: number) {
     setCart((current) =>
@@ -87,6 +100,11 @@ export function CartBoard() {
       return;
     }
 
+    if (catalog.length === 0) {
+      setMessage("公開商品尚未載入，無法建立訂單。");
+      return;
+    }
+
     const timestamp = new Date().toISOString();
     const nextOrderId = `order_${timestamp.replaceAll(/[-:.TZ]/g, "").slice(0, 14)}`;
     const result = createOrderFromCart(
@@ -96,7 +114,7 @@ export function CartBoard() {
         createdAt: timestamp,
       },
       cart,
-      publicCatalogSeed,
+      catalog,
     );
 
     const existingOrders = loadOrders();

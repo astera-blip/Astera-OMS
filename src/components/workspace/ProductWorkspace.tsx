@@ -79,55 +79,6 @@ const seedClassifications: ClassificationMasters = {
   series: [{ id: "series_001", label: "2026 Summer", status: "active" }],
 };
 
-const seedProducts: WorkspaceProduct[] = [
-  {
-    product: {
-      id: "prod_001",
-      name: "星星耳環",
-      publicDescription: "限量現貨，採預約優先。",
-      publishState: "published",
-      classifications: {
-        company: { id: "company_001", label: "Astera Goods" },
-        artist: { id: "artist_001", label: "Luna" },
-        cp: { id: "cp_001", label: "Luna x Mira" },
-        brand: { id: "brand_001", label: "Official Shop" },
-        series: { id: "series_001", label: "2026 Summer" },
-      },
-      createdAt: "2026-07-26T00:00:00.000Z",
-      createdBy: "system",
-      updatedAt: "2026-07-26T00:00:00.000Z",
-      updatedBy: "system",
-    },
-    variants: [
-      {
-        id: "var_001",
-        productId: "prod_001",
-        sku: "STAR-001",
-        name: "Default Variant",
-        isDefault: true,
-        priceTwd: 880,
-        originalCurrency: "JPY",
-        originalCost: 650,
-        createdAt: "2026-07-26T00:00:00.000Z",
-        createdBy: "system",
-      },
-    ],
-    campaigns: [
-      {
-        id: "camp_001",
-        productId: "prod_001",
-        title: "七夕檔期",
-        saleType: "preorder",
-        status: "open",
-        requiresSupplement: true,
-        createdAt: "2026-07-26T00:00:00.000Z",
-        createdBy: "system",
-      },
-    ],
-    internalNote: "確認包裝盒尺寸。",
-  },
-];
-
 export function ProductWorkspace() {
   const { role } = useAuth();
   const initialProducts = loadWorkspaceProducts();
@@ -890,21 +841,21 @@ export function ProductWorkspace() {
 
 function loadWorkspaceProducts() {
   if (typeof window === "undefined") {
-    return seedProducts;
+    return [];
   }
 
   const raw = window.localStorage.getItem(storageKey);
 
   if (!raw) {
-    return seedProducts;
+    return [];
   }
 
   try {
     const parsed = JSON.parse(raw) as WorkspaceProduct[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : seedProducts;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     window.localStorage.removeItem(storageKey);
-    return seedProducts;
+    return [];
   }
 }
 

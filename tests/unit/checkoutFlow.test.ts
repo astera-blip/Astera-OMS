@@ -89,6 +89,53 @@ describe("validateCartAddition", () => {
       error: "不同 sale type 不能混在同一張訂單。",
     });
   });
+
+  it("rejects adding an item with no open campaign", () => {
+    expect(
+      validateCartAddition(
+        [],
+        {
+          productId: "prod_003",
+          variantId: "var_003",
+          saleCampaignId: "camp_closed",
+          quantity: 1,
+        },
+        [
+          {
+            product: {
+              id: "prod_003",
+              name: "應援手燈",
+              publicDescription: "小圈測試商品",
+              publishState: "published" as const,
+            },
+            variants: [
+              {
+                id: "var_003",
+                productId: "prod_003",
+                sku: "LIGHT-001",
+                name: "Default Variant",
+                isDefault: true,
+                priceTwd: 1280,
+              },
+            ],
+            campaigns: [
+              {
+                id: "camp_closed",
+                productId: "prod_003",
+                title: "已關閉活動",
+                saleType: "preorder" as const,
+                status: "closed" as const,
+                requiresSupplement: false,
+              },
+            ],
+          },
+        ],
+      ),
+    ).toEqual({
+      ok: false,
+      error: "找不到可售活動。",
+    });
+  });
 });
 
 describe("createOrderFromCart", () => {
