@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run test:unit && npm run firebase:rules:test",
     "test:unit": "vitest run tests/unit",
+    "test:e2e": "playwright test",
     "test:rules": "vitest run tests/firebase",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "check:secrets": "node scripts/check-no-secrets.mjs",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

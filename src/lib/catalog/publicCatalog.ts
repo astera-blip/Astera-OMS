@@ -23,67 +23,12 @@ export type PublicCatalogItem = {
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
     status: "draft" | "open" | "closed" | "archived";
     requiresSupplement: boolean;
+    startsAt?: string;
+    endsAt?: string;
+    publicNotice?: string;
+    supplementNote?: string;
   }>;
 };
-
-export const publicCatalogSeed: PublicCatalogItem[] = [
-  {
-    product: {
-      id: "prod_001",
-      name: "星星耳環",
-      publicDescription: "限量現貨，採預約優先。",
-      publishState: "published",
-    },
-    variants: [
-      {
-        id: "var_001",
-        productId: "prod_001",
-        sku: "STAR-001",
-        name: "Default Variant",
-        isDefault: true,
-        priceTwd: 880,
-      },
-    ],
-    campaigns: [
-      {
-        id: "camp_001",
-        productId: "prod_001",
-        title: "七夕檔期",
-        saleType: "preorder",
-        status: "open",
-        requiresSupplement: true,
-      },
-    ],
-  },
-  {
-    product: {
-      id: "prod_002",
-      name: "髮夾",
-      publicDescription: "現貨，售完即止。",
-      publishState: "published",
-    },
-    variants: [
-      {
-        id: "var_002",
-        productId: "prod_002",
-        sku: "HAIR-001",
-        name: "Default Variant",
-        isDefault: true,
-        priceTwd: 320,
-      },
-    ],
-    campaigns: [
-      {
-        id: "camp_002",
-        productId: "prod_002",
-        title: "現貨區",
-        saleType: "inStock",
-        status: "open",
-        requiresSupplement: false,
-      },
-    ],
-  },
-];
 
 export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
   if (!data || typeof data !== "object") {
@@ -130,6 +75,10 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
       saleType: campaign.saleType,
       status: campaign.status,
       requiresSupplement: campaign.requiresSupplement,
+      ...(typeof campaign.startsAt === "string" ? { startsAt: campaign.startsAt } : {}),
+      ...(typeof campaign.endsAt === "string" ? { endsAt: campaign.endsAt } : {}),
+      ...(typeof campaign.publicNotice === "string" ? { publicNotice: campaign.publicNotice } : {}),
+      ...(typeof campaign.supplementNote === "string" ? { supplementNote: campaign.supplementNote } : {}),
     })),
   };
 }

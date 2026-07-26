@@ -68,6 +68,10 @@ export async function saveProductCatalogRecord(
       saleType: campaign.saleType,
       status: campaign.status,
       requiresSupplement: campaign.requiresSupplement,
+      ...(campaign.startsAt ? { startsAt: campaign.startsAt } : {}),
+      ...(campaign.endsAt ? { endsAt: campaign.endsAt } : {}),
+      ...(campaign.publicNotice ? { publicNotice: campaign.publicNotice } : {}),
+      ...(campaign.supplementNote ? { supplementNote: campaign.supplementNote } : {}),
       updatedAt: serverTimestamp(),
     });
   });

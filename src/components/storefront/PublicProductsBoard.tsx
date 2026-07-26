@@ -281,6 +281,16 @@ export function PublicProductsBoard() {
                     "沒有可購買的活動"
                   )}
                 </div>
+                {campaign?.endsAt ? (
+                  <p className="mt-2 text-xs font-medium text-amber-700">
+                    結單：{formatCampaignDateTime(campaign.endsAt)}
+                  </p>
+                ) : null}
+                {campaign?.publicNotice ? (
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {campaign.publicNotice}
+                  </p>
+                ) : null}
               </article>
             );
           })
@@ -318,4 +328,8 @@ export function PublicProductsBoard() {
       </aside>
     </section>
   );
+}
+
+function formatCampaignDateTime(value: string) {
+  return value.replace("T", " ");
 }

@@ -191,7 +191,26 @@ export function PublicProductDetailBoard({ productId }: Props) {
           <p>sale type：{availableCampaign?.saleType ?? "尚未設定"}</p>
           <p>二補提示：{availableCampaign?.requiresSupplement ? "需要" : "不需要"}</p>
           <p>狀態：{availableCampaign?.status ?? "未設定"}</p>
+          {availableCampaign?.startsAt ? <p>開始：{formatCampaignDateTime(availableCampaign.startsAt)}</p> : null}
+          {availableCampaign?.endsAt ? <p>結單：{formatCampaignDateTime(availableCampaign.endsAt)}</p> : null}
         </div>
+
+        {availableCampaign?.publicNotice || availableCampaign?.supplementNote ? (
+          <div className="mt-6 grid gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {availableCampaign.publicNotice ? (
+              <p>
+                <span className="font-medium">公開提醒：</span>
+                {availableCampaign.publicNotice}
+              </p>
+            ) : null}
+            {availableCampaign.supplementNote ? (
+              <p>
+                <span className="font-medium">二補說明：</span>
+                {availableCampaign.supplementNote}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
           <p className="font-medium">購買提示</p>
@@ -212,6 +231,9 @@ export function PublicProductDetailBoard({ productId }: Props) {
                   <p className="mt-1 text-slate-600">
                     {campaign.saleType} · {campaign.requiresSupplement ? "需要二補" : "不需要二補"}
                   </p>
+                  {campaign.endsAt ? (
+                    <p className="mt-1 text-slate-500">結單：{formatCampaignDateTime(campaign.endsAt)}</p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -248,4 +270,8 @@ export function PublicProductDetailBoard({ productId }: Props) {
       </aside>
     </section>
   );
+}
+
+function formatCampaignDateTime(value: string) {
+  return value.replace("T", " ");
 }

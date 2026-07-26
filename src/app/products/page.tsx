@@ -1,4 +1,5 @@
 import { PublicProductsBoard } from "@/components/storefront/PublicProductsBoard";
+import Link from "next/link";
 
 export default function ProductsPage() {
   return (
@@ -12,6 +13,14 @@ export default function ProductsPage() {
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
             先從公開商品、分類與活動狀態開始看，再加入購物車。只有開放中的活動才能購買。
           </p>
+          <div className="mt-4">
+            <Link
+              href="/"
+              className="inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            >
+              回首頁
+            </Link>
+          </div>
         </div>
 
         <div className="mt-6">

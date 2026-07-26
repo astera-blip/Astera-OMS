@@ -34,6 +34,10 @@ export type ProductDraft = {
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
     status: "draft" | "open" | "closed" | "archived";
     requiresSupplement: boolean;
+    startsAt?: string;
+    endsAt?: string;
+    publicNotice?: string;
+    supplementNote?: string;
   }>;
 };
 
@@ -62,6 +66,10 @@ export type ValidProductDraft = {
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
     status: "draft" | "open" | "closed" | "archived";
     requiresSupplement: boolean;
+    startsAt?: string;
+    endsAt?: string;
+    publicNotice?: string;
+    supplementNote?: string;
   }>;
 };
 
@@ -69,7 +77,13 @@ export type ProductCatalogError = {
   name?: string;
   publicDescription?: string;
   variants?: Array<{ priceTwd?: string; sku?: string; name?: string }>;
-  campaigns?: Array<{ title?: string }>;
+  campaigns?: Array<{
+    title?: string;
+    startsAt?: string;
+    endsAt?: string;
+    publicNotice?: string;
+    supplementNote?: string;
+  }>;
 };
 
 export type ProductCatalogValidationResult =
@@ -95,6 +109,10 @@ export type PublicProductProjection = {
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
     status: "draft" | "open" | "closed" | "archived";
     requiresSupplement: boolean;
+    startsAt?: string;
+    endsAt?: string;
+    publicNotice?: string;
+    supplementNote?: string;
   }>;
 };
 
@@ -163,13 +181,36 @@ export function normalizeProductDraft(
     saleType: campaign.saleType,
     status: campaign.status,
     requiresSupplement: campaign.requiresSupplement,
+    ...(campaign.startsAt?.trim() ? { startsAt: campaign.startsAt.trim() } : {}),
+    ...(campaign.endsAt?.trim() ? { endsAt: campaign.endsAt.trim() } : {}),
+    ...(campaign.publicNotice?.trim() ? { publicNotice: campaign.publicNotice.trim() } : {}),
+    ...(campaign.supplementNote?.trim() ? { supplementNote: campaign.supplementNote.trim() } : {}),
   }));
 
-  const campaignErrors: Array<{ title?: string }> = [];
+  const campaignErrors: NonNullable<ProductCatalogError["campaigns"]> = [];
 
   normalizedCampaigns.forEach((campaign, index) => {
+    const fieldErrors: NonNullable<ProductCatalogError["campaigns"]>[number] = {};
     if (!campaign.title) {
-      campaignErrors[index] = { title: "請填寫活動名稱。" };
+      fieldErrors.title = "請填寫活動名稱。";
+    }
+    if (campaign.startsAt && !isDateTimeLocalValue(campaign.startsAt)) {
+      fieldErrors.startsAt = "開始時間格式需為 YYYY-MM-DDTHH:mm。";
+    }
+    if (campaign.endsAt && !isDateTimeLocalValue(campaign.endsAt)) {
+      fieldErrors.endsAt = "結單時間格式需為 YYYY-MM-DDTHH:mm。";
+    }
+    if (campaign.startsAt && campaign.endsAt && campaign.startsAt >= campaign.endsAt) {
+      fieldErrors.endsAt = "結單時間必須晚於開始時間。";
+    }
+    if (campaign.publicNotice && campaign.publicNotice.length > 300) {
+      fieldErrors.publicNotice = "公開提醒不可超過 300 個字元。";
+    }
+    if (campaign.supplementNote && campaign.supplementNote.length > 300) {
+      fieldErrors.supplementNote = "二補說明不可超過 300 個字元。";
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      campaignErrors[index] = fieldErrors;
     }
   });
 
@@ -235,8 +276,16 @@ export function buildPublicProductProjection(
       saleType: campaign.saleType,
       status: campaign.status,
       requiresSupplement: campaign.requiresSupplement,
+      ...(campaign.startsAt ? { startsAt: campaign.startsAt } : {}),
+      ...(campaign.endsAt ? { endsAt: campaign.endsAt } : {}),
+      ...(campaign.publicNotice ? { publicNotice: campaign.publicNotice } : {}),
+      ...(campaign.supplementNote ? { supplementNote: campaign.supplementNote } : {}),
     })),
   };
+}
+
+function isDateTimeLocalValue(value: string) {
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(value);
 }
 
 function normalizeClassifications(

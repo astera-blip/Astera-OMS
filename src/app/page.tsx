@@ -26,7 +26,7 @@ const quickLinks = [
   {
     href: "/brand",
     title: "品牌中心",
-    detail: "LINE 社群、IG、公告與 FAQ。",
+    detail: "社群入口、公告、客服與 FAQ。",
   },
   {
     href: "/account/profile",
@@ -145,11 +145,11 @@ export default function Home() {
             </div>
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">下一步會補的內容</h2>
+              <h2 className="text-lg font-semibold">小圈測試重點</h2>
               <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
-                <li className="rounded-2xl bg-slate-50 p-4">品牌公告與 FAQ 動態管理</li>
-                <li className="rounded-2xl bg-slate-50 p-4">收件資訊與配送資料結構</li>
-                <li className="rounded-2xl bg-slate-50 p-4">訂單詳情與取消申請頁</li>
+                <li className="rounded-2xl bg-slate-50 p-4">商品、活動與結單資訊以後台發布資料為準</li>
+                <li className="rounded-2xl bg-slate-50 p-4">下單、付款與取消申請會保存 Firestore 紀錄</li>
+                <li className="rounded-2xl bg-slate-50 p-4">未設定的社群入口不會顯示可點擊連結</li>
               </ul>
             </div>
           </aside>

@@ -49,6 +49,10 @@ type CampaignFormState = {
   saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
   status: "draft" | "open" | "closed" | "archived";
   requiresSupplement: boolean;
+  startsAt: string;
+  endsAt: string;
+  publicNotice: string;
+  supplementNote: string;
 };
 
 type ClassificationFormState = {
@@ -126,6 +130,7 @@ export function ProductWorkspace() {
           name: entry.product.name,
           publicDescription: entry.product.publicDescription,
           publishState: entry.product.publishState,
+          ...(entry.product.classifications ? { classifications: entry.product.classifications } : {}),
           createdAt: new Date().toISOString(),
           createdBy: "system" as const,
         },
@@ -230,6 +235,10 @@ export function ProductWorkspace() {
           saleType: campaignForm.saleType,
           status: campaignForm.status,
           requiresSupplement: campaignForm.requiresSupplement,
+          startsAt: campaignForm.startsAt,
+          endsAt: campaignForm.endsAt,
+          publicNotice: campaignForm.publicNotice,
+          supplementNote: campaignForm.supplementNote,
         },
       ],
     });
@@ -245,6 +254,10 @@ export function ProductWorkspace() {
           variantError?.name,
           variantError?.priceTwd,
           campaignError?.title,
+          campaignError?.startsAt,
+          campaignError?.endsAt,
+          campaignError?.publicNotice,
+          campaignError?.supplementNote,
         ]
           .filter(Boolean)
           .join(" "),
@@ -334,6 +347,10 @@ export function ProductWorkspace() {
       saleType: "preorder",
       status: "draft",
       requiresSupplement: false,
+      startsAt: "",
+      endsAt: "",
+      publicNotice: "",
+      supplementNote: "",
     });
     setMessage("已建立新商品草稿。");
   }
@@ -727,6 +744,52 @@ export function ProductWorkspace() {
                   />
                   <span>需要二補</span>
                 </label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 text-sm">
+                    <span className="font-medium">開始時間</span>
+                    <input
+                      type="datetime-local"
+                      value={campaignForm.startsAt}
+                      onChange={(event) =>
+                        setCampaignForm((current) => ({ ...current, startsAt: event.target.value }))
+                      }
+                      className="rounded-2xl border border-slate-300 px-4 py-3"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm">
+                    <span className="font-medium">結單時間</span>
+                    <input
+                      type="datetime-local"
+                      value={campaignForm.endsAt}
+                      onChange={(event) =>
+                        setCampaignForm((current) => ({ ...current, endsAt: event.target.value }))
+                      }
+                      className="rounded-2xl border border-slate-300 px-4 py-3"
+                    />
+                  </label>
+                </div>
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium">公開提醒</span>
+                  <textarea
+                    value={campaignForm.publicNotice}
+                    onChange={(event) =>
+                      setCampaignForm((current) => ({ ...current, publicNotice: event.target.value }))
+                    }
+                    className="min-h-20 rounded-2xl border border-slate-300 px-4 py-3"
+                    placeholder="例如：此商品需等待官方公布配貨結果。"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium">二補說明</span>
+                  <textarea
+                    value={campaignForm.supplementNote}
+                    onChange={(event) =>
+                      setCampaignForm((current) => ({ ...current, supplementNote: event.target.value }))
+                    }
+                    className="min-h-20 rounded-2xl border border-slate-300 px-4 py-3"
+                    placeholder="例如：二補金額依實際國際運費與匯率通知。"
+                  />
+                </label>
               </fieldset>
             </div>
           </div>
@@ -907,6 +970,10 @@ function buildCampaignForm(
     saleType: campaign?.saleType ?? "preorder",
     status: campaign?.status ?? "draft",
     requiresSupplement: campaign?.requiresSupplement ?? false,
+    startsAt: campaign?.startsAt ?? "",
+    endsAt: campaign?.endsAt ?? "",
+    publicNotice: campaign?.publicNotice ?? "",
+    supplementNote: campaign?.supplementNote ?? "",
   };
 }
 

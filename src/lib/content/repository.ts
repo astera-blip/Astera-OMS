@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, setDoc, type Firestore } from "firebase/firestore";
 import {
-  fallbackBrandContent,
+  emptyBrandContent,
   sortBrandFaqs,
   type BrandAnnouncement,
   type BrandChannel,
@@ -19,7 +19,7 @@ export async function loadBrandContent(db: Firestore): Promise<BrandContentBundl
 
   const siteSettings = siteSettingsSnapshot.docs[0]
     ? (siteSettingsSnapshot.docs[0].data() as SiteSettings)
-    : fallbackBrandContent.siteSettings;
+    : null;
   const channels = channelsSnapshot.docs.map((snapshot) => snapshot.data() as BrandChannel);
   const faqs = sortBrandFaqs(faqsSnapshot.docs.map((snapshot) => snapshot.data() as BrandFaq));
   const announcements = announcementsSnapshot.docs
@@ -27,10 +27,11 @@ export async function loadBrandContent(db: Firestore): Promise<BrandContentBundl
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
   return {
+    ...emptyBrandContent,
     siteSettings,
-    channels: channels.length > 0 ? channels : fallbackBrandContent.channels,
-    faqs: faqs.length > 0 ? faqs : fallbackBrandContent.faqs,
-    announcements: announcements.length > 0 ? announcements : fallbackBrandContent.announcements,
+    channels,
+    faqs,
+    announcements,
   };
 }
 

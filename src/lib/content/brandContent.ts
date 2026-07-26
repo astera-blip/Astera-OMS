@@ -42,6 +42,13 @@ export type BrandContentBundle = {
   announcements: BrandAnnouncement[];
 };
 
+export const emptyBrandContent: BrandContentBundle = {
+  siteSettings: null,
+  channels: [],
+  faqs: [],
+  announcements: [],
+};
+
 export const fallbackBrandContent: BrandContentBundle = {
   siteSettings: {
     id: "site-default",
@@ -126,4 +133,12 @@ export const fallbackBrandContent: BrandContentBundle = {
 
 export function sortBrandFaqs(faqs: BrandFaq[]) {
   return [...faqs].sort((a, b) => a.order - b.order);
+}
+
+export function getChannelTitle(key: BrandChannelKey) {
+  return {
+    lineCommunity: "LINE 社群",
+    lineOfficial: "LINE 官方帳號",
+    instagram: "Instagram",
+  }[key];
 }
