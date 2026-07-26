@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountActions } from "@/components/auth/AccountActions";
 
 const modules = [
   {
@@ -58,14 +59,7 @@ export default function Home() {
               Operations Workspace
             </h1>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm font-medium">
-            <span className="rounded-full border border-slate-300 bg-white px-3 py-1.5">
-              Day 2
-            </span>
-            <span className="rounded-full border border-slate-300 bg-white px-3 py-1.5">
-              Day 3 ready
-            </span>
-          </div>
+          <AccountActions />
         </header>
 
         <div className="grid flex-1 gap-6 py-6 lg:grid-cols-[1.6fr_1fr]">

@@ -11,5 +11,10 @@ export type MemberProfile = AuditMetadata & {
   mobilePhone: NormalizedTaiwanMobile;
   birthday?: string;
   completedAt: IsoDateTime;
+};
+
+export type MemberPrivateProfile = AuditMetadata & {
+  uid: FirebaseUid;
   riskState: "normal" | "watch" | "blacklisted";
+  internalNote?: string;
 };
