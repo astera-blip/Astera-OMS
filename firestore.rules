@@ -67,6 +67,263 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function hasValidProductShape(data) {
+      return data.keys().hasAll(['name', 'slug', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'name', 'slug', 'status', 'company', 'artist', 'brand', 'series',
+          'createdAt', 'updatedAt'
+        ])
+        && data.name is string
+        && data.name.size() > 0
+        && data.slug is string
+        && data.slug.size() > 0
+        && data.status in ['draft', 'active', 'archived']
+        && (!('company' in data) || data.company is string)
+        && (!('artist' in data) || data.artist is string)
+        && (!('brand' in data) || data.brand is string)
+        && (!('series' in data) || data.series is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function hasValidProductVariantShape(data) {
+      return data.keys().hasAll([
+          'productId', 'name', 'sku', 'isDefault', 'isSellable', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'productId', 'name', 'sku', 'isDefault', 'isSellable', 'createdAt', 'updatedAt'
+        ])
+        && data.productId is string
+        && data.productId.size() > 0
+        && data.name is string
+        && data.name.size() > 0
+        && data.sku is string
+        && data.sku.size() > 0
+        && data.isDefault is bool
+        && data.isSellable is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /products/{productId} {
+      allow get, list: if isOwner();
+
+      allow create: if isOwner()
+        && hasValidProductShape(request.resource.data)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+
+      allow update: if isOwner()
+        && hasValidProductShape(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'slug', 'status', 'company', 'artist', 'brand', 'series', 'updatedAt'
+        ])
+        && request.resource.data.updatedAt is timestamp;
+
+      allow delete: if false;
+    }
+
+    match /productsPublic/{productId} {
+      allow get, list: if true;
+      allow create, update, delete: if isOwner();
+    }
+
+    match /productVariants/{variantId} {
+      allow get, list: if isOwner();
+
+      allow create: if isOwner()
+        && hasValidProductVariantShape(request.resource.data)
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+
+      allow update: if isOwner()
+        && hasValidProductVariantShape(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'productId', 'name', 'sku', 'isDefault', 'isSellable', 'updatedAt'
+        ])
+        && request.resource.data.updatedAt is timestamp;
+
+      allow delete: if false;
+    }
+
+    match /saleCampaigns/{campaignId} {
+      allow get, list: if isOwner();
+      allow create, update, delete: if isOwner();
+    }
+
+    function hasValidPaymentRequestShape(data) {
+      return data.keys().hasAll(['memberUid', 'amountTwd', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['memberUid', 'amountTwd', 'status', 'dueAt', 'createdAt', 'updatedAt'])
+        && data.memberUid is string
+        && data.amountTwd is number
+        && data.amountTwd >= 0
+        && data.status in ['open', 'partiallyPaid', 'paid', 'cancelled']
+        && (!('dueAt' in data) || data.dueAt is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function hasValidPaymentShape(data) {
+      return data.keys().hasAll(['receivedAmountTwd', 'receivedAt', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['memberUid', 'receivedAmountTwd', 'receivedAt', 'status', 'adminNote', 'createdAt', 'updatedAt'])
+        && (!('memberUid' in data) || data.memberUid is string)
+        && data.receivedAmountTwd is number
+        && data.receivedAmountTwd >= 0
+        && data.receivedAt is string
+        && data.status in ['pendingReview', 'confirmed', 'rejected']
+        && (!('adminNote' in data) || data.adminNote is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function hasValidPaymentAllocationShape(data) {
+      return data.keys().hasAll(['paymentId', 'targetType', 'targetId', 'amountTwd', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['paymentId', 'targetType', 'targetId', 'amountTwd', 'createdAt', 'updatedAt'])
+        && data.paymentId is string
+        && data.targetType in ['paymentRequest', 'order', 'orderItem', 'receivable', 'wallet']
+        && data.targetId is string
+        && data.amountTwd is number
+        && data.amountTwd >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function hasValidAuditLogShape(data) {
+      return data.keys().hasAll(['action', 'createdAt'])
+        && data.keys().hasOnly(['action', 'targetType', 'targetId', 'summary', 'actorUid', 'createdAt'])
+        && data.action is string
+        && (!('targetType' in data) || data.targetType is string)
+        && (!('targetId' in data) || data.targetId is string)
+        && (!('summary' in data) || data.summary is string)
+        && (!('actorUid' in data) || data.actorUid is string)
+        && data.createdAt is timestamp;
+    }
+
+    function hasValidLegalDocumentShape(data) {
+      return data.keys().hasAll(['title', 'version', 'status', 'content', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'version', 'status', 'content', 'createdAt', 'updatedAt'])
+        && data.title is string
+        && data.title.size() > 0
+        && data.version is string
+        && data.version.size() > 0
+        && data.status in ['draft', 'published', 'archived']
+        && data.content is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /paymentRequests/{paymentRequestId} {
+      allow get, list: if isOwner() || (isSignedIn() && resource.data.memberUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && hasValidPaymentRequestShape(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner()
+        && hasValidPaymentRequestShape(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow get, list: if isOwner() || (isSignedIn() && resource.data.memberUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && hasValidPaymentShape(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner()
+        && hasValidPaymentShape(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /paymentAllocations/{paymentAllocationId} {
+      allow get, list: if isOwner();
+      allow create, update, delete: if isOwner()
+        && hasValidPaymentAllocationShape(request.resource.data);
+    }
+
+    match /auditLogs/{auditLogId} {
+      allow get, list: if isOwner();
+      allow create: if isOwner() && hasValidAuditLogShape(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /legalDocumentVersions/{documentId} {
+      allow get, list: if true;
+      allow create, update, delete: if isOwner() && hasValidLegalDocumentShape(request.resource.data);
+    }
+
+    match /consentRecords/{consentId} {
+      allow get, list: if isOwner() || (isSignedIn() && resource.data.memberUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.memberUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    function hasValidOrderShape(data) {
+      return data.keys().hasAll(['status', 'totalTwd', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['memberUid', 'guestCustomerId', 'status', 'totalTwd', 'createdAt', 'updatedAt'])
+        && (!('memberUid' in data) || data.memberUid is string)
+        && (!('guestCustomerId' in data) || data.guestCustomerId is string)
+        && data.status in ['draft', 'awaitingPayment', 'partiallyPaid', 'paid', 'processing', 'completed', 'cancelled']
+        && data.totalTwd is number
+        && data.totalTwd >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function hasValidOrderItemShape(data) {
+      return data.keys().hasAll([
+          'orderId', 'productId', 'variantId', 'saleCampaignId', 'quantity',
+          'status', 'snapshot', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'orderId', 'memberUid', 'productId', 'variantId', 'saleCampaignId',
+          'quantity', 'status', 'snapshot', 'createdAt', 'updatedAt'
+        ])
+        && data.orderId is string
+        && (!('memberUid' in data) || data.memberUid is string)
+        && data.productId is string
+        && data.variantId is string
+        && data.saleCampaignId is string
+        && data.quantity is int
+        && data.quantity > 0
+        && data.status in ['awaitingPayment', 'paid', 'purchasing', 'purchased', 'waitingArrival', 'arrived', 'awaitingSupplement', 'readyToShip', 'shipped', 'completed', 'cancelRequested', 'cancelled', 'refunded']
+        && data.snapshot is map
+        && data.snapshot.keys().hasAll(['productName', 'variantName', 'sku', 'unitPriceTwd'])
+        && data.snapshot.productName is string
+        && data.snapshot.variantName is string
+        && data.snapshot.sku is string
+        && data.snapshot.unitPriceTwd is number
+        && (!('publicSaleNotes' in data.snapshot) || data.snapshot.publicSaleNotes is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /orders/{orderId} {
+      allow get, list: if isOwner() || (isSignedIn() && resource.data.memberUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && hasValidOrderShape(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner()
+        && hasValidOrderShape(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /orderItems/{orderItemId} {
+      allow get, list: if isOwner() || (isSignedIn() && resource.data.memberUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && hasValidOrderItemShape(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner()
+        && hasValidOrderItemShape(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

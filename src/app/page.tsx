@@ -118,6 +118,16 @@ export default function Home() {
                 </p>
               </Link>
               <Link
+                href="/cart"
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
+              >
+                <p className="text-sm font-medium text-slate-500">Phase 3</p>
+                <h2 className="mt-2 text-lg font-semibold">Cart</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Checkout staging, snapshot capture, and order creation.
+                </p>
+              </Link>
+              <Link
                 href="/payments"
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
               >
