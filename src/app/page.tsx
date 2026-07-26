@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccountActions } from "@/components/auth/AccountActions";
+import { FeaturedProductsBoard } from "@/components/storefront/FeaturedProductsBoard";
 
 const highlights = [
   {
@@ -105,6 +106,10 @@ export default function Home() {
                   <p className="mt-2 text-lg font-semibold text-slate-900">{item.detail}</p>
                 </Link>
               ))}
+            </div>
+
+            <div className="grid gap-4">
+              <FeaturedProductsBoard />
             </div>
           </section>
 
