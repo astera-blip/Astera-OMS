@@ -1,186 +1,151 @@
 import Link from "next/link";
 import { AccountActions } from "@/components/auth/AccountActions";
 
-const modules = [
+const highlights = [
   {
-    name: "Storefront",
-    status: "Planned",
-    detail: "Public product browsing, campaign pages, and preorder entry.",
+    title: "熟客小圈測試",
+    description: "Google 登入、補資料、下單、付款確認、訂單追蹤。",
   },
   {
-    name: "Orders",
-    status: "Next",
-    detail: "Order intake, payment state, and lifecycle tracking.",
+    title: "清楚商品入口",
+    description: "公開商品、活動與規格分開，先看詳情再加入購物車。",
   },
   {
-    name: "Members",
-    status: "Next",
-    detail: "Profiles, recipient details, notes, and customer history.",
-  },
-  {
-    name: "Payments",
-    status: "Foundational",
-    detail: "Manual bank-transfer confirmation and receivable handling.",
+    title: "人工營運流程",
+    description: "先保留手動匯款與 owner 確認機制，穩定後再逐步自動化。",
   },
 ];
 
-const priorities = [
-  "Keep customer data and internal data separate.",
-  "Preserve historical snapshots for orders and payments.",
-  "Use deny-by-default security rules until review is complete.",
-  "Delay optional services until they support real workflow needs.",
-];
-
-const milestones = [
+const quickLinks = [
   {
-    label: "Day 2",
-    text: "Workspace shell and operational entry points.",
+    href: "/products",
+    title: "商品列表",
+    detail: "查看已發布商品與活動。",
   },
   {
-    label: "Day 3",
-    text: "Core master data pages for products, members, and orders.",
+    href: "/brand",
+    title: "品牌中心",
+    detail: "LINE 社群、IG、公告與 FAQ。",
   },
   {
-    label: "Later",
-    text: "Firestore-backed flows, auth, and staff permissions.",
+    href: "/account/profile",
+    title: "會員資料",
+    detail: "補齊姓名、社群內 ID 與手機。",
+  },
+  {
+    href: "/workspace",
+    title: "Owner 後台",
+    detail: "商品、訂單、付款與內容管理。",
   },
 ];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.18),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.24),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(15,23,42,0.12),_transparent_24%),linear-gradient(180deg,_#fffaf0_0%,_#f8fafc_45%,_#eef2ff_100%)] text-slate-900">
       <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-6 sm:px-8 lg:px-10">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">
               Astera OMS
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Operations Workspace
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
+              泰國 GL / 藝人周邊代購
             </h1>
           </div>
           <AccountActions />
         </header>
 
-        <div className="grid flex-1 gap-6 py-6 lg:grid-cols-[1.6fr_1fr]">
+        <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[1.35fr_0.85fr]">
           <section className="flex flex-col gap-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">Current focus</p>
-              <p className="mt-3 max-w-3xl text-2xl font-semibold leading-9">
-                Build the operational core first, then connect product, order, member,
-                and payment data to Firestore with strict access control.
+            <div className="rounded-[2rem] border border-amber-200 bg-white/90 p-7 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+              <p className="text-sm font-medium text-amber-700">Small-circle MVP</p>
+              <p className="mt-4 max-w-3xl text-2xl font-semibold leading-10 sm:text-4xl">
+                先讓熟客可以安全地下單、看訂單、追付款，之後才擴成完整營運系統。
+              </p>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+                目前已支援 Google 登入、會員資料補齊、公開商品、購物車、訂單、付款請求、
+                owner 付款確認與 audit log。公開頁面現在以真實商品詳情與品牌入口為主。
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href="mailto:astera.0920@gmail.com"
-                  className="inline-flex h-11 items-center rounded-full bg-slate-900 px-5 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+                <Link
+                  href="/products"
+                  className="inline-flex h-11 items-center rounded-full bg-slate-950 px-5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
                 >
-                  Owner contact
-                </a>
-                <a
-                  href="https://github.com/astera-blip/Astera-OMS"
+                  立即看商品
+                </Link>
+                <Link
+                  href="/brand"
                   className="inline-flex h-11 items-center rounded-full border border-slate-300 bg-white px-5 text-sm font-medium text-slate-900 transition-colors hover:border-slate-400 hover:bg-slate-50"
                 >
-                  GitHub repo
-                </a>
+                  品牌中心
+                </Link>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Link
-                href="/products"
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
-              >
-                <p className="text-sm font-medium text-slate-500">Day 3</p>
-                <h2 className="mt-2 text-lg font-semibold">Products</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Master data, variants, and campaign-ready product scaffolding.
-                </p>
-              </Link>
-              <Link
-                href="/members"
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
-              >
-                <p className="text-sm font-medium text-slate-500">Day 3</p>
-                <h2 className="mt-2 text-lg font-semibold">Members</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  CRM profile shell, notes, and recipient data entry.
-                </p>
-              </Link>
-              <Link
-                href="/orders"
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
-              >
-                <p className="text-sm font-medium text-slate-500">Day 3</p>
-                <h2 className="mt-2 text-lg font-semibold">Orders</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Checkout history, lifecycle states, and payment review hooks.
-                </p>
-              </Link>
-              <Link
-                href="/payments"
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
-              >
-                <p className="text-sm font-medium text-slate-500">Day 3</p>
-                <h2 className="mt-2 text-lg font-semibold">Payments</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Manual bank transfer confirmation and receivable tracking.
-                </p>
-              </Link>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {modules.map((module) => (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {highlights.map((item) => (
                 <article
-                  key={module.name}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  key={item.title}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold">{module.name}</h2>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                      {module.status}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">{module.detail}</p>
+                  <h2 className="text-base font-semibold">{item.title}</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
                 </article>
               ))}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Working priorities</h2>
-              <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
-                {priorities.map((item) => (
-                  <li key={item} className="flex gap-3">
-                    <span className="mt-2 h-2 w-2 rounded-full bg-amber-500" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {quickLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
+                >
+                  <p className="text-sm font-medium text-slate-500">{item.title}</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">{item.detail}</p>
+                </Link>
+              ))}
             </div>
           </section>
 
           <aside className="flex flex-col gap-6">
-            <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
-              <p className="text-sm font-medium text-slate-400">Operating rules</p>
+            <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
+              <p className="text-sm font-medium text-slate-400">Current status</p>
               <div className="mt-5 grid gap-4">
-                {milestones.map((item) => (
-                  <div key={item.label} className="rounded-xl bg-white/5 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                      {item.label}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-200">{item.text}</p>
-                  </div>
-                ))}
+                <div className="rounded-2xl bg-white/6 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
+                    Products
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                    商品列表與詳情頁已接上 Firestore 公開資料，但仍以小圈測試驗證為主。
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/6 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
+                    Checkout
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                    加入購物車後可建立訂單與付款請求，正式流程已改成受保護 API。
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/6 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
+                    Owner
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                    owner custom claim 已上線，後台權限不再依賴 email 後門。
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Next actions</h2>
-              <ol className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
-                <li className="rounded-xl bg-slate-50 p-4">Create a module-level navigation shell.</li>
-                <li className="rounded-xl bg-slate-50 p-4">Add the first data entry pages for products and members.</li>
-                <li className="rounded-xl bg-slate-50 p-4">Wire Firestore data once the schema is locked.</li>
-              </ol>
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold">下一步會補的內容</h2>
+              <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
+                <li className="rounded-2xl bg-slate-50 p-4">品牌公告與 FAQ 動態管理</li>
+                <li className="rounded-2xl bg-slate-50 p-4">收件資訊與配送資料結構</li>
+                <li className="rounded-2xl bg-slate-50 p-4">訂單詳情與取消申請頁</li>
+              </ul>
             </div>
           </aside>
         </div>
