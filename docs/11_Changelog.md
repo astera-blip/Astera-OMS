@@ -21,3 +21,4 @@
 - Created development and production Firestore databases in `asia-east1`.
 - Intentionally skipped Firebase Storage bucket creation until the owner is ready for the billing/location decision.
 - Created the Vercel project and confirmed the production deployment is live at `https://astera-oms.vercel.app`.
+- Deferred domain purchase and will use the Vercel hostname for now.

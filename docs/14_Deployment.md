@@ -27,13 +27,13 @@ This project is prepared for deployment, but production deployment is intentiona
 
 - Firebase Storage bucket creation. `ASIA-EAST1` was selected, but bucket creation was skipped to avoid upgrading or adding billing before the owner is ready.
 - Production environment variables in Vercel.
-- Domain purchase or DNS setup.
+- Domain purchase or DNS setup, which the owner has chosen to defer for now.
 - Email provider verified sender/domain.
 
 ## Vercel Future Steps
 
-1. Add a custom domain when the owner picks one.
-2. Confirm no private data is present.
+1. Confirm no private data is present.
+2. Keep using the Vercel hostname until the owner decides on a domain.
 3. Connect production domain only after legal/privacy pages are ready.
 
 ## Firebase Future Steps

@@ -9,12 +9,11 @@ These items require the owner to log in, confirm policy, provide files, or make 
 - Add production environment variables to the hosting provider after Vercel is connected.
 - Decide when to connect Vercel.
 - Decide whether to set up Resend before MVP email testing.
-- Decide whether to buy or connect a domain.
 
 ## Brand Decisions
 
 - Final brand name: Astera, EverMuse, or another name.
-- Domain name.
+- Domain name, if we choose to buy one later.
 - Logo direction.
 - Visual style and color direction.
 - Official social links and customer service contacts.
