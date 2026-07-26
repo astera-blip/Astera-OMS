@@ -75,6 +75,24 @@ export async function listMemberOrders(
   });
 }
 
+export async function listAllOrders(
+  db: Firestore,
+): Promise<Array<{ order: OrderRecord; items: OrderItemRecord[] }>> {
+  const [ordersSnapshot, itemsSnapshot] = await Promise.all([
+    getDocs(collection(db, "orders")),
+    getDocs(collection(db, "orderItems")),
+  ]);
+  const items = itemsSnapshot.docs.map((snapshot) => snapshot.data() as OrderItemRecord);
+
+  return ordersSnapshot.docs.map((snapshot) => {
+    const order = snapshot.data() as OrderRecord;
+    return {
+      order,
+      items: items.filter((item) => item.orderId === order.id),
+    };
+  });
+}
+
 export async function saveLegalDocumentVersion(
   db: Firestore,
   version: LegalDocumentVersion,
@@ -108,6 +126,17 @@ export async function saveCancellationRequest(
 
 export async function listCancellationRequests(db: Firestore): Promise<CancellationRequestRecord[]> {
   const snapshot = await getDocs(collection(db, "cancellationRequests"));
+
+  return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
+}
+
+export async function listMemberCancellationRequests(
+  db: Firestore,
+  memberUid: string,
+): Promise<CancellationRequestRecord[]> {
+  const snapshot = await getDocs(
+    query(collection(db, "cancellationRequests"), where("memberUid", "==", memberUid)),
+  );
 
   return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
 }

@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { confirmBankTransfer } from "@/lib/payment/manualBankTransfer";
+import { createPaymentConfirmedNotificationEvent } from "@/lib/notification/events";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -18,70 +19,110 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       reason?: string;
     };
 
-    if (!body.receivedAmountTwd || !body.receivedAt || !body.reason) {
+    const receivedAmountTwd = body.receivedAmountTwd;
+    const receivedAt = body.receivedAt?.trim() ?? "";
+    const reason = body.reason?.trim() ?? "";
+
+    if (!receivedAmountTwd || !receivedAt || !reason) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }
 
     const db = getAdminFirestore();
-    const requestSnapshot = await db.collection("paymentRequests").doc(id).get();
-    if (!requestSnapshot.exists) {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
+    const result = await db.runTransaction(async (transaction) => {
+      const requestRef = db.collection("paymentRequests").doc(id);
+      const requestSnapshot = await transaction.get(requestRef);
+      if (!requestSnapshot.exists) {
+        throw new Error("not_found");
+      }
 
-    const paymentRequest = requestSnapshot.data() as Parameters<typeof confirmBankTransfer>[0]["paymentRequest"];
-    const orderSnapshot = await db.collection("orders").doc(paymentRequest.orderId).get();
-    if (!orderSnapshot.exists) {
-      return NextResponse.json({ error: "order_not_found" }, { status: 404 });
-    }
+      const paymentRequest = requestSnapshot.data() as Parameters<typeof confirmBankTransfer>[0]["paymentRequest"];
+      if (paymentRequest.status === "paid" || paymentRequest.status === "cancelled") {
+        throw new Error("invalid_payment_request");
+      }
 
-    const itemsSnapshot = await db.collection("orderItems").where("orderId", "==", paymentRequest.orderId).get();
-    const orderBundle = {
-      order: orderSnapshot.data(),
-      items: itemsSnapshot.docs.map((snapshot) => snapshot.data()),
-    } as Parameters<typeof confirmBankTransfer>[0]["orderBundle"];
+      const orderRef = db.collection("orders").doc(paymentRequest.orderId);
+      const [orderSnapshot, itemsSnapshot] = await Promise.all([
+        transaction.get(orderRef),
+        transaction.get(db.collection("orderItems").where("orderId", "==", paymentRequest.orderId)),
+      ]);
+      if (!orderSnapshot.exists) {
+        throw new Error("order_not_found");
+      }
 
-    const result = confirmBankTransfer({
-      orderBundle,
-      paymentRequest,
-      receivedAmountTwd: body.receivedAmountTwd,
-      receivedAt: body.receivedAt,
-      confirmedBy: claims.uid,
-      reason: body.reason,
-    });
+      const orderBundle = {
+        order: orderSnapshot.data(),
+        items: itemsSnapshot.docs.map((snapshot) => snapshot.data()),
+      } as Parameters<typeof confirmBankTransfer>[0]["orderBundle"];
 
-    const batch = db.batch();
-    batch.set(db.collection("orders").doc(result.orderBundle.order.id), {
-      ...result.orderBundle.order,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    for (const item of result.orderBundle.items) {
-      batch.set(db.collection("orderItems").doc(item.id), {
-        ...item,
-        updatedAt: FieldValue.serverTimestamp(),
+      const confirmation = confirmBankTransfer({
+        orderBundle,
+        paymentRequest,
+        receivedAmountTwd,
+        receivedAt,
+        confirmedBy: claims.uid,
+        reason,
       });
-    }
-    batch.set(db.collection("paymentRequests").doc(result.paymentRequest.id), {
-      ...result.paymentRequest,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    batch.set(db.collection("payments").doc(result.payment.id), {
-      ...result.payment,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    batch.set(db.collection("paymentAllocations").doc(result.allocation.id), {
-      ...result.allocation,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    batch.set(db.collection("auditLogs").doc(result.auditLog.id), {
-      ...result.auditLog,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
+      const notificationEvent = createPaymentConfirmedNotificationEvent({
+        id: `notif_${confirmation.payment.id}`,
+        memberUid: confirmation.paymentRequest.memberUid,
+        orderId: confirmation.paymentRequest.orderId,
+        paymentRequestId: confirmation.paymentRequest.id,
+        paymentId: confirmation.payment.id,
+        createdAt: confirmation.payment.createdAt,
+      });
 
-    return NextResponse.json({ ok: true, paymentId: result.payment.id });
+      transaction.update(orderRef, {
+        status: confirmation.orderBundle.order.status,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: claims.uid,
+      });
+      for (const item of confirmation.orderBundle.items) {
+        transaction.update(db.collection("orderItems").doc(item.id), {
+          status: item.status,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: item.updatedBy,
+        });
+      }
+      transaction.update(requestRef, {
+        status: confirmation.paymentRequest.status,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: claims.uid,
+      });
+      transaction.set(db.collection("payments").doc(confirmation.payment.id), {
+        ...confirmation.payment,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      transaction.set(db.collection("paymentAllocations").doc(confirmation.allocation.id), {
+        ...confirmation.allocation,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      transaction.set(db.collection("auditLogs").doc(confirmation.auditLog.id), {
+        ...confirmation.auditLog,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      transaction.set(db.collection("notificationEvents").doc(notificationEvent.id), {
+        ...notificationEvent,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        paymentId: confirmation.payment.id,
+        paymentRequestStatus: confirmation.paymentRequest.status,
+        orderStatus: confirmation.orderBundle.order.status,
+      };
+    });
+
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
-    const status = message === "missing_token" ? 401 : 500;
+    const status =
+      message === "missing_token"
+        ? 401
+        : message === "not_found" || message === "order_not_found"
+          ? 404
+          : message === "invalid_payment_request"
+            ? 400
+            : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

@@ -2,35 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import {
-  loadAuditLogs,
-  loadOrders,
-  loadPaymentAllocations,
-  loadPaymentRequests,
-  loadPayments,
-  saveAuditLogs,
-  saveOrders,
-  savePaymentAllocations,
-  savePaymentRequests,
-  savePayments,
-  type StoredOrderBundle,
-} from "@/lib/order/localStore";
-import {
-  confirmBankTransfer,
-  type LocalPaymentRequest,
-} from "@/lib/payment/manualBankTransfer";
-import { createPaymentConfirmedNotificationEvent } from "@/lib/notification/events";
+import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
 export function PaymentOperationsBoard() {
   const { role } = useAuth();
-  const [orders, setOrders] = useState<StoredOrderBundle[]>(() => loadOrders());
-  const [requests, setRequests] = useState<LocalPaymentRequest[]>(() => loadPaymentRequests());
-  const [payments, setPayments] = useState(() => loadPayments());
-  const [allocations, setAllocations] = useState(() => loadPaymentAllocations());
-  const [auditLogs, setAuditLogs] = useState(() => loadAuditLogs());
-  const [selectedRequestId, setSelectedRequestId] = useState(requests[0]?.id ?? "");
-  const [amount, setAmount] = useState(requests[0] ? String(requests[0].amountTwd) : "");
+  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("等待付款確認。");
 
   const selectedRequest = useMemo(
@@ -39,25 +21,38 @@ export function PaymentOperationsBoard() {
   );
 
   useEffect(() => {
-    async function loadFirestoreRequests() {
+    async function loadFirestoreData() {
       if (role !== "owner") {
+        setOrders([]);
+        setRequests([]);
+        setStatus("idle");
         return;
       }
 
-      const [{ db }, { listAllPaymentRequests }] = await Promise.all([
+      setStatus("loading");
+      const [{ db }, { listAllOrders }, { listAllPaymentRequests }] = await Promise.all([
         import("@/lib/firebase/client"),
+        import("@/lib/order/repository"),
         import("@/lib/payment/repository"),
       ]);
-      const firestoreRequests = await listAllPaymentRequests(db);
+      const [firestoreOrders, firestoreRequests] = await Promise.all([
+        listAllOrders(db),
+        listAllPaymentRequests(db),
+      ]);
 
-      if (firestoreRequests.length > 0) {
-        setRequests(firestoreRequests);
-        setSelectedRequestId(firestoreRequests[0].id);
-        setAmount(String(firestoreRequests[0].amountTwd));
-      }
+      setOrders(firestoreOrders);
+      setRequests(firestoreRequests);
+      setSelectedRequestId(firestoreRequests[0]?.id ?? "");
+      setAmount(firestoreRequests[0] ? String(firestoreRequests[0].amountTwd) : "");
+      setStatus("ready");
     }
 
-    void loadFirestoreRequests();
+    void loadFirestoreData().catch(() => {
+      setOrders([]);
+      setRequests([]);
+      setStatus("error");
+      setMessage("付款資料讀取失敗，請稍後再試。");
+    });
   }, [role]);
 
   function selectRequest(request: LocalPaymentRequest) {
@@ -94,62 +89,73 @@ export function PaymentOperationsBoard() {
       return;
     }
 
-    const result = confirmBankTransfer({
-      orderBundle,
-      paymentRequest: selectedRequest,
-      receivedAmountTwd,
-      receivedAt: new Date().toISOString(),
-      confirmedBy: "owner-local",
-      reason: reason.trim(),
-    });
-    const notificationEvent = createPaymentConfirmedNotificationEvent({
-      id: `notif_${result.payment.id}`,
-      memberUid: result.paymentRequest.memberUid,
-      orderId: result.paymentRequest.orderId,
-      paymentRequestId: result.paymentRequest.id,
-      paymentId: result.payment.id,
-      createdAt: result.payment.createdAt,
-    });
-    const nextOrders = orders.map((bundle) =>
-      bundle.order.id === result.orderBundle.order.id ? result.orderBundle : bundle,
-    );
-    const nextRequests = requests.map((request) =>
-      request.id === result.paymentRequest.id ? result.paymentRequest : request,
-    );
-    const nextPayments = [result.payment, ...payments];
-    const nextAllocations = [result.allocation, ...allocations];
-    const nextAuditLogs = [result.auditLog, ...auditLogs];
-
-    setOrders(nextOrders);
-    setRequests(nextRequests);
-    setPayments(nextPayments);
-    setAllocations(nextAllocations);
-    setAuditLogs(nextAuditLogs);
-    saveOrders(nextOrders);
-    savePaymentRequests(nextRequests);
-    savePayments(nextPayments);
-    savePaymentAllocations(nextAllocations);
-    saveAuditLogs(nextAuditLogs);
-    if (role === "owner") {
-      try {
-        const [{ db }, { confirmPaymentBundle }] = await Promise.all([
-          import("@/lib/firebase/client"),
-          import("@/lib/payment/repository"),
-        ]);
-        await confirmPaymentBundle(db, {
-          orderBundle: result.orderBundle,
-          paymentRequest: result.paymentRequest,
-          payment: result.payment,
-          allocation: result.allocation,
-          auditLog: result.auditLog,
-          notificationEvent,
-        });
-      } catch {
-        setMessage("付款已暫存於本機，但 Firestore 確認失敗。");
+    try {
+      const { auth } = await import("@/lib/firebase/client");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        setMessage("請重新登入後再確認付款。");
         return;
       }
+
+      const receivedAt = new Date().toISOString();
+      const response = await fetch(`/api/workspace/payments/${selectedRequest.id}/confirm`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          receivedAmountTwd,
+          receivedAt,
+          reason: reason.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("confirm_failed");
+      }
+
+      const nextRequestStatus = receivedAmountTwd >= selectedRequest.amountTwd ? "paid" : "partiallyPaid";
+      const nextOrderStatus = receivedAmountTwd >= selectedRequest.amountTwd ? "paid" : "partiallyPaid";
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === selectedRequest.id
+            ? { ...request, status: nextRequestStatus, updatedAt: receivedAt }
+            : request,
+        ),
+      );
+      setOrders((current) =>
+        current.map((bundle) =>
+          bundle.order.id === orderBundle.order.id
+            ? {
+                order: { ...bundle.order, status: nextOrderStatus, updatedAt: receivedAt },
+                items: bundle.items.map((item) =>
+                  item.status === "cancelled" ? item : { ...item, status: nextOrderStatus === "paid" ? "paid" : "awaitingPayment" },
+                ),
+              }
+            : bundle,
+        ),
+      );
+      setMessage(`已確認 ${selectedRequest.id}，並建立付款與稽核紀錄。`);
+    } catch {
+      setMessage("付款確認失敗，請稍後再試。");
     }
-    setMessage(`已確認 ${selectedRequest.id}，並建立付款與稽核紀錄。`);
+  }
+
+  if (status === "loading" || status === "idle") {
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        付款資料載入中。
+      </section>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700 shadow-sm">
+        付款資料讀取失敗，請稍後再試。
+      </section>
+    );
   }
 
   return (
@@ -236,9 +242,9 @@ export function PaymentOperationsBoard() {
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-lg font-semibold">Ledger</h3>
           <div className="mt-4 grid gap-2 text-sm text-slate-600">
-            <p>Payments：{payments.length}</p>
-            <p>Allocations：{allocations.length}</p>
-            <p>Audit logs：{auditLogs.length}</p>
+            <p>Orders：{orders.length}</p>
+            <p>Payment requests：{requests.length}</p>
+            <p>資料來源：Firestore / API</p>
           </div>
         </div>
       </aside>

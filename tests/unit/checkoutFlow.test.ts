@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCartSummary,
   createOrderFromCart,
+  validateCheckoutCart,
   validateCartAddition,
 } from "../../src/lib/order/checkout";
 
@@ -135,6 +136,78 @@ describe("validateCartAddition", () => {
       ok: false,
       error: "找不到可售活動。",
     });
+  });
+});
+
+describe("validateCheckoutCart", () => {
+  it("accepts a purchasable cart with one sale type", () => {
+    expect(
+      validateCheckoutCart(
+        [
+          {
+            productId: "prod_001",
+            variantId: "var_001",
+            saleCampaignId: "camp_001",
+            quantity: 1,
+          },
+        ],
+        catalog,
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects invalid quantities", () => {
+    expect(
+      validateCheckoutCart(
+        [
+          {
+            productId: "prod_001",
+            variantId: "var_001",
+            saleCampaignId: "camp_001",
+            quantity: 0,
+          },
+        ],
+        catalog,
+      ),
+    ).toEqual({ ok: false, error: "購物車內容格式不正確。" });
+  });
+
+  it("rejects unavailable catalog references", () => {
+    expect(
+      validateCheckoutCart(
+        [
+          {
+            productId: "prod_001",
+            variantId: "missing",
+            saleCampaignId: "camp_001",
+            quantity: 1,
+          },
+        ],
+        catalog,
+      ),
+    ).toEqual({ ok: false, error: "購物車內含不可購買商品。" });
+  });
+
+  it("rejects mixed sale types", () => {
+    expect(
+      validateCheckoutCart(
+        [
+          {
+            productId: "prod_001",
+            variantId: "var_001",
+            saleCampaignId: "camp_001",
+            quantity: 1,
+          },
+          {
+            productId: "prod_002",
+            variantId: "var_002",
+            saleCampaignId: "camp_002",
+            quantity: 1,
+          },
+        ],
+        catalog,
+      ),
+    ).toEqual({ ok: false, error: "不同 sale type 不能混在同一張訂單。" });
   });
 });
 

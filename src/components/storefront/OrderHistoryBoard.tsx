@@ -3,27 +3,60 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { loadOrders, type StoredOrderBundle } from "@/lib/order/localStore";
+import type { StoredOrderBundle } from "@/lib/order/localStore";
 
 export function OrderHistoryBoard() {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<StoredOrderBundle[]>(() => loadOrders());
+  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     async function loadFirestoreOrders() {
       if (!user) {
+        setOrders([]);
+        setStatus("idle");
         return;
       }
 
+      setStatus("loading");
       const [{ db }, { listMemberOrders }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/order/repository"),
       ]);
-      setOrders(await listMemberOrders(db, user.uid));
+      const next = await listMemberOrders(db, user.uid);
+      setOrders(next);
+      setStatus("ready");
     }
 
-    void loadFirestoreOrders();
+    void loadFirestoreOrders().catch(() => {
+      setOrders([]);
+      setStatus("error");
+    });
   }, [user]);
+
+  if (!user) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        請先登入，才能查看自己的訂單。
+      </div>
+    );
+  }
+
+  if (status === "loading" || status === "idle") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        訂單載入中。
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 shadow-sm text-rose-700">
+        訂單讀取失敗，請稍後再試。
+      </div>
+    );
+  }
 
   return (
     <section className="grid gap-4">

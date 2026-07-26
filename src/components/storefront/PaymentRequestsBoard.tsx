@@ -2,28 +2,59 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { loadPaymentRequests } from "@/lib/order/localStore";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
 export function PaymentRequestsBoard() {
   const { user } = useAuth();
-  const [requests, setRequests] = useState<LocalPaymentRequest[]>(() => loadPaymentRequests());
+  const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     async function loadFirestoreRequests() {
       if (!user) {
+        setRequests([]);
+        setStatus("idle");
         return;
       }
 
+      setStatus("loading");
       const [{ db }, { listMemberPaymentRequests }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/payment/repository"),
       ]);
       setRequests(await listMemberPaymentRequests(db, user.uid));
+      setStatus("ready");
     }
 
-    void loadFirestoreRequests();
+    void loadFirestoreRequests().catch(() => {
+      setRequests([]);
+      setStatus("error");
+    });
   }, [user]);
+
+  if (!user) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        請先登入，才能查看自己的付款請求。
+      </div>
+    );
+  }
+
+  if (status === "loading" || status === "idle") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        付款請求載入中。
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700 shadow-sm">
+        付款請求讀取失敗，請稍後再試。
+      </div>
+    );
+  }
 
   return (
     <section className="grid gap-4">

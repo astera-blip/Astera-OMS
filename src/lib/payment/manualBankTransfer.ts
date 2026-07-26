@@ -86,7 +86,9 @@ export function confirmBankTransfer(input: {
     orderBundle: {
       order: updateOrder(input.orderBundle.order, orderStatus, input.receivedAt, input.confirmedBy),
       items: input.orderBundle.items.map((item) =>
-        updateOrderItem(item, itemStatus, input.receivedAt, input.confirmedBy),
+        item.status === "cancelled"
+          ? item
+          : updateOrderItem(item, itemStatus, input.receivedAt, input.confirmedBy),
       ),
     },
     paymentRequest: {

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createCancellationRequest, getPendingCancellationRequestId } from "@/lib/order/cancellation";
-import { loadCancellationRequests, loadOrders, saveCancellationRequests } from "@/lib/order/localStore";
 import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 
 type Props = {
   orderId: string;
@@ -15,31 +15,56 @@ export function OrderDetailBoard({ orderId }: Props) {
   const { user } = useAuth();
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
-  const [bundles, setBundles] = useState<StoredOrderBundle[]>(() => loadOrders());
+  const [bundles, setBundles] = useState<StoredOrderBundle[]>([]);
+  const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     async function loadFirestoreOrder() {
       if (!user) {
+        setBundles([]);
+        setCancellationRequests([]);
+        setStatus("idle");
         return;
       }
 
-      const [{ db }, { listMemberOrders }] = await Promise.all([
+      setStatus("loading");
+      const [{ db }, { listMemberOrders, listMemberCancellationRequests }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/order/repository"),
       ]);
 
-      const next = await listMemberOrders(db, user.uid);
-      setBundles(next);
+      const [nextBundles, nextCancellationRequests] = await Promise.all([
+        listMemberOrders(db, user.uid),
+        listMemberCancellationRequests(db, user.uid),
+      ]);
+      setBundles(nextBundles);
+      setCancellationRequests(nextCancellationRequests);
+      setStatus("ready");
     }
 
-    void loadFirestoreOrder().catch(() => setMessage("無法讀取雲端訂單，先顯示本機資料。"));
+    void loadFirestoreOrder().catch(() => {
+      setBundles([]);
+      setCancellationRequests([]);
+      setStatus("error");
+      setMessage("無法讀取雲端訂單，請稍後再試。");
+    });
   }, [user]);
 
   const order = useMemo(() => bundles.find((bundle) => bundle.order.id === orderId) ?? null, [bundles, orderId]);
   const existingRequest = useMemo(
-    () => loadCancellationRequests().find((request) => request.orderId === orderId && request.memberUid === user?.uid) ?? null,
-    [orderId, user?.uid],
+    () => cancellationRequests.find((request) => request.orderId === orderId && request.status === "pending") ?? null,
+    [cancellationRequests, orderId],
+  );
+  const pendingItemIds = useMemo(
+    () =>
+      new Set(
+        cancellationRequests
+          .filter((request) => request.orderId === orderId && request.status === "pending")
+          .flatMap((request) => request.orderItemIds),
+      ),
+    [cancellationRequests, orderId],
   );
 
   useEffect(() => {
@@ -79,18 +104,48 @@ export function OrderDetailBoard({ orderId }: Props) {
       createdBy: user.uid,
     });
 
-    const next = [request, ...loadCancellationRequests().filter((item) => item.id !== request.id)];
-    saveCancellationRequests(next);
-    setMessage("已送出取消申請，等待 owner 審核。");
-
     try {
-      const [{ db }, { saveCancellationRequest }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/order/repository"),
-      ]);
-      await saveCancellationRequest(db, request);
+      const { auth } = await import("@/lib/firebase/client");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        setMessage("請重新登入後再送出取消申請。");
+        return;
+      }
+
+      const response = await fetch("/api/cancellations", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId,
+          orderItemIds: itemIds,
+          reason: trimmedReason,
+          idempotencyKey: `${orderId}_${itemIds.join("_")}`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("request_failed");
+      }
+
+      setCancellationRequests((current) => [request, ...current.filter((item) => item.id !== request.id)]);
+      setBundles((current) =>
+        current.map((bundle) =>
+          bundle.order.id === orderId
+            ? {
+                ...bundle,
+                items: bundle.items.map((item) =>
+                  itemIds.includes(item.id) ? { ...item, status: "cancelRequested" } : item,
+                ),
+              }
+            : bundle,
+        ),
+      );
+      setMessage("已送出取消申請，等待 owner 審核。");
     } catch {
-      setMessage("取消申請已暫存於本機，但 Firestore 同步失敗。");
+      setMessage("取消申請送出失敗，請稍後再試。");
     }
   }
 
@@ -99,6 +154,22 @@ export function OrderDetailBoard({ orderId }: Props) {
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-lg font-semibold">找不到這張訂單</p>
         <p className="mt-2 text-sm text-slate-600">如果你剛下單，請先確認已登入同一個帳號。</p>
+      </div>
+    );
+  }
+
+  if (status === "loading" || status === "idle") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        訂單載入中。
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 shadow-sm text-rose-700">
+        訂單讀取失敗，請稍後再試。
       </div>
     );
   }
@@ -132,6 +203,7 @@ export function OrderDetailBoard({ orderId }: Props) {
         <div className="mt-6 grid gap-3">
           {order.items.map((item) => {
             const canCancel = item.status === "awaitingPayment";
+            const hasPendingRequest = pendingItemIds.has(item.id);
 
             return (
               <label key={item.id} className="flex gap-4 rounded-2xl bg-slate-50 p-4 text-sm">
@@ -145,7 +217,7 @@ export function OrderDetailBoard({ orderId }: Props) {
                         : current.filter((value) => value !== item.id),
                     );
                   }}
-                  disabled={!canCancel || !!existingRequest}
+                  disabled={!canCancel || hasPendingRequest}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{item.snapshot.productName}</p>
@@ -153,6 +225,7 @@ export function OrderDetailBoard({ orderId }: Props) {
                     {item.snapshot.variantName} · {item.snapshot.sku} · qty {item.quantity}
                   </p>
                   <p className="mt-1 text-slate-500">狀態：{item.status}</p>
+                  {hasPendingRequest ? <p className="mt-1 text-xs text-amber-700">這個項目已有待審核取消申請。</p> : null}
                   {!canCancel ? <p className="mt-1 text-xs text-amber-700">已付款項目請聯絡客服。</p> : null}
                 </div>
               </label>

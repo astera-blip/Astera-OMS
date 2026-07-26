@@ -93,6 +93,58 @@ type ValidationResult =
   | { ok: true }
   | { ok: false; error: string };
 
+export function validateCheckoutCart(
+  items: readonly CartLineItem[],
+  catalog: readonly CatalogProduct[],
+): ValidationResult {
+  if (items.length === 0) {
+    return { ok: false, error: "購物車是空的。" };
+  }
+
+  if (items.length > 50) {
+    return { ok: false, error: "購物車項目不可超過 50 筆。" };
+  }
+
+  for (const item of items) {
+    if (
+      !item.productId ||
+      !item.variantId ||
+      !item.saleCampaignId ||
+      !Number.isInteger(item.quantity) ||
+      item.quantity <= 0 ||
+      item.quantity > 99
+    ) {
+      return { ok: false, error: "購物車內容格式不正確。" };
+    }
+
+    const product = findProduct(catalog, item.productId);
+    const variant = findVariant(catalog, item.variantId);
+    const campaign = findCampaign(catalog, item.saleCampaignId);
+    if (
+      !product ||
+      product.product.publishState !== "published" ||
+      !variant ||
+      variant.productId !== item.productId ||
+      !campaign ||
+      campaign.productId !== item.productId ||
+      campaign.status !== "open"
+    ) {
+      return { ok: false, error: "購物車內含不可購買商品。" };
+    }
+  }
+
+  const saleTypes = new Set(
+    items
+      .map((item) => getSaleTypeForItem(item, catalog))
+      .filter((saleType): saleType is CatalogCampaign["saleType"] => saleType !== null),
+  );
+  if (saleTypes.size !== 1) {
+    return { ok: false, error: "不同 sale type 不能混在同一張訂單。" };
+  }
+
+  return { ok: true };
+}
+
 export function validateCartAddition(
   currentItems: readonly CartLineItem[],
   nextItem: CartLineItem,

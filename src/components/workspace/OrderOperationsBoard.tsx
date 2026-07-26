@@ -1,19 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { reviewCancellationRequest } from "@/lib/order/cancellation";
-import {
-  loadCancellationRequests,
-  loadOrders,
-  saveCancellationRequests,
-  type StoredOrderBundle,
-} from "@/lib/order/localStore";
+import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 
 export function OrderOperationsBoard() {
   const { user } = useAuth();
-  const [orders] = useState<StoredOrderBundle[]>(() => loadOrders());
-  const [cancellationRequests, setCancellationRequests] = useState(() => loadCancellationRequests());
+  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [message, setMessage] = useState("等待資料載入。");
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    async function loadFirestoreData() {
+      if (!user) {
+        setOrders([]);
+        setCancellationRequests([]);
+        setStatus("idle");
+        return;
+      }
+
+      setStatus("loading");
+      const [{ db }, { listAllOrders, listCancellationRequests }] = await Promise.all([
+        import("@/lib/firebase/client"),
+        import("@/lib/order/repository"),
+      ]);
+      const [nextOrders, nextCancellationRequests] = await Promise.all([
+        listAllOrders(db),
+        listCancellationRequests(db),
+      ]);
+      setOrders(nextOrders);
+      setCancellationRequests(nextCancellationRequests);
+      setStatus("ready");
+    }
+
+    void loadFirestoreData().catch(() => {
+      setStatus("error");
+      setMessage("資料讀取失敗，請稍後再試。");
+    });
+  }, [user]);
 
   async function reviewRequest(
     requestId: string,
@@ -24,19 +52,21 @@ export function OrderOperationsBoard() {
     if (!current || !user) {
       return;
     }
+    const trimmedReviewNote = reviewNote.trim();
+    if (!trimmedReviewNote) {
+      setMessage("請先填寫審核理由。");
+      return;
+    }
 
     const reviewed = reviewCancellationRequest(current, {
       status,
       reviewedAt: new Date().toISOString(),
       reviewedBy: user.uid,
-      reviewNote,
+      reviewNote: trimmedReviewNote,
     });
-    const next = cancellationRequests.map((item) => (item.id === requestId ? reviewed : item));
-    setCancellationRequests(next);
-    saveCancellationRequests(next);
 
     try {
-      const [{ auth }] = await Promise.all([import("@/lib/firebase/client")]);
+      const { auth } = await import("@/lib/firebase/client");
       const token = await auth.currentUser?.getIdToken();
 
       if (!token) {
@@ -49,15 +79,65 @@ export function OrderOperationsBoard() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status, reviewNote }),
+        body: JSON.stringify({ status, reviewNote: trimmedReviewNote }),
       });
 
       if (!response.ok) {
         throw new Error("review_failed");
       }
+      const result = (await response.json()) as {
+        orderStatus?: StoredOrderBundle["order"]["status"];
+        amountTwd?: number;
+      };
+
+      setCancellationRequests((currentRequests) =>
+        currentRequests.map((item) => (item.id === requestId ? reviewed : item)),
+      );
+      setOrders((currentOrders) =>
+        currentOrders.map((bundle) =>
+          bundle.order.id === reviewed.orderId
+            ? {
+                order: {
+                  ...bundle.order,
+                  status: result.orderStatus ?? bundle.order.status,
+                  totalTwd: result.amountTwd ?? bundle.order.totalTwd,
+                },
+                items: bundle.items.map((item) =>
+                  reviewed.orderItemIds.includes(item.id)
+                    ? {
+                        ...item,
+                        status: status === "approved" ? "cancelled" : "awaitingPayment",
+                      }
+                    : item,
+                ),
+              }
+            : bundle,
+        ),
+      );
+      setMessage(`已${status === "approved" ? "批准" : "拒絕"}取消申請。`);
     } catch {
-      // Keep the local decision; Firestore sync can be retried later.
+      setMessage("審核送出失敗，請稍後再試。");
     }
+  }
+
+  if (!user) {
+    return <OwnerOnlyMessage text="僅 owner 可查看與審核取消申請。" />;
+  }
+
+  if (status === "loading" || status === "idle") {
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        訂單與取消申請載入中。
+      </section>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 shadow-sm text-rose-700">
+        資料讀取失敗，請稍後再試。
+      </section>
+    );
   }
 
   return (
@@ -110,6 +190,7 @@ export function OrderOperationsBoard() {
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h3 className="text-lg font-semibold">取消申請</h3>
+        <p className="mt-2 text-sm text-slate-600">{message}</p>
         <div className="mt-4 grid gap-3">
           {cancellationRequests.length === 0 ? (
             <p className="text-sm text-slate-600">目前沒有取消申請。</p>
@@ -120,17 +201,31 @@ export function OrderOperationsBoard() {
                 <p className="mt-1 text-slate-600">
                   {request.memberUid} · {request.status} · {request.reason}
                 </p>
+                <label className="mt-3 grid gap-2">
+                  <span className="font-medium text-slate-700">審核理由</span>
+                  <textarea
+                    value={reviewNotes[request.id] ?? ""}
+                    onChange={(event) =>
+                      setReviewNotes((current) => ({ ...current, [request.id]: event.target.value }))
+                    }
+                    disabled={request.status !== "pending"}
+                    className="min-h-20 rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                    placeholder="例如：尚未付款，批准取消"
+                  />
+                </label>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => void reviewRequest(request.id, "approved", "owner approved")}
+                    onClick={() => void reviewRequest(request.id, "approved", reviewNotes[request.id] ?? "")}
+                    disabled={request.status !== "pending"}
                     className="rounded-full bg-emerald-600 px-3 py-2 text-xs font-medium text-white"
                   >
                     批准
                   </button>
                   <button
                     type="button"
-                    onClick={() => void reviewRequest(request.id, "rejected", "owner rejected")}
+                    onClick={() => void reviewRequest(request.id, "rejected", reviewNotes[request.id] ?? "")}
+                    disabled={request.status !== "pending"}
                     className="rounded-full bg-rose-600 px-3 py-2 text-xs font-medium text-white"
                   >
                     拒絕
@@ -144,6 +239,15 @@ export function OrderOperationsBoard() {
           )}
         </div>
       </div>
+    </section>
+  );
+}
+
+function OwnerOnlyMessage({ text }: { text: string }) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-xl font-semibold">需要 owner 權限</h2>
+      <p className="mt-2 text-sm text-slate-600">{text}</p>
     </section>
   );
 }

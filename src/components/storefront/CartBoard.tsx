@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
-  createOrderFromCart,
   buildCartSummary,
   type CartLineItem,
   validateShippingDetails,
@@ -14,7 +13,6 @@ import {
   loadCart,
   saveCart,
 } from "@/lib/order/localStore";
-import { normalizeTaiwanMobile } from "@/lib/phone/taiwanMobile";
 
 export function CartBoard() {
   const { user } = useAuth();
@@ -122,21 +120,7 @@ export function CartBoard() {
     }
 
     const timestamp = new Date().toISOString();
-    const nextOrderId = `order_${timestamp.replaceAll(/[-:.TZ]/g, "").slice(0, 14)}`;
-    const result = createOrderFromCart(
-      {
-        orderId: nextOrderId,
-        memberUid: user.uid,
-        createdAt: timestamp,
-        recipientName: shippingCheck.value.recipientName,
-        recipientPhone: normalizeTaiwanMobile(shippingCheck.value.recipientPhone) ?? shippingCheck.value.recipientPhone,
-        shippingMethod,
-        ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-        ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
-      },
-      cart,
-      catalog,
-    );
+    const idempotencyKey = `${user.uid}_${timestamp.replaceAll(/[-:.TZ]/g, "").slice(0, 17)}`;
 
     try {
       const [{ auth }, { clearMemberCart }] = await Promise.all([
@@ -164,7 +148,7 @@ export function CartBoard() {
           ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
           ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
           legalVersionIds: [],
-          idempotencyKey: nextOrderId,
+          idempotencyKey,
         }),
       });
 
@@ -174,11 +158,12 @@ export function CartBoard() {
         setMessage(details || payload?.error || "訂單建立失敗。");
         return;
       }
+      const payload = (await response.json()) as { orderId?: string };
 
       await clearMemberCart((await import("@/lib/firebase/client")).db, user.uid);
       clearCart();
       setCart([]);
-      setMessage(`已建立訂單 ${result.order.id}，付款請求已建立。`);
+      setMessage(`已建立訂單 ${payload.orderId ?? "新訂單"}，付款請求已建立。`);
     } catch {
       setMessage("訂單建立失敗，請確認已登入且網路可用。");
     }
