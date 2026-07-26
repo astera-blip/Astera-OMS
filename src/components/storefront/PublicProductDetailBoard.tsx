@@ -124,6 +124,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
   }
 
   const availableCampaign = selectedCampaign ?? getDefaultCampaign(catalogItem);
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === "open");
 
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -170,6 +171,21 @@ export function PublicProductDetailBoard({ productId }: Props) {
           </label>
         </div>
 
+        {catalogItem.product.classifications ? (
+          <div className="mt-6 flex flex-wrap gap-2">
+            {Object.entries(catalogItem.product.classifications)
+              .filter(([, value]) => !!value)
+              .map(([key, value]) => (
+                <span
+                  key={key}
+                  className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800"
+                >
+                  {key} · {value?.label}
+                </span>
+              ))}
+          </div>
+        ) : null}
+
         <div className="mt-6 grid gap-3 rounded-3xl bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-2">
           <p>售價：NT$ {selectedVariant?.priceTwd.toLocaleString() ?? "0"}</p>
           <p>sale type：{availableCampaign?.saleType ?? "尚未設定"}</p>
@@ -177,16 +193,34 @@ export function PublicProductDetailBoard({ productId }: Props) {
           <p>狀態：{availableCampaign?.status ?? "未設定"}</p>
         </div>
 
-        {catalogItem.product.classifications ? (
-          <div className="mt-6 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
-            {Object.entries(catalogItem.product.classifications).map(([key, value]) => (
-              <p key={key}>
-                <span className="font-medium">{key}：</span>
-                {value?.label}
-              </p>
-            ))}
+        <div className="mt-6 grid gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <p className="font-medium">購買提示</p>
+          <ul className="grid gap-2 leading-6">
+            <li>只有公開且開啟中的活動可以加入購物車。</li>
+            <li>不同 sale type 不能混在同一張訂單。</li>
+            <li>若商品沒有可購買活動，會顯示不可購買狀態。</li>
+          </ul>
+        </div>
+
+        {activeCampaigns.length > 0 ? (
+          <div className="mt-6 grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+            <p className="font-medium">可購買活動</p>
+            <div className="grid gap-2">
+              {activeCampaigns.map((campaign) => (
+                <div key={campaign.id} className="rounded-2xl bg-slate-50 p-3">
+                  <p className="font-medium">{campaign.title}</p>
+                  <p className="mt-1 text-slate-600">
+                    {campaign.saleType} · {campaign.requiresSupplement ? "需要二補" : "不需要二補"}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            這個商品目前沒有可購買的開放活動。
+          </div>
+        )}
 
         <button
           type="button"

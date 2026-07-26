@@ -8,9 +8,9 @@ export default function ProductsPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
             Storefront
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Products</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">商品列表</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Customers can browse public projections here and add a single sale type to cart.
+            先從公開商品、分類與活動狀態開始看，再加入購物車。只有開放中的活動才能購買。
           </p>
         </div>
 

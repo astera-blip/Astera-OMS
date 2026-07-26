@@ -17,11 +17,22 @@ import {
 import { loadCart, saveCart } from "@/lib/order/localStore";
 
 type LoadState = "loading" | "ready" | "empty" | "error";
+type FilterKey = "all" | "company" | "artist" | "cp" | "brand" | "series";
+
+const filterOptions: Array<{ key: FilterKey; label: string }> = [
+  { key: "all", label: "全部" },
+  { key: "company", label: "公司" },
+  { key: "artist", label: "藝人" },
+  { key: "cp", label: "CP" },
+  { key: "brand", label: "品牌" },
+  { key: "series", label: "系列" },
+];
 
 export function PublicProductsBoard() {
   const { user } = useAuth();
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [catalogState, setCatalogState] = useState<LoadState>("loading");
+  const [filterKey, setFilterKey] = useState<FilterKey>("all");
   const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
   const [message, setMessage] = useState("等待公開商品載入。");
 
@@ -84,6 +95,39 @@ export function PublicProductsBoard() {
   }, []);
 
   const summary = useMemo(() => buildCartSummary(cart, catalog), [cart, catalog]);
+  const filteredCatalog = useMemo(
+    () =>
+      catalog.filter((item) => {
+        if (filterKey === "all") {
+          return true;
+        }
+
+        return !!item.product.classifications?.[filterKey];
+      }),
+    [catalog, filterKey],
+  );
+
+  const featuredCatalog = useMemo(() => {
+    return [...filteredCatalog].sort((a, b) => {
+      const aCampaign = getDefaultCampaign(a);
+      const bCampaign = getDefaultCampaign(b);
+
+      if (aCampaign?.saleType === "rushPurchase" && bCampaign?.saleType !== "rushPurchase") {
+        return -1;
+      }
+      if (aCampaign?.saleType !== "rushPurchase" && bCampaign?.saleType === "rushPurchase") {
+        return 1;
+      }
+      if (aCampaign?.saleType === "preorder" && bCampaign?.saleType === "inStock") {
+        return -1;
+      }
+      if (aCampaign?.saleType === "inStock" && bCampaign?.saleType === "preorder") {
+        return 1;
+      }
+
+      return a.product.name.localeCompare(b.product.name);
+    });
+  }, [filteredCatalog]);
 
   function addToCart(productId: string) {
     const item = findCatalogItem(catalog, productId);
@@ -131,6 +175,37 @@ export function PublicProductsBoard() {
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid gap-4">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">
+                Catalog
+              </p>
+              <h2 className="mt-1 text-xl font-semibold">商品分類</h2>
+            </div>
+            <p className="text-sm text-slate-500">
+              {filteredCatalog.length} / {catalog.length} 筆
+            </p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {filterOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setFilterKey(option.key)}
+                className={[
+                  "rounded-full px-4 py-2 text-sm font-medium transition-colors",
+                  filterKey === option.key
+                    ? "bg-slate-950 text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                ].join(" ")}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {catalogState === "loading" ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
             公開商品載入中。
@@ -141,17 +216,20 @@ export function PublicProductsBoard() {
           </div>
         ) : catalogState === "empty" ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-            目前沒有已發布的商品。
+            目前沒有已發布的商品。請先由 owner 在後台建立真實商品。
           </div>
         ) : (
-          catalog.map((item) => {
+          featuredCatalog.map((item) => {
             const variant = getDefaultVariant(item);
             const campaign = getDefaultCampaign(item);
+            const classifications = item.product.classifications
+              ? Object.entries(item.product.classifications).filter(([, value]) => !!value)
+              : [];
 
             return (
               <article
                 key={item.product.id}
-                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -176,15 +254,42 @@ export function PublicProductsBoard() {
                     </button>
                   </div>
                 </div>
+                {classifications.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {classifications.map(([key, value]) => (
+                      <span
+                        key={key}
+                        className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800"
+                      >
+                        {key} · {value?.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
                   <p>SKU：{variant?.sku ?? "未設定"}</p>
                   <p>售價：NT$ {variant?.priceTwd.toLocaleString() ?? "0"}</p>
                   <p>活動：{campaign?.title ?? "未設定"}</p>
                 </div>
+                <div className="mt-3 text-xs text-slate-500">
+                  {campaign ? (
+                    <>
+                      {campaign.saleType} · {campaign.status}
+                      {campaign.requiresSupplement ? " · 需要二補" : " · 不需要二補"}
+                    </>
+                  ) : (
+                    "沒有可購買的活動"
+                  )}
+                </div>
               </article>
             );
           })
         )}
+        {catalogState === "ready" && filteredCatalog.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+            這個分類目前沒有商品。
+          </div>
+        ) : null}
       </div>
 
       <aside className="grid gap-4">
