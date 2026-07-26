@@ -23,3 +23,6 @@
 - Created the Vercel project and confirmed the production deployment is live at `https://astera-oms.vercel.app`.
 - Deferred domain purchase and will use the Vercel hostname for now.
 - Confirmed the Day 1 foundation passes `typecheck`, `build`, and unit tests after generating Next.js route types with `next typegen`.
+- Replaced the default Next.js landing page with the Astera OMS operations workspace shell.
+- Added first entry pages for products, members, orders, and payments to prepare Day 3 module work.
+- Confirmed the Day 2 and Day 3 shell pages pass lint, typecheck, build, and unit tests after environment-specific Windows reruns.
