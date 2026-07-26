@@ -1,3 +1,5 @@
+import { normalizeTaiwanMobile } from "@/lib/phone/taiwanMobile";
+
 type CatalogVariant = {
   id: string;
   productId: string;
@@ -34,10 +36,17 @@ export type CartLineItem = {
   quantity: number;
 };
 
+export type ShippingMethod = "address" | "seven_eleven" | "family_mart";
+
 type CheckoutContext = {
   orderId: string;
   memberUid: string;
   createdAt: string;
+  recipientName: string;
+  recipientPhone: string;
+  shippingMethod: ShippingMethod;
+  shippingAddress?: string;
+  shippingStoreInfo?: string;
 };
 
 type OrderSnapshot = {
@@ -53,6 +62,11 @@ export type OrderRecord = {
   memberUid: string;
   status: "awaitingPayment" | "partiallyPaid" | "paid" | "cancelled";
   totalTwd: number;
+  recipientName: string;
+  recipientPhone: string;
+  shippingMethod: ShippingMethod;
+  shippingAddress?: string;
+  shippingStoreInfo?: string;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
@@ -159,10 +173,71 @@ export function createOrderFromCart(
       memberUid: context.memberUid,
       status: "awaitingPayment",
       totalTwd: summary.totalTwd,
+      recipientName: context.recipientName,
+      recipientPhone: context.recipientPhone,
+      shippingMethod: context.shippingMethod,
+      ...(context.shippingAddress ? { shippingAddress: context.shippingAddress } : {}),
+      ...(context.shippingStoreInfo ? { shippingStoreInfo: context.shippingStoreInfo } : {}),
       createdAt: context.createdAt,
       createdBy: context.memberUid,
     },
     items: orderItems,
+  };
+}
+
+export function normalizeRecipientPhone(input: string) {
+  const normalized = normalizeTaiwanMobile(input);
+
+  return normalized ?? input.trim().replace(/[\s\-()]/g, "");
+}
+
+export function validateShippingDetails(input: {
+  recipientName: string;
+  recipientPhone: string;
+  shippingMethod: ShippingMethod;
+  shippingAddress?: string;
+  shippingStoreInfo?: string;
+}) {
+  const errors: Partial<Record<"recipientName" | "recipientPhone" | "shippingAddress" | "shippingStoreInfo", string>> = {};
+  const recipientName = input.recipientName.trim();
+  const recipientPhone = normalizeRecipientPhone(input.recipientPhone);
+  const shippingAddress = input.shippingAddress?.trim() ?? "";
+  const shippingStoreInfo = input.shippingStoreInfo?.trim() ?? "";
+
+  if (!recipientName) {
+    errors.recipientName = "請填寫收件人姓名。";
+  } else if (recipientName.length > 80) {
+    errors.recipientName = "收件人姓名不可超過 80 個字元。";
+  }
+
+  if (!normalizeTaiwanMobile(input.recipientPhone)) {
+    errors.recipientPhone = "請輸入有效的台灣手機號碼。";
+  }
+
+  if (input.shippingMethod === "address") {
+    if (!shippingAddress) {
+      errors.shippingAddress = "請填寫收件地址。";
+    } else if (shippingAddress.length > 200) {
+      errors.shippingAddress = "收件地址不可超過 200 個字元。";
+    }
+  } else if (!shippingStoreInfo) {
+    errors.shippingStoreInfo = "請填寫超商門市資訊。";
+  } else if (shippingStoreInfo.length > 200) {
+    errors.shippingStoreInfo = "門市資訊不可超過 200 個字元。";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false as const, errors };
+  }
+
+  return {
+    ok: true as const,
+    value: {
+      recipientName,
+      recipientPhone,
+      ...(input.shippingMethod === "address" ? { shippingAddress } : {}),
+      ...(input.shippingMethod !== "address" ? { shippingStoreInfo } : {}),
+    },
   };
 }
 

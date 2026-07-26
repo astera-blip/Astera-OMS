@@ -6,27 +6,25 @@ import {
   createOrderFromCart,
   buildCartSummary,
   type CartLineItem,
+  validateShippingDetails,
 } from "@/lib/order/checkout";
 import type { PublicCatalogItem } from "@/lib/catalog/publicCatalog";
 import {
   clearCart,
   loadCart,
-  loadOrders,
-  loadConsentRecords,
-  loadPaymentRequests,
   saveCart,
-  saveConsentRecords,
-  saveOrders,
-  savePaymentRequests,
 } from "@/lib/order/localStore";
-import { createPaymentRequestForOrder } from "@/lib/payment/manualBankTransfer";
-import { createConsentRecord } from "@/lib/legal/documents";
-import { createOrderCreatedNotificationEvent } from "@/lib/notification/events";
+import { normalizeTaiwanMobile } from "@/lib/phone/taiwanMobile";
 
 export function CartBoard() {
   const { user } = useAuth();
   const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [shippingMethod, setShippingMethod] = useState<"address" | "seven_eleven" | "family_mart">("address");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [shippingStoreInfo, setShippingStoreInfo] = useState("");
   const [message, setMessage] = useState("已載入購物車。");
 
   useEffect(() => {
@@ -100,8 +98,26 @@ export function CartBoard() {
       return;
     }
 
+    if (!user) {
+      setMessage("請先登入再建立訂單。");
+      return;
+    }
+
     if (catalog.length === 0) {
       setMessage("公開商品尚未載入，無法建立訂單。");
+      return;
+    }
+
+    const shippingCheck = validateShippingDetails({
+      recipientName,
+      recipientPhone,
+      shippingMethod,
+      shippingAddress,
+      shippingStoreInfo,
+    });
+
+    if (!shippingCheck.ok) {
+      setMessage(Object.values(shippingCheck.errors).filter(Boolean).join(" "));
       return;
     }
 
@@ -110,55 +126,62 @@ export function CartBoard() {
     const result = createOrderFromCart(
       {
         orderId: nextOrderId,
-        memberUid: user?.uid ?? "member-local",
+        memberUid: user.uid,
         createdAt: timestamp,
+        recipientName: shippingCheck.value.recipientName,
+        recipientPhone: normalizeTaiwanMobile(shippingCheck.value.recipientPhone) ?? shippingCheck.value.recipientPhone,
+        shippingMethod,
+        ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
+        ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
       },
       cart,
       catalog,
     );
 
-    const existingOrders = loadOrders();
-    const paymentRequest = createPaymentRequestForOrder(result, {
-      paymentRequestId: `pr_${nextOrderId}`,
-      createdAt: timestamp,
-    });
-    const consentRecord = createConsentRecord({
-      memberUid: result.order.memberUid,
-      orderId: result.order.id,
-      acceptedAt: timestamp,
-    });
-    const notificationEvent = createOrderCreatedNotificationEvent({
-      id: `notif_${nextOrderId}`,
-      memberUid: result.order.memberUid,
-      orderId: result.order.id,
-      paymentRequestId: paymentRequest.id,
-      createdAt: timestamp,
-    });
-    saveOrders([{ ...result }, ...existingOrders]);
-    savePaymentRequests([paymentRequest, ...loadPaymentRequests()]);
-    saveConsentRecords([consentRecord, ...loadConsentRecords()]);
-    if (user) {
-      try {
-        const [{ db }, { clearMemberCart }, { createOrderBundle }] = await Promise.all([
-          import("@/lib/firebase/client"),
-          import("@/lib/cart/repository"),
-          import("@/lib/order/repository"),
-        ]);
-        await createOrderBundle(db, {
-          ...result,
-          paymentRequest,
-          consentRecord,
-          notificationEvent,
-        });
-        await clearMemberCart(db, user.uid);
-      } catch {
-        setMessage("訂單已暫存於本機，但 Firestore 建立失敗。");
+    try {
+      const [{ auth }, { clearMemberCart }] = await Promise.all([
+        import("@/lib/firebase/client"),
+        import("@/lib/cart/repository"),
+      ]);
+      const token = await auth.currentUser?.getIdToken();
+
+      if (!token) {
+        setMessage("請重新登入後再建立訂單。");
         return;
       }
+
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          cart,
+          recipientName: shippingCheck.value.recipientName,
+          recipientPhone: shippingCheck.value.recipientPhone,
+          shippingMethod,
+          ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
+          ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
+          legalVersionIds: [],
+          idempotencyKey: nextOrderId,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string; details?: Record<string, string> } | null;
+        const details = payload?.details ? Object.values(payload.details).join(" ") : "";
+        setMessage(details || payload?.error || "訂單建立失敗。");
+        return;
+      }
+
+      await clearMemberCart((await import("@/lib/firebase/client")).db, user.uid);
+      clearCart();
+      setCart([]);
+      setMessage(`已建立訂單 ${result.order.id}，付款請求已建立。`);
+    } catch {
+      setMessage("訂單建立失敗，請確認已登入且網路可用。");
     }
-    clearCart();
-    setCart([]);
-    setMessage(`已建立訂單 ${result.order.id}，付款請求 ${paymentRequest.id} 已建立。`);
   }
 
   return (
@@ -196,6 +219,60 @@ export function CartBoard() {
       </div>
 
       <aside className="grid gap-4">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-slate-500">Recipient</p>
+          <h3 className="mt-2 text-2xl font-semibold">收件資料</h3>
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">收件人姓名</span>
+              <input
+                value={recipientName}
+                onChange={(event) => setRecipientName(event.target.value)}
+                className="rounded-2xl border border-slate-300 px-4 py-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">收件電話</span>
+              <input
+                value={recipientPhone}
+                onChange={(event) => setRecipientPhone(event.target.value)}
+                className="rounded-2xl border border-slate-300 px-4 py-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">配送方式</span>
+              <select
+                value={shippingMethod}
+                onChange={(event) => setShippingMethod(event.target.value as typeof shippingMethod)}
+                className="rounded-2xl border border-slate-300 px-4 py-3"
+              >
+                <option value="address">宅配地址</option>
+                <option value="seven_eleven">7-Eleven 賣貨便</option>
+                <option value="family_mart">全家好賣+ / 店到店</option>
+              </select>
+            </label>
+            {shippingMethod === "address" ? (
+              <label className="grid gap-2 text-sm">
+                <span className="font-medium">收件地址</span>
+                <textarea
+                  value={shippingAddress}
+                  onChange={(event) => setShippingAddress(event.target.value)}
+                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
+                />
+              </label>
+            ) : (
+              <label className="grid gap-2 text-sm">
+                <span className="font-medium">超商門市資訊</span>
+                <textarea
+                  value={shippingStoreInfo}
+                  onChange={(event) => setShippingStoreInfo(event.target.value)}
+                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">Checkout</p>
           <h3 className="mt-2 text-2xl font-semibold">建立訂單</h3>

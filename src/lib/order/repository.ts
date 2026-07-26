@@ -9,6 +9,7 @@ import {
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
+import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 import type { ConsentRecord, LegalDocumentVersion } from "@/lib/legal/documents";
 import type { NotificationEvent } from "@/lib/notification/events";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
@@ -93,4 +94,30 @@ export async function listConsentRecords(db: Firestore): Promise<ConsentRecord[]
   const snapshot = await getDocs(collection(db, "consentRecords"));
 
   return snapshot.docs.map((document) => document.data() as ConsentRecord);
+}
+
+export async function saveCancellationRequest(
+  db: Firestore,
+  request: CancellationRequestRecord,
+) {
+  await setDoc(doc(db, "cancellationRequests", request.id), {
+    ...request,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function listCancellationRequests(db: Firestore): Promise<CancellationRequestRecord[]> {
+  const snapshot = await getDocs(collection(db, "cancellationRequests"));
+
+  return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
+}
+
+export async function reviewCancellationRequest(
+  db: Firestore,
+  request: CancellationRequestRecord,
+) {
+  await setDoc(doc(db, "cancellationRequests", request.id), {
+    ...request,
+    createdAt: serverTimestamp(),
+  });
 }

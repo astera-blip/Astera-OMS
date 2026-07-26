@@ -502,6 +502,10 @@ describe("Day 1 Firestore rules", () => {
         memberUid: "member-a",
         status: "awaitingPayment",
         totalTwd: 880,
+        recipientName: "Example Member",
+        recipientPhone: "0912345678",
+        shippingMethod: "address",
+        shippingAddress: "台北市信義區測試路 1 號",
         createdAt: serverTimestamp(),
         createdBy: "member-a",
       }),
@@ -512,6 +516,10 @@ describe("Day 1 Firestore rules", () => {
         memberUid: "member-a",
         status: "awaitingPayment",
         totalTwd: 880,
+        recipientName: "Example Member",
+        recipientPhone: "0912345678",
+        shippingMethod: "address",
+        shippingAddress: "台北市信義區測試路 1 號",
         createdAt: serverTimestamp(),
         createdBy: "member-b",
       }),
@@ -527,6 +535,10 @@ describe("Day 1 Firestore rules", () => {
         memberUid: "member-a",
         status: "awaitingPayment",
         totalTwd: 880,
+        recipientName: "Example Member",
+        recipientPhone: "0912345678",
+        shippingMethod: "address",
+        shippingAddress: "台北市信義區測試路 1 號",
         createdAt: serverTimestamp(),
         createdBy: "member-a",
         internalNote: "hidden",
@@ -647,6 +659,40 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(memberDb, "consentRecords/consent-a")));
     await assertFails(getDoc(doc(otherMemberDb, "consentRecords/consent-a")));
     await assertSucceeds(getDoc(doc(publicDb, "legalDocumentVersions/terms-v1")));
+  });
+
+  it("allows members to create their own cancellation request and denies others", async () => {
+    const memberDb = testEnv.authenticatedContext("member-a").firestore();
+    const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
+    const ownerDb = testEnv
+      .authenticatedContext("owner-a", { role: "owner" })
+      .firestore();
+
+    await assertSucceeds(
+      setDoc(doc(memberDb, "cancellationRequests/cancel-a"), {
+        id: "cancel-a",
+        orderId: "order-a",
+        orderItemIds: ["item-a"],
+        memberUid: "member-a",
+        reason: "不需要了",
+        status: "pending",
+        createdAt: serverTimestamp(),
+        createdBy: "member-a",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(otherMemberDb, "cancellationRequests/cancel-b"), {
+        id: "cancel-b",
+        orderId: "order-a",
+        orderItemIds: ["item-a"],
+        memberUid: "member-a",
+        reason: "不需要了",
+        status: "pending",
+        createdAt: serverTimestamp(),
+        createdBy: "member-b",
+      }),
+    );
+    await assertSucceeds(getDoc(doc(ownerDb, "cancellationRequests/cancel-a")));
   });
 
   it("keeps member private notes owner-only", async () => {

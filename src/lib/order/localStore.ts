@@ -1,4 +1,5 @@
 import type { CartLineItem, OrderItemRecord, OrderRecord } from "./checkout";
+import type { CancellationRequestRecord } from "./cancellation";
 import type {
   LocalAuditLog,
   LocalPayment,
@@ -14,6 +15,7 @@ const paymentsKey = "astera-payments-v1";
 const allocationsKey = "astera-payment-allocations-v1";
 const auditLogsKey = "astera-audit-logs-v1";
 const consentRecordsKey = "astera-consent-records-v1";
+const cancellationRequestsKey = "astera-cancellation-requests-v1";
 
 export type StoredOrderBundle = {
   order: OrderRecord;
@@ -96,6 +98,14 @@ export function loadConsentRecords(): ConsentRecord[] {
 
 export function saveConsentRecords(items: ConsentRecord[]) {
   window.localStorage.setItem(consentRecordsKey, JSON.stringify(items));
+}
+
+export function loadCancellationRequests(): CancellationRequestRecord[] {
+  return loadJson<CancellationRequestRecord[]>(cancellationRequestsKey, []);
+}
+
+export function saveCancellationRequests(items: CancellationRequestRecord[]) {
+  window.localStorage.setItem(cancellationRequestsKey, JSON.stringify(items));
 }
 
 function loadJson<T>(key: string, fallback: T): T {

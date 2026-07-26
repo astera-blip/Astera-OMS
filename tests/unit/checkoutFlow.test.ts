@@ -145,6 +145,10 @@ describe("createOrderFromCart", () => {
         orderId: "order_001",
         memberUid: "member-a",
         createdAt: "2026-07-26T00:00:00.000Z",
+        recipientName: "測試收件人",
+        recipientPhone: "0912345678",
+        shippingMethod: "address",
+        shippingAddress: "台北市信義區測試路 1 號",
       },
       [
         {
@@ -162,6 +166,10 @@ describe("createOrderFromCart", () => {
       memberUid: "member-a",
       status: "awaitingPayment",
       totalTwd: 1760,
+      recipientName: "測試收件人",
+      recipientPhone: "0912345678",
+      shippingMethod: "address",
+      shippingAddress: "台北市信義區測試路 1 號",
       createdAt: "2026-07-26T00:00:00.000Z",
       createdBy: "member-a",
     });

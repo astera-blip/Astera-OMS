@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { loadOrders, type StoredOrderBundle } from "@/lib/order/localStore";
 
@@ -39,8 +40,16 @@ export function OrderHistoryBoard() {
                 <p className="mt-1 text-sm text-slate-600">
                   狀態：{bundle.order.status} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
                 </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  收件人：{bundle.order.recipientName ?? "未填寫"} · {bundle.order.shippingMethod ?? "未選擇"}
+                </p>
               </div>
-              <p className="text-sm text-slate-500">{bundle.order.createdAt}</p>
+              <div className="text-right">
+                <p className="text-sm text-slate-500">{bundle.order.createdAt}</p>
+                <Link href={`/orders/${bundle.order.id}`} className="mt-2 inline-flex text-sm font-medium text-amber-700">
+                  查看詳情
+                </Link>
+              </div>
             </div>
             <div className="mt-4 grid gap-3 text-sm">
               {bundle.items.map((item) => (
