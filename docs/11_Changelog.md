@@ -26,3 +26,16 @@
 - Replaced the default Next.js landing page with the Astera OMS operations workspace shell.
 - Added first entry pages for products, members, orders, and payments to prepare Day 3 module work.
 - Confirmed the Day 2 and Day 3 shell pages pass lint, typecheck, build, and unit tests after environment-specific Windows reruns.
+- Added the Phase 2 product workspace shell, product catalog normalization helpers, and local CRUD UI for products, variants, and sale campaigns.
+- Added the Phase 3 local storefront checkout flow with cart storage, order snapshots, customer order history, and checkout unit tests.
+- Added the Phase 4 manual bank-transfer flow with payment requests, confirmed payments, allocations, audit logs, and workspace order/payment review pages.
+- Added the Phase 5 legal/content baseline with terms/privacy versions, order consent records, public about page, and workspace content/audit-log views.
+- Added Firestore repositories and rules for public product projections, private product internals, and member-owned carts.
+- Wired product browsing, product workspace sync, and member carts to Firestore with local fallback.
+- Added Firestore rules and repositories for orders, order items, payment requests, payments, payment allocations, audit logs, legal versions, consent records, and member private notes.
+- Wired checkout, order history, payment requests, payment confirmation, audit log, legal content, and member operations screens to Firestore with local fallback where appropriate.
+- Added owner/helper workspace route guards and owner-only guards for payment, audit, member, and content operations.
+- Added catalog classification masters for companies, artists, CPs, brands, and series, with non-sensitive classification labels in public product projections.
+- Added recorded notification events for order creation and manual payment confirmation without connecting an external email provider.
+- Tightened Firestore rules for order items, payment requests, consent records, catalog classifications, and notification events.
+- Expanded the small-circle smoke test checklist and manual export backup SOP.

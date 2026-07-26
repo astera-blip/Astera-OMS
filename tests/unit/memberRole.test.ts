@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRoleFromClaims } from "@/lib/member/role";
+import { getRoleFromClaims } from "../../src/lib/member/role";
 
 describe("getRoleFromClaims", () => {
   it.each([

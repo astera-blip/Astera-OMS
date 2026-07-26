@@ -8,6 +8,7 @@ const ignoredDirectories = new Set([
   ".git",
   ".firebase-local",
   ".next",
+  ".worktrees",
   "node_modules",
   "out",
   "build",

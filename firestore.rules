@@ -67,8 +67,250 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /memberPrivateNotes/{memberId} {
+      allow get, list, create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /productsPublic/{productId} {
+      allow get, list: if resource.data.publishState == 'published' || isOwner();
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'id', 'name', 'publicDescription', 'publishState', 'variants',
+          'campaigns', 'classifications', 'updatedAt'
+        ])
+        && request.resource.data.id == productId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.publicDescription is string
+        && request.resource.data.publicDescription.size() > 0
+        && request.resource.data.publishState in ['draft', 'published', 'archived']
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if false;
+    }
+
+    match /catalogCompanies/{entryId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow delete: if false;
+    }
+
+    match /catalogArtists/{entryId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow delete: if false;
+    }
+
+    match /catalogCps/{entryId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow delete: if false;
+    }
+
+    match /catalogBrands/{entryId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow delete: if false;
+    }
+
+    match /catalogSeries/{entryId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow delete: if false;
+    }
+
+    match /productsInternal/{productId} {
+      allow get, list, create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /productVariants/{variantId} {
+      allow get, list: if resource.data.publishState == 'published' || isOwner();
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'id', 'productId', 'sku', 'name', 'isDefault', 'priceTwd',
+          'publishState', 'updatedAt'
+        ])
+        && request.resource.data.id == variantId
+        && request.resource.data.productId is string
+        && request.resource.data.sku is string
+        && request.resource.data.sku.size() > 0
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.isDefault is bool
+        && request.resource.data.priceTwd is number
+        && request.resource.data.priceTwd >= 0
+        && request.resource.data.publishState in ['draft', 'published', 'archived']
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if false;
+    }
+
+    match /saleCampaigns/{campaignId} {
+      allow get, list: if resource.data.status == 'open' || isOwner();
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'id', 'productId', 'title', 'saleType', 'status',
+          'requiresSupplement', 'updatedAt'
+        ])
+        && request.resource.data.id == campaignId
+        && request.resource.data.productId is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.saleType in ['inStock', 'preorder', 'rushPurchase', 'waitlist']
+        && request.resource.data.status in ['draft', 'open', 'closed', 'archived']
+        && request.resource.data.requiresSupplement is bool
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if false;
+    }
+
+    match /carts/{memberId} {
+      allow get, list: if isOwnDocument(memberId);
+      allow create, update: if isOwnDocument(memberId)
+        && request.resource.data.keys().hasOnly(['memberUid', 'items', 'updatedAt'])
+        && request.resource.data.memberUid == request.auth.uid
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 50
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if isOwnDocument(memberId);
+    }
+
+    match /orders/{orderId} {
+      allow get: if isSignedIn()
+        && (resource.data.memberUid == request.auth.uid || isOwner());
+      allow list: if isOwner();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'id', 'memberUid', 'status', 'totalTwd', 'createdAt', 'createdBy'
+        ])
+        && request.resource.data.id == orderId
+        && request.resource.data.memberUid == request.auth.uid
+        && request.resource.data.status == 'awaitingPayment'
+        && request.resource.data.totalTwd is number
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /orderItems/{itemId} {
+      allow get: if isSignedIn()
+        && (resource.data.memberUid == request.auth.uid || isOwner());
+      allow list: if isOwner();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'id', 'orderId', 'memberUid', 'productId', 'variantId', 'saleCampaignId',
+          'quantity', 'status', 'snapshot', 'createdAt', 'createdBy'
+        ])
+        && request.resource.data.id == itemId
+        && request.resource.data.memberUid == request.auth.uid
+        && request.resource.data.status == 'awaitingPayment'
+        && request.resource.data.orderId is string
+        && request.resource.data.productId is string
+        && request.resource.data.variantId is string
+        && request.resource.data.saleCampaignId is string
+        && request.resource.data.quantity is number
+        && request.resource.data.quantity > 0
+        && request.resource.data.snapshot is map
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /paymentRequests/{requestId} {
+      allow get: if isSignedIn()
+        && (resource.data.memberUid == request.auth.uid || isOwner());
+      allow list: if isOwner();
+      allow create: if (isOwner() || isOwnDocument(request.resource.data.memberUid))
+        && request.resource.data.keys().hasOnly([
+          'id', 'memberUid', 'orderId', 'amountTwd', 'status', 'method',
+          'createdAt', 'createdBy', 'dueAt'
+        ])
+        && request.resource.data.id == requestId
+        && request.resource.data.memberUid is string
+        && request.resource.data.orderId is string
+        && request.resource.data.amountTwd is number
+        && request.resource.data.amountTwd >= 0
+        && request.resource.data.status == 'open'
+        && request.resource.data.method == 'bankTransfer'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdBy is string;
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow get, list, create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /paymentAllocations/{allocationId} {
+      allow get, list, create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /auditLogs/{auditId} {
+      allow get, list, create: if isOwner();
+      allow update, delete: if false;
+    }
+
+    match /notificationEvents/{eventId} {
+      allow get, list: if isOwner();
+      allow create: if (isOwner() || isOwnDocument(request.resource.data.memberUid))
+        && request.resource.data.keys().hasOnly([
+          'id', 'type', 'channel', 'status', 'provider', 'memberUid',
+          'orderId', 'paymentRequestId', 'paymentId', 'createdAt', 'message'
+        ])
+        && request.resource.data.id == eventId
+        && request.resource.data.type in ['order.created', 'payment.confirmed']
+        && request.resource.data.channel == 'email'
+        && request.resource.data.status == 'recorded'
+        && request.resource.data.provider == 'manual'
+        && request.resource.data.memberUid is string
+        && request.resource.data.orderId is string
+        && request.resource.data.paymentRequestId is string
+        && request.resource.data.createdAt is timestamp;
+      allow update, delete: if false;
+    }
+
+    match /legalDocumentVersions/{versionId} {
+      allow get, list: if true;
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    match /consentRecords/{recordId} {
+      allow get: if isSignedIn()
+        && (resource.data.memberUid == request.auth.uid || isOwner());
+      allow list: if isOwner();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'id', 'memberUid', 'orderId', 'legalVersionIds', 'acceptedAt'
+        ])
+        && request.resource.data.id == recordId
+        && request.resource.data.memberUid == request.auth.uid
+        && request.resource.data.orderId is string
+        && request.resource.data.legalVersionIds is list
+        && request.resource.data.acceptedAt is string;
+      allow update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    function hasValidCatalogClassification(data, entryId) {
+      return data.keys().hasOnly(['id', 'label', 'status', 'updatedAt'])
+        && data.id == entryId
+        && data.label is string
+        && data.label.size() > 0
+        && data.status in ['active', 'archived']
+        && data.updatedAt is timestamp;
     }
   }
 }

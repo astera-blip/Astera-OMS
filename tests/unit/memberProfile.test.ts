@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateMemberProfileDraft } from "@/lib/member/profile";
+import { validateMemberProfileDraft } from "../../src/lib/member/profile";
 
 describe("validateMemberProfileDraft", () => {
   it("trims profile fields and normalizes a Taiwan mobile number", () => {

@@ -3,7 +3,7 @@ import {
   isTaiwanMobile,
   normalizeTaiwanMobile,
   requireTaiwanMobile,
-} from "@/lib/phone/taiwanMobile";
+} from "../../src/lib/phone/taiwanMobile";
 
 describe("normalizeTaiwanMobile", () => {
   it.each([
