@@ -39,3 +39,13 @@
 **Alternatives Considered:** Keep Google Fonts and rely on network access.
 
 **Impact:** The app is more reliable in local and CI builds. Brand typography can be revisited during visual design.
+
+## 2026-07-26: Defer custom domain purchase during development
+
+**Decision:** Use the Vercel hostname for development and testing, and delay buying a custom domain until the brand and public launch timing are confirmed.
+
+**Reason:** The project is still in foundation and workflow discovery. Keeping the domain decision open avoids unnecessary cost and avoids committing to a public-facing brand URL too early.
+
+**Alternatives Considered:** Buy `astera-oms.com` immediately, buy `astera-oms.shop` immediately, or wait until launch.
+
+**Impact:** Hosting and functional testing can continue without domain setup. Domain purchase remains a pending owner decision for later.
