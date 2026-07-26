@@ -17,6 +17,7 @@ This project is prepared for deployment, but production deployment is intentiona
 - Firebase web apps registered for development and production.
 - Firestore databases created for development and production in `asia-east1`.
 - Firebase Storage buckets intentionally not created yet.
+- Vercel project created and production deployment is ready at `https://astera-oms.vercel.app`.
 - Local Firebase environment files created and intentionally kept out of Git.
 - Environment variable names documented in `.env.example`.
 - Secret scan script added.
@@ -25,21 +26,15 @@ This project is prepared for deployment, but production deployment is intentiona
 ## Not Completed Without Owner Confirmation
 
 - Firebase Storage bucket creation. `ASIA-EAST1` was selected, but bucket creation was skipped to avoid upgrading or adding billing before the owner is ready.
-- Vercel account connection.
-- Vercel project import.
 - Production environment variables in Vercel.
 - Domain purchase or DNS setup.
 - Email provider verified sender/domain.
 
 ## Vercel Future Steps
 
-1. Owner logs in to Vercel.
-2. Import `astera-blip/Astera-OMS`.
-3. Confirm framework is Next.js.
-4. Add environment variables from `.env.example`.
-5. Deploy preview environment first.
-6. Confirm no private data is present.
-7. Connect production domain only after legal/privacy pages are ready.
+1. Add a custom domain when the owner picks one.
+2. Confirm no private data is present.
+3. Connect production domain only after legal/privacy pages are ready.
 
 ## Firebase Future Steps
 
