@@ -661,6 +661,51 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(publicDb, "legalDocumentVersions/terms-v1")));
   });
 
+  it("allows public reads of brand content but only owners can write it", async () => {
+    const publicDb = testEnv.unauthenticatedContext().firestore();
+    const ownerDb = testEnv
+      .authenticatedContext("owner-a", { role: "owner" })
+      .firestore();
+    const memberDb = testEnv.authenticatedContext("member-a").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(ownerDb, "siteSettings/site-default"), {
+        id: "site-default",
+        brandName: "Astera OMS",
+        heroTitle: "代購品牌中心",
+        heroDescription: "這裡集中放品牌入口、社群、客服與公告。",
+        contactEmail: "astera.0920@gmail.com",
+        supportHours: "平日晚上與週末為主",
+        shippingNote: "小圈測試先以賣貨便為主。",
+        updatedAt: "2026-07-26T00:00:00.000Z",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(memberDb, "siteSettings/site-default"), {
+        id: "site-default",
+        brandName: "Astera OMS",
+        heroTitle: "代購品牌中心",
+        heroDescription: "這裡集中放品牌入口、社群、客服與公告。",
+        contactEmail: "astera.0920@gmail.com",
+        supportHours: "平日晚上與週末為主",
+        shippingNote: "小圈測試先以賣貨便為主。",
+        updatedAt: "2026-07-26T00:00:00.000Z",
+      }),
+    );
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "socialLinks/lineCommunity"), {
+        key: "lineCommunity",
+        title: "LINE 社群",
+        url: "",
+        description: "熟客討論、上新通知與小圈測試公告。",
+        status: "planned",
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(publicDb, "socialLinks/lineCommunity")));
+  });
+
   it("allows members to create their own cancellation request and denies others", async () => {
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
     const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();

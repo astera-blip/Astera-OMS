@@ -352,6 +352,79 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /siteSettings/{settingId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'id', 'brandName', 'heroTitle', 'heroDescription', 'contactEmail',
+          'supportHours', 'shippingNote', 'updatedAt'
+        ])
+        && request.resource.data.id == settingId
+        && request.resource.data.brandName is string
+        && request.resource.data.brandName.size() > 0
+        && request.resource.data.heroTitle is string
+        && request.resource.data.heroTitle.size() > 0
+        && request.resource.data.heroDescription is string
+        && request.resource.data.heroDescription.size() > 0
+        && request.resource.data.contactEmail is string
+        && request.resource.data.contactEmail.size() > 0
+        && request.resource.data.supportHours is string
+        && request.resource.data.supportHours.size() > 0
+        && request.resource.data.shippingNote is string
+        && request.resource.data.shippingNote.size() > 0
+        && request.resource.data.updatedAt is string;
+      allow delete: if false;
+    }
+
+    match /socialLinks/{linkId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'key', 'title', 'url', 'description', 'status'
+        ])
+        && request.resource.data.key == linkId
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.url is string
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.status in ['active', 'planned', 'disabled'];
+      allow delete: if false;
+    }
+
+    match /faqs/{faqId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'id', 'question', 'answer', 'order', 'status'
+        ])
+        && request.resource.data.id == faqId
+        && request.resource.data.question is string
+        && request.resource.data.question.size() > 0
+        && request.resource.data.answer is string
+        && request.resource.data.answer.size() > 0
+        && request.resource.data.order is number
+        && request.resource.data.order >= 0
+        && request.resource.data.status in ['published', 'draft'];
+      allow delete: if false;
+    }
+
+    match /announcements/{announcementId} {
+      allow get, list: if true;
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+          'id', 'title', 'body', 'publishedAt', 'status'
+        ])
+        && request.resource.data.id == announcementId
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.publishedAt is string
+        && request.resource.data.status in ['published', 'draft'];
+      allow delete: if false;
+    }
+
     match /consentRecords/{recordId} {
       allow get: if isSignedIn()
         && (resource.data.memberUid == request.auth.uid || isOwner());

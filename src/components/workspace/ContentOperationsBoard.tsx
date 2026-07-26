@@ -2,100 +2,123 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { legalDocumentVersions, type ConsentRecord, type LegalDocumentVersion } from "@/lib/legal/documents";
-import { loadConsentRecords } from "@/lib/order/localStore";
+import { fallbackBrandContent, type BrandContentBundle } from "@/lib/content/brandContent";
+import { saveBrandContent } from "@/lib/content/repository";
 
 export function ContentOperationsBoard() {
   const { role } = useAuth();
-  const [documents, setDocuments] = useState<LegalDocumentVersion[]>(legalDocumentVersions);
-  const [consents, setConsents] = useState<ConsentRecord[]>(() => loadConsentRecords());
-  const [message, setMessage] = useState("法務草案已載入。");
+  const [content, setContent] = useState<BrandContentBundle>(fallbackBrandContent);
+  const [message, setMessage] = useState("品牌內容草案已載入。");
 
   useEffect(() => {
     async function loadFirestoreContent() {
-      const [{ db }, { listConsentRecords, listLegalDocumentVersions }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/order/repository"),
-      ]);
-      const [versions, records] = await Promise.all([
-        listLegalDocumentVersions(db),
-        role === "owner" ? listConsentRecords(db) : Promise.resolve([]),
-      ]);
-
-      if (versions.length > 0) {
-        setDocuments(versions);
+      try {
+        const [{ db }, { loadBrandContent }] = await Promise.all([
+          import("@/lib/firebase/client"),
+          import("@/lib/content/repository"),
+        ]);
+        const next = await loadBrandContent(db);
+        setContent(next);
+      } catch {
+        setContent(fallbackBrandContent);
+        setMessage("無法載入 Firestore 品牌內容，先使用本機草案。");
       }
-      setConsents(records.length > 0 ? records : loadConsentRecords());
     }
 
-    void loadFirestoreContent().catch(() => setMessage("無法載入 Firestore 法務資料，先使用本機草案。"));
-  }, [role]);
+    void loadFirestoreContent();
+  }, []);
 
-  async function publishDraftVersions() {
+  async function syncDraftContent() {
     try {
-      const [{ db }, { saveLegalDocumentVersion }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/order/repository"),
-      ]);
-      await Promise.all(
-        legalDocumentVersions.map((version) => saveLegalDocumentVersion(db, version)),
-      );
-      setDocuments(legalDocumentVersions);
-      setMessage("已同步法務版本到 Firestore。");
+      const [{ db }] = await Promise.all([import("@/lib/firebase/client")]);
+      await saveBrandContent(db, fallbackBrandContent);
+      setContent(fallbackBrandContent);
+      setMessage("已同步品牌內容草案到 Firestore。");
     } catch {
-      setMessage("同步法務版本失敗。");
+      setMessage("同步品牌內容失敗。");
     }
   }
 
   return (
     <section className="grid gap-5">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-          Content
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold">法務與內容版本</h2>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Content</p>
+        <h2 className="mt-2 text-2xl font-semibold">品牌與公告內容</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          小圈測試先使用營運草案，正式公開前需要進行台灣法規審閱。
+          這裡管理品牌頁會讀到的社群入口、FAQ 與公告。小圈測試先以草案同步為主。
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => void publishDraftVersions()}
+            onClick={() => void syncDraftContent()}
             className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
           >
-            同步草案版本
+            同步草案內容
           </button>
           <p className="text-sm text-slate-500">{message}</p>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {documents.map((document) => (
-          <article key={document.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">{document.documentType}</p>
-            <h3 className="mt-2 text-lg font-semibold">{document.title}</h3>
-            <p className="mt-1 text-sm text-slate-500">版本：{document.version}</p>
-            <p className="mt-4 text-sm leading-7 text-slate-700">{document.body}</p>
-          </article>
-        ))}
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-semibold">Site settings</h3>
+          <div className="mt-4 grid gap-2 text-sm leading-6 text-slate-700">
+            <p>品牌：{content.siteSettings?.brandName ?? "未設定"}</p>
+            <p>主標：{content.siteSettings?.heroTitle ?? "未設定"}</p>
+            <p>客服：{content.siteSettings?.contactEmail ?? "未設定"}</p>
+            <p>時段：{content.siteSettings?.supportHours ?? "未設定"}</p>
+            <p>配送：{content.siteSettings?.shippingNote ?? "未設定"}</p>
+          </div>
+        </article>
+
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-semibold">社群入口</h3>
+          <div className="mt-4 grid gap-3">
+            {content.channels.map((channel) => (
+              <div key={channel.key} className="rounded-2xl bg-slate-50 p-4 text-sm">
+                <p className="font-medium">{channel.title}</p>
+                <p className="mt-1 text-slate-600">{channel.description}</p>
+                <p className="mt-1 text-xs text-slate-500">{channel.status}</p>
+                <p className="mt-1 break-all text-xs text-slate-500">{channel.url || "尚未設定"}</p>
+              </div>
+            ))}
+          </div>
+        </article>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold">Consent records</h3>
-        <div className="mt-4 grid gap-3">
-          {consents.length === 0 ? (
-            <p className="text-sm text-slate-600">目前沒有下單同意紀錄。</p>
-          ) : (
-            consents.map((record) => (
-              <div key={record.id} className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-                <p>{record.orderId} · {record.memberUid}</p>
-                <p>版本：{record.legalVersionIds.join(", ")}</p>
-                <p>{record.acceptedAt}</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-semibold">公告</h3>
+          <div className="mt-4 grid gap-3">
+            {content.announcements.map((item) => (
+              <div key={item.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
+                <p className="font-medium">{item.title}</p>
+                <p className="mt-1 text-slate-600">{item.body}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.publishedAt}</p>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-semibold">FAQ</h3>
+          <div className="mt-4 grid gap-3">
+            {content.faqs.map((item) => (
+              <div key={item.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
+                <p className="font-medium">{item.question}</p>
+                <p className="mt-1 text-slate-600">{item.answer}</p>
+                <p className="mt-1 text-xs text-slate-500">順序：{item.order}</p>
+              </div>
+            ))}
+          </div>
+        </article>
       </div>
+
+      {role !== "owner" ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          目前只讀模式。要同步草案內容需要 owner 權限。
+        </div>
+      ) : null}
     </section>
   );
 }
