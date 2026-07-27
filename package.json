@@ -42,7 +42,7 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
-    "eslint-config-next": "16.2.11",
+    "eslint-config-next": "16.2.12",
     "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
     "tailwindcss": "^4",
