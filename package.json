@@ -46,7 +46,7 @@
     "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
+    "typescript": "^7",
     "vitest": "^4.1.10"
   }
 }
