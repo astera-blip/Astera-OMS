@@ -4,42 +4,85 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import type { MemberPrivateNote } from "@/lib/member/operationsRepository";
 
-type MemberPrivateNoteRequestBody = {
-  note?: MemberPrivateNote;
-};
-
 export async function PUT(request: Request) {
   try {
     const claims = await requireFirebaseUser(request);
-
     if (!isOwnerClaim(claims)) {
-      return NextResponse.json({ error: "owner_required" }, { status: 403 });
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
-
-    const body = (await request.json()) as MemberPrivateNoteRequestBody;
-
-    if (!isMemberPrivateNote(body.note)) {
-      return NextResponse.json({ error: "invalid_note" }, { status: 400 });
-    }
-
-    await getAdminFirestore().collection("memberPrivateNotes").doc(body.note.uid).set({
-      ...body.note,
-      updatedAt: FieldValue.serverTimestamp(),
+    const body = (await request.json()) as Partial<MemberPrivateNote>;
+    const note = validateNote(body);
+    const db = getAdminFirestore();
+    const saved = await db.runTransaction(async (transaction) => {
+      const memberRef = db.collection("members").doc(note.uid);
+      const noteRef = db.collection("memberPrivateNotes").doc(note.uid);
+      const [memberSnapshot, previousSnapshot] = await Promise.all([
+        transaction.get(memberRef),
+        transaction.get(noteRef),
+      ]);
+      if (!memberSnapshot.exists) {
+        throw new Error("member_not_found");
+      }
+      const previous = previousSnapshot.exists
+        ? previousSnapshot.data() as MemberPrivateNote
+        : { uid: note.uid, riskState: "normal" as const, internalNote: "" };
+      transaction.set(noteRef, {
+        ...note,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: claims.uid,
+      });
+      const auditRef = db.collection("auditLogs").doc();
+      transaction.set(auditRef, {
+        id: auditRef.id,
+        action: "member.risk.updated",
+        actorUid: claims.uid,
+        targetType: "member",
+        targetId: note.uid,
+        reason: JSON.stringify({
+          previous: {
+            riskState: previous.riskState,
+            internalNote: previous.internalNote ?? "",
+          },
+          next: {
+            riskState: note.riskState,
+            internalNote: note.internalNote ?? "",
+          },
+        }),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return note;
     });
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ note: saved });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
-    return NextResponse.json({ error: message }, { status: message === "missing_token" ? 401 : 500 });
+    const status =
+      message === "missing_token"
+        ? 401
+        : message === "member_not_found"
+          ? 404
+          : message === "invalid_note"
+            ? 400
+            : 500;
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }
 
-function isMemberPrivateNote(value: unknown): value is MemberPrivateNote {
-  const note = value as Partial<MemberPrivateNote>;
-
-  return !!note
-    && typeof note.uid === "string"
-    && note.uid.length > 0
-    && (note.riskState === "normal" || note.riskState === "watch" || note.riskState === "blacklisted")
-    && (note.internalNote === undefined || typeof note.internalNote === "string");
+function validateNote(value: Partial<MemberPrivateNote>): MemberPrivateNote {
+  const uid = typeof value.uid === "string" ? value.uid.trim() : "";
+  const internalNote = typeof value.internalNote === "string" ? value.internalNote.trim() : "";
+  if (
+    !uid
+    || !["normal", "watch", "blacklisted"].includes(value.riskState ?? "")
+    || internalNote.length > 2000
+  ) {
+    throw new Error("invalid_note");
+  }
+  return {
+    uid,
+    riskState: value.riskState as MemberPrivateNote["riskState"],
+    internalNote,
+  };
 }

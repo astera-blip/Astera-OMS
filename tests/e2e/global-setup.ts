@@ -35,6 +35,12 @@ export default async function globalSetup() {
       displayName: "Member E2E",
       role: "member",
     }),
+    seedUser(auth, {
+      uid: "member-duplicate-e2e",
+      email: "member-duplicate-e2e@example.test",
+      displayName: "Member Duplicate E2E",
+      role: "member",
+    }),
   ]);
 
   await Promise.all([
@@ -54,6 +60,16 @@ export default async function globalSetup() {
       displayName: "Member E2E",
       communityId: "member-e2e",
       mobilePhone: "0922222222",
+      completedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    db.collection("members").doc("member-duplicate-e2e").set({
+      uid: "member-duplicate-e2e",
+      email: "member-duplicate-e2e@example.test",
+      displayName: "Member Duplicate E2E",
+      communityId: "member-duplicate-e2e",
+      mobilePhone: "+886 922-222-222",
       completedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),

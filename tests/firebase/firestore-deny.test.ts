@@ -826,6 +826,7 @@ describe("Day 1 Firestore rules", () => {
       .firestore();
 
     await assertFails(getDoc(doc(memberDb, "memberPrivateNotes/member-a")));
+    await assertFails(getDoc(doc(memberDb, "memberPrivateNotes/member-b")));
     await assertSucceeds(getDoc(doc(ownerDb, "memberPrivateNotes/member-a")));
     await assertFails(
       setDoc(doc(ownerDb, "memberPrivateNotes/member-a"), {
