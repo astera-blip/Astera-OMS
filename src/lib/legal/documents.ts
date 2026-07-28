@@ -55,6 +55,18 @@ export function currentLegalVersionIds() {
   return legalDocumentVersions.map((document) => document.id);
 }
 
+export function getCurrentLegalDocument(
+  documentType: LegalDocumentVersion["documentType"],
+) {
+  const current = legalDocumentVersions
+    .filter((document) => document.documentType === documentType)
+    .sort((left, right) => right.effectiveAt.localeCompare(left.effectiveAt))[0];
+  if (!current) {
+    throw new Error(`missing_current_legal_document:${documentType}`);
+  }
+  return current;
+}
+
 export function createConsentRecord(input: {
   memberUid: string;
   orderId: string;

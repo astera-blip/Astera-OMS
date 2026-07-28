@@ -99,6 +99,10 @@ export default async function BrandPage() {
                 <p>回覆時間：{siteSettings?.supportHours || "尚未設定"}</p>
                 <p>配送提示：{siteSettings?.shippingNote || "尚未設定"}</p>
               </div>
+              <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                <Link className="underline underline-offset-4" href="/terms">服務條款</Link>
+                <Link className="underline underline-offset-4" href="/privacy">隱私權政策</Link>
+              </div>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

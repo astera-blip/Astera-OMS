@@ -54,3 +54,18 @@ test("cart page keeps unauthenticated checkout blocked", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "建立訂單" })).toBeVisible();
   await expect(page.getByText(/請先登入|購物車目前沒有商品/)).toBeVisible();
 });
+
+test("public legal pages expose current versions and are linked from the footer", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("contentinfo").getByRole("link", { name: "服務條款" }).click();
+  await expect(page).toHaveURL(/\/terms$/);
+  await expect(page.getByRole("heading", { name: "Astera 下單條款" })).toBeVisible();
+  await expect(page.getByText(/版本：2026-07-26/)).toBeVisible();
+
+  await page.getByRole("link", { name: "查看隱私權政策" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { name: "Astera 隱私權政策" })).toBeVisible();
+  await expect(page.getByText(/生效日期/)).toBeVisible();
+});

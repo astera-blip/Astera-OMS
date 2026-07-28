@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
 import {
@@ -307,7 +308,13 @@ export function CartBoard() {
                 onChange={(event) => setAcceptedLegalTerms(event.target.checked)}
                 className="mt-1"
               />
-              <span>我同意下單條款與隱私權政策。</span>
+              <span>
+                我同意
+                <Link className="mx-1 underline underline-offset-4" href="/terms">下單條款</Link>
+                與
+                <Link className="mx-1 underline underline-offset-4" href="/privacy">隱私權政策</Link>
+                。
+              </span>
             </label>
             <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
               {legalDocuments.map((document) => (

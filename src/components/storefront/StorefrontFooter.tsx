@@ -69,6 +69,8 @@ export async function StorefrontFooter() {
         <Link href="/brand">品牌中心</Link>
         <Link href="/products">商品列表</Link>
         <Link href="/cart">購物車</Link>
+        <Link href="/terms">服務條款</Link>
+        <Link href="/privacy">隱私權政策</Link>
       </div>
     </footer>
   );
