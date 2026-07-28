@@ -25,6 +25,15 @@
 - Order item snapshot preservation test.
 - Manual payment confirmation audit log test.
 
+## Continuous Integration
+
+- `verify`: ESLint, TypeScript, Unit tests, secret scan, production dependency audit, and production build.
+- `firebase-rules`: Java 21 plus Firestore and Storage Emulator Rules tests.
+- `playwright`: public Chromium desktop and Pixel 7 smoke tests.
+- `playwright-emulated`: Auth, Firestore, and Storage Emulator owner/member flows.
+- Playwright failures upload `test-results` traces without environment secrets.
+- Production runtime rejects Emulator and E2E-auth public flags.
+
 ## Later Workflow Tests
 
 - Cart and checkout flow.
