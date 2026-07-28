@@ -15,14 +15,14 @@ import {
 } from "@/lib/order/checkout";
 import type { PublicCatalogItem } from "@/lib/catalog/publicCatalog";
 import {
-  clearCart,
-  loadCart,
-  saveCart,
-} from "@/lib/order/localStore";
+  clearAnonymousCart,
+  loadAnonymousCart,
+  saveAnonymousCart,
+} from "@/lib/cart/anonymousCart";
 
 export function CartBoard() {
   const { user } = useAuth();
-  const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
+  const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -36,7 +36,7 @@ export function CartBoard() {
   useEffect(() => {
     async function syncCart() {
       if (!user) {
-        saveCart(cart);
+        saveAnonymousCart(cart);
         return;
       }
 
@@ -52,8 +52,7 @@ export function CartBoard() {
     }
 
     void syncCart().catch(() => {
-      saveCart(cart);
-      setMessage("購物車已暫存於本機，稍後可再同步。");
+      setMessage("購物車同步失敗，請確認網路後再試一次。");
     });
   }, [cart, user]);
 
@@ -71,10 +70,12 @@ export function CartBoard() {
         throw new Error("load_cart_failed");
       }
       const payload = (await response.json()) as { items?: CartLineItem[] };
-      setCart(mergeClientAndCloudCart(payload.items ?? [], loadCart()));
+      const merged = mergeClientAndCloudCart(payload.items ?? [], loadAnonymousCart());
+      setCart(merged);
+      clearAnonymousCart();
     }
 
-    void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));
+    void loadFirestoreCart().catch(() => setMessage("無法載入購物車，請確認網路後再試一次。"));
   }, [user]);
 
   useEffect(() => {
@@ -186,7 +187,7 @@ export function CartBoard() {
         method: "DELETE",
         headers: { authorization: `Bearer ${token}` },
       });
-      clearCart();
+       clearAnonymousCart();
       setCart([]);
       setAcceptedLegalTerms(false);
       setAcceptedSupplementRule(false);

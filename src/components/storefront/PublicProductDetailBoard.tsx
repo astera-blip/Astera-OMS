@@ -12,7 +12,10 @@ import {
   getPurchasableVariants,
   type PublicCatalogItem,
 } from "@/lib/catalog/publicCatalog";
-import { loadCart, saveCart } from "@/lib/order/localStore";
+import {
+  loadAnonymousCart,
+  saveAnonymousCart,
+} from "@/lib/cart/anonymousCart";
 
 type Props = {
   productId: string;
@@ -24,7 +27,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
-  const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
+  const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
   const [message, setMessage] = useState("等待商品資料載入。");
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
   useEffect(() => {
     async function syncCart() {
       if (!user) {
-        saveCart(cart);
+        saveAnonymousCart(cart);
         return;
       }
 
@@ -74,7 +77,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
       });
     }
 
-    void syncCart().catch(() => saveCart(cart));
+    void syncCart().catch(() => setMessage("購物車同步失敗，請確認網路後再試一次。"));
   }, [cart, user]);
 
   const summary = useMemo(() => buildCartSummary(cart, catalogItem ? [catalogItem] : []), [cart, catalogItem]);
@@ -104,7 +107,9 @@ export function PublicProductDetailBoard({ productId }: Props) {
 
     const nextCart = [...cart, nextItem];
     setCart(nextCart);
-    saveCart(nextCart);
+    if (!user) {
+      saveAnonymousCart(nextCart);
+    }
     setMessage(`已加入 ${catalogItem.product.name}。`);
   }
 

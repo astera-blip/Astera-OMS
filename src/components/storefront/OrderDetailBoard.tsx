@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createCancellationRequest, getPendingCancellationRequestId } from "@/lib/order/cancellation";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 
 type Props = {
@@ -15,7 +15,7 @@ export function OrderDetailBoard({ orderId }: Props) {
   const { user } = useAuth();
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
-  const [bundles, setBundles] = useState<StoredOrderBundle[]>([]);
+  const [bundles, setBundles] = useState<OrderBundle[]>([]);
   const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -222,7 +222,7 @@ export function OrderDetailBoard({ orderId }: Props) {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{item.snapshot.productName}</p>
                   <p className="mt-1 text-slate-600">
-                    {item.snapshot.variantName} · {item.snapshot.sku} · qty {item.quantity}
+                    {item.snapshot.variantName} · {item.snapshot.sku} · 數量 {item.quantity}
                   </p>
                   <p className="mt-1 text-slate-500">狀態：{item.status}</p>
                   {hasPendingRequest ? <p className="mt-1 text-xs text-amber-700">這個項目已有待審核取消申請。</p> : null}

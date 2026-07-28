@@ -4,9 +4,9 @@ import {
   createPaymentRequestForOrder,
   reverseConfirmedPayment,
 } from "../../src/lib/payment/manualBankTransfer";
-import type { StoredOrderBundle } from "../../src/lib/order/localStore";
+import type { OrderBundle } from "../../src/lib/order/checkout";
 
-const orderBundle: StoredOrderBundle = {
+const orderBundle: OrderBundle = {
   order: {
     id: "order_001",
     memberUid: "member-a",

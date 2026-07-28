@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { NotificationEvent } from "@/lib/notification/events";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
 export function PaymentOperationsBoard() {
   const { role } = useAuth();
-  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [orders, setOrders] = useState<OrderBundle[]>([]);
   const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
   const [payments, setPayments] = useState<LocalPayment[]>([]);
   const [notificationEvents, setNotificationEvents] = useState<NotificationEvent[]>([]);
@@ -283,7 +283,7 @@ export function PaymentOperationsBoard() {
       <div className="grid gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-            Phase 4
+            付款管理
           </p>
           <h2 className="mt-2 text-2xl font-semibold">手動匯款確認</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -387,7 +387,7 @@ export function PaymentOperationsBoard() {
             <p>Payment requests：{requests.length}</p>
             <p>Payment reports：{payments.length}</p>
             <p>未分配超額：NT$ {totalUnallocatedAmountTwd.toLocaleString()}</p>
-            <p>資料來源：Firestore / API</p>
+            <p>付款與訂單狀態會以系統紀錄為準。</p>
           </div>
         </div>
 

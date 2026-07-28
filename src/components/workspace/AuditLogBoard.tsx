@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { loadAuditLogs } from "@/lib/order/localStore";
 import type { LocalAuditLog } from "@/lib/payment/manualBankTransfer";
 
 export function AuditLogBoard() {
   const { role } = useAuth();
-  const [logs, setLogs] = useState<LocalAuditLog[]>(() => loadAuditLogs());
+  const [logs, setLogs] = useState<LocalAuditLog[]>([]);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     async function loadFirestoreAuditLogs() {
@@ -22,7 +22,9 @@ export function AuditLogBoard() {
       setLogs(await listAuditLogs(db));
     }
 
-    void loadFirestoreAuditLogs();
+    void loadFirestoreAuditLogs().catch(() =>
+      setMessage("無法載入稽核紀錄，請確認網路後再試一次。"),
+    );
   }, [role]);
 
   if (role !== "owner") {
@@ -47,6 +49,7 @@ export function AuditLogBoard() {
       </div>
 
       <div className="grid gap-4">
+        {message ? <p className="text-sm text-rose-700">{message}</p> : null}
         {logs.length === 0 ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             目前沒有稽核紀錄。

@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 
 export function OrderHistoryBoard() {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [orders, setOrders] = useState<OrderBundle[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {

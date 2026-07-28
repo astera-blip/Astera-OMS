@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { reviewCancellationRequest } from "@/lib/order/cancellation";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 
 export function OrderOperationsBoard() {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [orders, setOrders] = useState<OrderBundle[]>([]);
   const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("等待資料載入。");
@@ -105,7 +105,7 @@ export function OrderOperationsBoard() {
         throw new Error("review_failed");
       }
       const result = (await response.json()) as {
-        orderStatus?: StoredOrderBundle["order"]["status"];
+        orderStatus?: OrderBundle["order"]["status"];
         amountTwd?: number;
       };
 
@@ -163,11 +163,11 @@ export function OrderOperationsBoard() {
     <section className="grid gap-5">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-          Phase 4
+          訂單管理
         </p>
         <h2 className="mt-2 text-2xl font-semibold">後台訂單管理</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          後台可查看訂單容器、逐項 snapshot、付款狀態與待處理項目。
+          查看訂單明細、付款狀態與待處理項目。
         </p>
       </div>
 
@@ -196,7 +196,7 @@ export function OrderOperationsBoard() {
                   <div key={item.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
                     <p className="font-medium">{item.snapshot.productName}</p>
                     <p className="mt-1 text-slate-600">
-                      {item.snapshot.variantName} · {item.snapshot.sku} · qty {item.quantity}
+                      {item.snapshot.variantName} · {item.snapshot.sku} · 數量 {item.quantity}
                     </p>
                     <p className="mt-1 text-slate-500">狀態：{item.status}</p>
                   </div>

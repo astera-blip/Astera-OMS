@@ -10,7 +10,7 @@ export default function OrdersPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Orders</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Order history keeps the checkout snapshot separate from later product edits.
+            訂單紀錄會保留下單當時的商品名稱、規格與售價。
           </p>
         </div>
 

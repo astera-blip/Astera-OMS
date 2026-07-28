@@ -9,7 +9,7 @@ import {
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 import type { NotificationEvent } from "@/lib/notification/events";
 import type {
   LocalAuditLog,
@@ -44,7 +44,7 @@ export async function listAllPayments(db: Firestore): Promise<LocalPayment[]> {
 export async function confirmPaymentBundle(
   db: Firestore,
   input: {
-    orderBundle: StoredOrderBundle;
+    orderBundle: OrderBundle;
     paymentRequest: LocalPaymentRequest;
     payment: LocalPayment;
     allocation: LocalPaymentAllocation;

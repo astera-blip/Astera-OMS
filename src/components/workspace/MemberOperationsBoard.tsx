@@ -66,7 +66,7 @@ export function MemberOperationsBoard() {
 
       setMessage(`已更新 ${uid} 的風險狀態。`);
     } catch {
-      setMessage("風險狀態已暫存在畫面，Firestore 同步失敗。");
+      setMessage("風險狀態更新失敗，請確認網路後再試一次。");
     }
   }
 

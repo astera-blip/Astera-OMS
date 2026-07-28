@@ -69,9 +69,6 @@ type ClassificationFormState = {
 
 type ClassificationMasters = Record<ProductClassificationKey, CatalogClassification[]>;
 
-const storageKey = "astera-products-workspace-v1";
-const classificationStorageKey = "astera-product-classifications-v1";
-
 const classificationLabels: Record<ProductClassificationKey, string> = {
   company: "公司",
   artist: "藝人",
@@ -80,38 +77,27 @@ const classificationLabels: Record<ProductClassificationKey, string> = {
   series: "系列",
 };
 
-const seedClassifications: ClassificationMasters = {
-  company: [{ id: "company_001", label: "Astera Goods", status: "active" }],
-  artist: [{ id: "artist_001", label: "Luna", status: "active" }],
-  cp: [{ id: "cp_001", label: "Luna x Mira", status: "active" }],
-  brand: [{ id: "brand_001", label: "Official Shop", status: "active" }],
-  series: [{ id: "series_001", label: "2026 Summer", status: "active" }],
+const emptyClassifications: ClassificationMasters = {
+  company: [],
+  artist: [],
+  cp: [],
+  brand: [],
+  series: [],
 };
 
 export function ProductWorkspace() {
   const { role, user } = useAuth();
-  const initialProducts = loadWorkspaceProducts();
-  const initialProduct = initialProducts[0] ?? null;
-  const [products, setProducts] = useState<WorkspaceProduct[]>(initialProducts);
-  const [classifications, setClassifications] = useState<ClassificationMasters>(() =>
-    loadClassificationMasters(),
-  );
-  const [selectedId, setSelectedId] = useState(initialProduct?.product.id ?? "");
-  const [message, setMessage] = useState("已載入本機商品工作區。");
+  const [products, setProducts] = useState<WorkspaceProduct[]>([]);
+  const [classifications, setClassifications] =
+    useState<ClassificationMasters>(emptyClassifications);
+  const [selectedId, setSelectedId] = useState("");
+  const [message, setMessage] = useState("商品資料載入中。");
   const [classificationForm, setClassificationForm] = useState<ClassificationFormState>({
     key: "company",
     id: "company_002",
     label: "",
     status: "active",
   });
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    window.localStorage.setItem(classificationStorageKey, JSON.stringify(classifications));
-  }, [classifications]);
 
   useEffect(() => {
     async function loadFirestoreProducts() {
@@ -132,15 +118,16 @@ export function ProductWorkspace() {
       const payload = (await response.json()) as { products?: WorkspaceProduct[] };
       const workspaceProducts = payload.products ?? [];
 
-      if (workspaceProducts.length === 0) {
-        return;
-      }
-
       setProducts(workspaceProducts);
-      selectProduct(workspaceProducts[0]);
+      if (workspaceProducts[0]) {
+        selectProduct(workspaceProducts[0]);
+      }
+      setMessage(workspaceProducts.length > 0 ? "商品資料已載入。" : "目前沒有商品。");
     }
 
-    void loadFirestoreProducts().catch(() => setMessage("無法載入 Firestore 商品，先使用本機資料。"));
+    void loadFirestoreProducts().catch(() =>
+      setMessage("無法載入商品資料，請確認網路後再試一次。"),
+    );
   }, [role, user]);
 
   useEffect(() => {
@@ -160,18 +147,22 @@ export function ProductWorkspace() {
         throw new Error("load_classifications_failed");
       }
       const payload = (await response.json()) as { classifications?: Partial<ClassificationMasters> };
-      const next = { ...seedClassifications };
+      const next: ClassificationMasters = {
+        company: [],
+        artist: [],
+        cp: [],
+        brand: [],
+        series: [],
+      };
 
       Object.entries(payload.classifications ?? {}).forEach(([key, values]) => {
-        if (values && values.length > 0) {
-          next[key as ProductClassificationKey] = values;
-        }
+        next[key as ProductClassificationKey] = values ?? [];
       });
       setClassifications(next);
     }
 
     void loadFirestoreClassifications().catch(() =>
-      setMessage("無法載入 Firestore 分類主檔，先使用本機資料。"),
+      setMessage("無法載入分類主檔，請確認網路後再試一次。"),
     );
   }, [role, user]);
 
@@ -181,13 +172,13 @@ export function ProductWorkspace() {
   );
 
   const [productForm, setProductForm] = useState<ProductFormState>(() =>
-    buildProductForm(initialProduct, "prod_002"),
+    buildProductForm(null, ""),
   );
   const [variantForms, setVariantForms] = useState<VariantFormState[]>(() =>
-    buildVariantForms(initialProduct),
+    buildVariantForms(null),
   );
   const [campaignForms, setCampaignForms] = useState<CampaignFormState[]>(() =>
-    buildCampaignForms(initialProduct),
+    buildCampaignForms(null),
   );
 
   function selectProduct(product: WorkspaceProduct) {
@@ -276,17 +267,6 @@ export function ProductWorkspace() {
       internalNote: productForm.internalNote.trim() || undefined,
     };
 
-    setProducts((current) => {
-      const index = current.findIndex((item) => item.product.id === nextProduct.product.id);
-
-      if (index >= 0) {
-        const updated = [...current];
-        updated[index] = nextProduct;
-        return updated;
-      }
-
-      return [nextProduct, ...current];
-    });
     if (role === "owner") {
       try {
         const token = await user?.getIdToken();
@@ -329,12 +309,11 @@ export function ProductWorkspace() {
           return;
         }
       } catch {
-        setMessage("商品已儲存在本機，但 Firestore 同步失敗。");
+        setMessage("商品儲存失敗，請確認資料與網路後再試一次。");
         return;
       }
     }
-    setSelectedId(nextProduct.product.id);
-    setMessage(`已儲存 ${nextProduct.product.name}。`);
+    setMessage("需要 Owner 權限才能儲存商品。");
   }
 
   function createBlankProduct() {
@@ -417,20 +396,6 @@ export function ProductWorkspace() {
       return;
     }
 
-    setClassifications((current) => {
-      const existing = current[classificationForm.key];
-      const index = existing.findIndex((entry) => entry.id === normalized.id);
-      const nextEntries = [...existing];
-
-      if (index >= 0) {
-        nextEntries[index] = normalized;
-      } else {
-        nextEntries.unshift(normalized);
-      }
-
-      return { ...current, [classificationForm.key]: nextEntries };
-    });
-
     if (role === "owner") {
       try {
         const token = await user?.getIdToken();
@@ -451,10 +416,26 @@ export function ProductWorkspace() {
         if (!response.ok) {
           throw new Error("save_classification_failed");
         }
+        const payload = (await response.json()) as { classification?: CatalogClassification };
+        const saved = payload.classification ?? normalized;
+        setClassifications((current) => {
+          const existing = current[classificationForm.key];
+          const index = existing.findIndex((entry) => entry.id === saved.id);
+          const nextEntries = [...existing];
+          if (index >= 0) {
+            nextEntries[index] = saved;
+          } else {
+            nextEntries.unshift(saved);
+          }
+          return { ...current, [classificationForm.key]: nextEntries };
+        });
       } catch {
-        setMessage("分類已儲存在本機，但 Firestore 同步失敗。");
+        setMessage("分類儲存失敗，請確認資料與網路後再試一次。");
         return;
       }
+    } else {
+      setMessage("需要 Owner 權限才能儲存分類。");
+      return;
     }
 
     setMessage(`已儲存${classificationLabels[classificationForm.key]} ${normalized.label}。`);
@@ -541,11 +522,11 @@ export function ProductWorkspace() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-                Phase 2
+                商品管理
               </p>
               <h2 className="mt-2 text-2xl font-semibold">商品後台完整化</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                這個頁面先以本機資料做 CRUD，涵蓋商品、Default Variant、Sale Campaign 與公開/內部欄位分離。
+                管理商品、商品規格、販售活動，以及公開與內部作業資訊。
               </p>
             </div>
             <div className="rounded-2xl bg-slate-950 px-4 py-3 text-sm text-slate-100">
@@ -994,36 +975,10 @@ export function ProductWorkspace() {
             )}
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold">公開 projection</h3>
-            <pre className="mt-4 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">
-              {JSON.stringify(selectedProduct ? buildPublicProductProjection(selectedProduct) : null, null, 2)}
-            </pre>
-          </section>
         </div>
       </section>
     </div>
   );
-}
-
-function loadWorkspaceProducts() {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  const raw = window.localStorage.getItem(storageKey);
-
-  if (!raw) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as WorkspaceProduct[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    window.localStorage.removeItem(storageKey);
-    return [];
-  }
 }
 
 function buildProductForm(
@@ -1106,32 +1061,6 @@ function buildBlankCampaignForm(id: string): CampaignFormState {
     publicNotice: "",
     supplementNote: "",
   };
-}
-
-function loadClassificationMasters(): ClassificationMasters {
-  if (typeof window === "undefined") {
-    return seedClassifications;
-  }
-
-  const raw = window.localStorage.getItem(classificationStorageKey);
-
-  if (!raw) {
-    return seedClassifications;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as ClassificationMasters;
-    return {
-      company: parsed.company ?? seedClassifications.company,
-      artist: parsed.artist ?? seedClassifications.artist,
-      cp: parsed.cp ?? seedClassifications.cp,
-      brand: parsed.brand ?? seedClassifications.brand,
-      series: parsed.series ?? seedClassifications.series,
-    };
-  } catch {
-    window.localStorage.removeItem(classificationStorageKey);
-    return seedClassifications;
-  }
 }
 
 function buildSelectedClassifications(

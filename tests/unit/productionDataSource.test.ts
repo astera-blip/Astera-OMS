@@ -1,0 +1,46 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const productionFiles = [
+  "src/components/storefront/CartBoard.tsx",
+  "src/components/storefront/PublicProductDetailBoard.tsx",
+  "src/components/storefront/PublicProductsBoard.tsx",
+  "src/components/storefront/OrderHistoryBoard.tsx",
+  "src/components/storefront/OrderDetailBoard.tsx",
+  "src/components/workspace/AuditLogBoard.tsx",
+  "src/components/workspace/OrderOperationsBoard.tsx",
+  "src/components/workspace/PaymentOperationsBoard.tsx",
+  "src/components/workspace/ProductWorkspace.tsx",
+  "src/lib/payment/manualBankTransfer.ts",
+  "src/lib/payment/repository.ts",
+];
+
+describe("production data-source boundary", () => {
+  it("does not import the legacy order local-store module", () => {
+    for (const file of productionFiles) {
+      const source = readFileSync(resolve(file), "utf8");
+      expect(source, file).not.toContain("@/lib/order/localStore");
+    }
+  });
+
+  it("does not persist workspace business records in localStorage", () => {
+    const source = readFileSync(
+      resolve("src/components/workspace/ProductWorkspace.tsx"),
+      "utf8",
+    );
+
+    expect(source).not.toContain("window.localStorage");
+    expect(source).not.toContain("先使用本機資料");
+    expect(source).not.toContain("已儲存在本機");
+  });
+
+  it("does not expose development-phase or obsolete cart copy", () => {
+    const sources = productionFiles
+      .concat(["src/app/cart/page.tsx"])
+      .map((file) => readFileSync(resolve(file), "utf8"))
+      .join("\n");
+
+    expect(sources).not.toMatch(/Phase [24]|Firestore \/ API|不同 sale type/);
+  });
+});

@@ -16,7 +16,11 @@ import {
   type PublicCatalogItem,
 } from "@/lib/catalog/publicCatalog";
 import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
-import { loadCart, saveCart } from "@/lib/order/localStore";
+import {
+  clearAnonymousCart,
+  loadAnonymousCart,
+  saveAnonymousCart,
+} from "@/lib/cart/anonymousCart";
 
 type LoadState = "loading" | "ready" | "empty" | "error";
 type FilterKey = "all" | "company" | "artist" | "cp" | "brand" | "series";
@@ -35,13 +39,13 @@ export function PublicProductsBoard() {
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [catalogState, setCatalogState] = useState<LoadState>("loading");
   const [filterKey, setFilterKey] = useState<FilterKey>("all");
-  const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
+  const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
   const [message, setMessage] = useState("等待公開商品載入。");
 
   useEffect(() => {
     async function syncCart() {
       if (!user) {
-        saveCart(cart);
+        saveAnonymousCart(cart);
         return;
       }
 
@@ -57,8 +61,7 @@ export function PublicProductsBoard() {
     }
 
     void syncCart().catch(() => {
-      saveCart(cart);
-      setMessage("購物車已暫存於本機，稍後可再同步。");
+      setMessage("購物車同步失敗，請確認網路後再試一次。");
     });
   }, [cart, user]);
 
@@ -76,10 +79,11 @@ export function PublicProductsBoard() {
         throw new Error("load_cart_failed");
       }
       const payload = (await response.json()) as { items?: CartLineItem[] };
-      setCart(mergeClientAndCloudCart(payload.items ?? [], loadCart()));
+      setCart(mergeClientAndCloudCart(payload.items ?? [], loadAnonymousCart()));
+      clearAnonymousCart();
     }
 
-    void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));
+    void loadFirestoreCart().catch(() => setMessage("無法載入購物車，請確認網路後再試一次。"));
   }, [user]);
 
   useEffect(() => {
@@ -176,7 +180,7 @@ export function PublicProductsBoard() {
           )
         : [...current, nextItem];
 
-      saveCart(nextCart);
+      saveAnonymousCart(nextCart);
       return nextCart;
     });
     setMessage(`已加入 ${item.product.name}。`);
@@ -333,7 +337,7 @@ export function PublicProductsBoard() {
         <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-slate-50 shadow-sm">
           <p className="text-sm font-medium text-slate-400">Rules</p>
           <p className="mt-3 text-sm leading-6 text-slate-200">
-            可先把不同活動商品加入購物車；結帳時系統會依活動拆成不同訂單，並保存商品、規格與售價 snapshot。
+            可將不同活動商品加入購物車；結帳時系統會依販售活動自動拆分訂單，並保留下單時的商品、規格與售價。
           </p>
         </div>
       </aside>

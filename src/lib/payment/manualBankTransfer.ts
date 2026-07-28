@@ -1,5 +1,5 @@
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 
 export type LocalPaymentRequest = {
   id: string;
@@ -55,7 +55,7 @@ export type LocalAuditLog = {
 };
 
 export function createPaymentRequestForOrder(
-  orderBundle: StoredOrderBundle,
+  orderBundle: OrderBundle,
   context: { paymentRequestId: string; createdAt: string; dueAt?: string },
 ): LocalPaymentRequest {
   return {
@@ -72,7 +72,7 @@ export function createPaymentRequestForOrder(
 }
 
 export function confirmBankTransfer(input: {
-  orderBundle: StoredOrderBundle;
+  orderBundle: OrderBundle;
   paymentRequest: LocalPaymentRequest;
   payment?: LocalPayment;
   receivedAmountTwd: number;
@@ -80,7 +80,7 @@ export function confirmBankTransfer(input: {
   confirmedBy: string;
   reason: string;
 }): {
-  orderBundle: StoredOrderBundle;
+  orderBundle: OrderBundle;
   paymentRequest: LocalPaymentRequest;
   payment: LocalPayment;
   allocation: LocalPaymentAllocation;
@@ -143,14 +143,14 @@ export function confirmBankTransfer(input: {
 }
 
 export function reverseConfirmedPayment(input: {
-  orderBundle: StoredOrderBundle;
+  orderBundle: OrderBundle;
   paymentRequest: LocalPaymentRequest;
   payment: LocalPayment;
   reversedAt: string;
   reversedBy: string;
   reason: string;
 }): {
-  orderBundle: StoredOrderBundle;
+  orderBundle: OrderBundle;
   paymentRequest: LocalPaymentRequest;
   payment: LocalPayment;
   adjustment: LocalPaymentAllocation;

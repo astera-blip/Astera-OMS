@@ -95,6 +95,11 @@ export type OrderItemRecord = {
   updatedBy?: string;
 };
 
+export type OrderBundle = {
+  order: OrderRecord;
+  items: OrderItemRecord[];
+};
+
 type ValidationResult =
   | { ok: true }
   | { ok: false; error: string };

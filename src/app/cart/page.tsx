@@ -10,7 +10,7 @@ export default function CartPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Cart</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Cart items stay in one sale type, and order creation stores immutable snapshots.
+            可加入不同販售活動的商品，結帳時系統會自動拆分訂單。
           </p>
         </div>
 
