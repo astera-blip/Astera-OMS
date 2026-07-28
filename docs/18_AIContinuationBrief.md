@@ -289,13 +289,12 @@ Managed sandbox note:
 
 ## Recommended Next Step
 
-The approved ProductWorkspace UI/classification batch is locally executable and should be scheduled before externally gated production work:
+Execute the consolidated plan:
 
-1. Finish the remaining Variant Name and Campaign field decisions with the owner.
-2. Write and approve the ProductWorkspace design/spec.
-3. Implement bilingual labels, help text, identifier copy controls, and status/currency presentation.
-4. Implement Product/Classifications tabs and server-generated classification IDs with rename/archive behavior.
-5. Add unit/API/Playwright coverage and update this handoff.
+- Design: `docs/superpowers/specs/2026-07-29-mvp-local-completion-design.md`
+- Plan: `docs/superpowers/plans/2026-07-29-mvp-local-completion.md`
+
+Start with Task 1 (CI and production/test isolation), then Tasks 2–3 (production fallback cleanup and transaction boundaries). ProductWorkspace/Classification is Tasks 4–5; images and homepage are Tasks 6–7. Variant Name behavior remains unchanged and does not block the approved work.
 
 If Firebase Blaze / Storage bucket is ready:
 

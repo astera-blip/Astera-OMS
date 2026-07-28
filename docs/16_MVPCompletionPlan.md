@@ -384,8 +384,15 @@ Last updated: 2026-07-29 Asia/Taipei
 
 ## Next Exact Steps
 
-1. Implement actual product image upload UI/API after Firebase Blaze bucket creation is available.
-2. Add image metadata validation in Product API once real Storage object metadata can be read from the bucket/emulator upload flow.
-3. Deploy production Firestore/Storage rules after Firebase CLI login/project access is available, then verify anonymous `productsPublic` and product image reads plus private collection denials.
-4. Complete Resend external setup once `updates.asteratw.com` DNS verification and production `RESEND_API_KEY` are available; then send a real test email and verify `sent/providerMessageId`.
-5. Run production/mobile acceptance after Vercel OIDC, Firebase Blaze/Storage bucket, production rules deploy, and DNS/Resend external gates are complete.
+1. Execute `docs/superpowers/plans/2026-07-29-mvp-local-completion.md` Task 1 to add CI and production/test isolation.
+2. Continue Tasks 2–3 to remove production local fallbacks and harden Checkout/Payment/Cancellation boundaries before further UI work.
+3. Complete the approved ProductWorkspace/Classification batch, followed by Emulator-backed Product images and homepage presentation.
+4. Finish Member, Legal, Email, mobile acceptance, and read-only production preparation tasks.
+5. After full local verification, deploy production Firestore/Storage Rules and data only when Firebase/Vercel external access is available.
+
+## 2026-07-29 Consolidated Local Completion Plan
+
+- Design: `docs/superpowers/specs/2026-07-29-mvp-local-completion-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-07-29-mvp-local-completion.md`
+- The plan consolidates the twelve remaining locally executable areas into thirteen independently verifiable tasks.
+- Ordering prevents duplicate edits by establishing CI/environment guards first, combining fallback cleanup with transaction-boundary work, combining ProductWorkspace with Classification, and completing the Product image contract before storefront/homepage rendering.

@@ -6,6 +6,12 @@ Last updated: 2026-07-29 Asia/Taipei
 
 Complete the Astera OMS MVP according to the handoff spec without redesigning the existing architecture.
 
+Current execution plan:
+
+- `docs/superpowers/specs/2026-07-29-mvp-local-completion-design.md`
+- `docs/superpowers/plans/2026-07-29-mvp-local-completion.md`
+- Start at Task 1. Do not skip production/test isolation or fallback/boundary Tasks 2–3 before Product image/storefront work.
+
 ## Repository State
 
 - Working branch: `codex/mvp-completion`.
