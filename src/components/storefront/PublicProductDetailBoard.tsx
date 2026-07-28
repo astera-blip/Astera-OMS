@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { ProductCoverImage } from "@/components/storefront/ProductCoverImage";
 import { buildCartSummary, type CartLineItem, validateCartAddition } from "@/lib/order/checkout";
 import {
   getDefaultCampaign,
@@ -140,6 +141,18 @@ export function PublicProductDetailBoard({ productId }: Props) {
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          {(catalogItem.product.images?.length ? catalogItem.product.images : [undefined]).map(
+            (image, index) => (
+              <ProductCoverImage
+                key={image?.id ?? "fallback"}
+                image={image}
+                productName={catalogItem.product.name}
+                priority={index === 0}
+              />
+            ),
+          )}
+        </div>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Public product</p>

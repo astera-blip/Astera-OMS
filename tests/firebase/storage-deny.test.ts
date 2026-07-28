@@ -87,6 +87,13 @@ describe("product image Storage rules", () => {
     );
     await assertFails(
       uploadBytes(
+        ref(ownerStorage, "product-images/prod_001/file.txt"),
+        new Blob(["webp"], { type: "image/webp" }),
+        { contentType: "image/webp" },
+      ),
+    );
+    await assertFails(
+      uploadBytes(
         ref(ownerStorage, "product-images/prod_001/large.webp"),
         new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: "image/webp" }),
         { contentType: "image/webp" },

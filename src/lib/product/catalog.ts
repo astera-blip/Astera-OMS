@@ -1,4 +1,5 @@
 import type { AuditMetadata, PublishState } from "@/domain/common";
+import type { ProductImage } from "@/lib/product/images";
 
 export type ProductClassificationKey = "company" | "artist" | "cp" | "brand" | "series";
 
@@ -19,6 +20,7 @@ export type ProductDraft = {
     publicDescription: string;
     publishState: PublishState;
     classifications?: ProductClassifications;
+    images?: ProductImage[];
   };
   variants: Array<{
     id: string;
@@ -51,6 +53,7 @@ export type ValidProductDraft = {
     publicDescription: string;
     publishState: PublishState;
     classifications?: ProductClassifications;
+    images?: ProductImage[];
   };
   variants: Array<{
     id: string;
@@ -101,6 +104,7 @@ export type PublicProductProjection = {
   publicDescription: string;
   publishState: PublishState;
   classifications?: ProductClassifications;
+  images?: ProductImage[];
   variants: Array<{
     id: string;
     productId: string;
@@ -244,6 +248,7 @@ export function normalizeProductDraft(
         name,
         publicDescription,
         publishState: draft.product.publishState,
+        ...(draft.product.images ? { images: draft.product.images } : {}),
         ...(normalizeClassifications(draft.product.classifications)
           ? { classifications: normalizeClassifications(draft.product.classifications) }
           : {}),
@@ -277,6 +282,7 @@ export function buildPublicProductProjection(
     publicDescription: record.product.publicDescription,
     publishState: record.product.publishState,
     ...(classifications ? { classifications } : {}),
+    ...(record.product.images ? { images: record.product.images } : {}),
     variants: record.variants.map((variant) => ({
       id: variant.id,
       productId: variant.productId,

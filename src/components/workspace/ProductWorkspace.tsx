@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { CopyValueButton } from "@/components/workspace/CopyValueButton";
 import { ProductClassificationManager } from "@/components/workspace/ProductClassificationManager";
+import { ProductImageManager } from "@/components/workspace/ProductImageManager";
 import type { PublishState } from "@/domain/common";
 import {
   buildPublicProductProjection,
@@ -406,6 +407,16 @@ export function ProductWorkspace() {
       }
       return { ...current, [key]: nextEntries };
     });
+  }
+
+  function updateProductImages(images: NonNullable<WorkspaceProduct["product"]["images"]>) {
+    if (!selectedProduct) {
+      return;
+    }
+    setProducts((current) => current.map((product) =>
+      product.product.id === selectedProduct.product.id
+        ? { ...product, product: { ...product.product, images } }
+        : product));
   }
 
   function archiveSelectedProduct() {
@@ -913,6 +924,11 @@ export function ProductWorkspace() {
         </div>
 
         <div className="grid gap-5">
+          <ProductImageManager
+            productId={selectedProduct?.product.id ?? ""}
+            images={selectedProduct?.product.images ?? []}
+            onChanged={updateProductImages}
+          />
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold">商品預覽</h3>
             {selectedProduct ? (

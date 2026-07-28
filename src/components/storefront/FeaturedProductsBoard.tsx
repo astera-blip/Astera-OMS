@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ProductCoverImage } from "@/components/storefront/ProductCoverImage";
 import { useEffect, useMemo, useState } from "react";
 import { getDefaultCampaign, getDefaultVariant, type PublicCatalogItem } from "@/lib/catalog/publicCatalog";
 
@@ -85,6 +86,12 @@ export function FeaturedProductsBoard() {
 
           return (
             <article key={item.product.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <Link href={`/products/${item.product.id}`} className="block">
+                <ProductCoverImage
+                  image={item.product.images?.[0]}
+                  productName={item.product.name}
+                />
+              </Link>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 {campaign?.saleType ?? "unknown"}
               </p>

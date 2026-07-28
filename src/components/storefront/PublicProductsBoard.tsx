@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { ProductCoverImage } from "@/components/storefront/ProductCoverImage";
 import {
   buildCartSummary,
   type CartLineItem,
@@ -246,6 +247,12 @@ export function PublicProductsBoard() {
                 key={item.product.id}
                 className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
               >
+                <Link href={`/products/${item.product.id}`} className="mb-4 block">
+                  <ProductCoverImage
+                    image={item.product.images?.[0]}
+                    productName={item.product.name}
+                  />
+                </Link>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-semibold">{item.product.name}</h2>

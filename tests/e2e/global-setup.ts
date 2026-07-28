@@ -61,6 +61,13 @@ export default async function globalSetup() {
   ]);
 
   await Promise.all([
+    db.collection("productsInternal").doc("prod_e2e_flow").set({
+      id: "prod_e2e_flow",
+      sku: "AST-P999001",
+      images: [],
+      updatedAt: new Date(),
+      updatedBy: "system",
+    }, { merge: true }),
     db.collection("productsPublic").doc("prod_e2e_flow").set({
       id: "prod_e2e_flow",
       name: "E2E 流程商品",
@@ -106,6 +113,29 @@ export default async function globalSetup() {
       priceTwd: 800,
       publishState: "published",
       updatedAt: new Date(),
+    }),
+    ...["desktop", "mobile"].flatMap((target) => {
+      const productId = `prod_e2e_image_${target}`;
+      const name = `E2E 圖片商品 ${target}`;
+      return [
+        db.collection("productsInternal").doc(productId).set({
+          id: productId,
+          sku: target === "desktop" ? "AST-P999002" : "AST-P999003",
+          images: [],
+          updatedAt: new Date(),
+          updatedBy: "system",
+        }),
+        db.collection("productsPublic").doc(productId).set({
+          id: productId,
+          name,
+          publicDescription: "用於 Storage Emulator 商品圖片驗收。",
+          publishState: "draft",
+          images: [],
+          variants: [],
+          campaigns: [],
+          updatedAt: new Date(),
+        }),
+      ];
     }),
   ]);
 }

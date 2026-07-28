@@ -1,4 +1,5 @@
 import type { ProductClassifications } from "@/lib/product/catalog";
+import type { ProductImage } from "@/lib/product/images";
 
 export type PublicCatalogItem = {
   product: {
@@ -7,6 +8,7 @@ export type PublicCatalogItem = {
     publicDescription: string;
     publishState: "draft" | "published" | "archived";
     classifications?: ProductClassifications;
+    images?: ProductImage[];
   };
   variants: Array<{
     id: string;
@@ -59,6 +61,7 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
       ...(isProductClassifications(raw.classifications)
         ? { classifications: raw.classifications }
         : {}),
+      ...(isProductImages(raw.images) ? { images: raw.images } : {}),
     },
     variants: variants.filter(isValidVariant).map((variant) => ({
       id: variant.id,
@@ -81,6 +84,22 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
       ...(typeof campaign.supplementNote === "string" ? { supplementNote: campaign.supplementNote } : {}),
     })),
   };
+}
+
+function isProductImages(value: unknown): value is ProductImage[] {
+  return Array.isArray(value) && value.every((image) => {
+    if (!image || typeof image !== "object") {
+      return false;
+    }
+    const entry = image as Record<string, unknown>;
+    return typeof entry.id === "string"
+      && typeof entry.objectPath === "string"
+      && typeof entry.url === "string"
+      && typeof entry.altText === "string"
+      && typeof entry.width === "number"
+      && typeof entry.height === "number"
+      && typeof entry.sortOrder === "number";
+  });
 }
 
 export function getDefaultVariant(item: PublicCatalogItem) {

@@ -1,4 +1,5 @@
 import type { AuditMetadata, CurrencyCode, EntityId, PublishState } from "./common";
+import type { ProductImage } from "@/lib/product/images";
 
 export type Product = AuditMetadata & {
   id: EntityId;
@@ -6,6 +7,7 @@ export type Product = AuditMetadata & {
   name: string;
   publicDescription: string;
   publishState: PublishState;
+  images?: ProductImage[];
 };
 
 export type ProductVariant = AuditMetadata & {

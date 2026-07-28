@@ -38,6 +38,7 @@ export async function listWorkspaceProductsServer(db: Firestore): Promise<Produc
       publicDescription: string;
       publishState: ProductCatalogRecord["product"]["publishState"];
       classifications?: ProductCatalogRecord["product"]["classifications"];
+      images?: ProductCatalogRecord["product"]["images"];
     };
     const internal = internalById.get(snapshot.id) as { sku?: string; internalNote?: string } | undefined;
     const productSku = internal?.sku ?? createProductSku(index + 1);
@@ -50,6 +51,7 @@ export async function listWorkspaceProductsServer(db: Firestore): Promise<Produc
         publicDescription: data.publicDescription,
         publishState: data.publishState,
         ...(data.classifications ? { classifications: data.classifications } : {}),
+        ...(data.images ? { images: data.images } : {}),
         createdAt: new Date().toISOString(),
         createdBy: "system",
       },
@@ -109,6 +111,9 @@ export async function saveWorkspaceProductServer(
       product: {
         ...input.product,
         id: productId,
+        images: input.product.images
+          ?? (existingProduct.data()?.images as ProductCatalogRecord["product"]["images"] | undefined)
+          ?? [],
       },
       variants: input.variants.map((variant, index) => ({
         ...variant,
@@ -167,6 +172,7 @@ export async function saveWorkspaceProductServer(
         originalCost: variant.originalCost ?? null,
       })),
       internalNote: record.internalNote ?? null,
+      images: record.product.images ?? [],
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actorUid,
     });

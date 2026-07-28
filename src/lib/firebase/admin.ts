@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 let adminApp: App | null = null;
 
@@ -38,6 +39,12 @@ function getProjectId() {
     ?? undefined;
 }
 
+function getStorageBucket() {
+  return process.env.FIREBASE_STORAGE_BUCKET
+    ?? process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    ?? undefined;
+}
+
 export function getAdminApp() {
   if (adminApp) {
     return adminApp;
@@ -53,11 +60,15 @@ export function getAdminApp() {
 
   const credential = loadServiceAccount();
   const projectId = getProjectId();
+  const storageBucket = getStorageBucket();
   adminApp = initializeApp(
     credential
-      ? { credential }
-      : projectId
-        ? { projectId }
+      ? { credential, ...(storageBucket ? { storageBucket } : {}) }
+      : projectId || storageBucket
+        ? {
+            ...(projectId ? { projectId } : {}),
+            ...(storageBucket ? { storageBucket } : {}),
+          }
         : undefined,
   );
 
@@ -70,4 +81,16 @@ export function getAdminAuth() {
 
 export function getAdminFirestore() {
   return getFirestore(getAdminApp());
+}
+
+export function getAdminStorage() {
+  return getStorage(getAdminApp());
+}
+
+export function getAdminStorageBucket() {
+  const bucketName = getStorageBucket();
+  if (!bucketName) {
+    throw new Error("storage_bucket_not_configured");
+  }
+  return getAdminStorage().bucket(bucketName);
 }
