@@ -4,6 +4,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { confirmBankTransfer } from "@/lib/payment/manualBankTransfer";
 import { createPaymentConfirmedNotificationEvent } from "@/lib/notification/events";
+import { attemptNotificationDelivery } from "@/lib/notification/delivery";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -128,10 +129,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         paymentId: confirmation.payment.id,
         paymentRequestStatus: confirmation.paymentRequest.status,
         orderStatus: confirmation.orderBundle.order.status,
+        notificationEventId: notificationEvent.id,
       };
     });
 
-    return NextResponse.json({ ok: true, ...result });
+    await attemptNotificationDelivery(db, result.notificationEventId).catch(() => undefined);
+    return NextResponse.json({
+      ok: true,
+      paymentId: result.paymentId,
+      paymentRequestStatus: result.paymentRequestStatus,
+      orderStatus: result.orderStatus,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     const status =

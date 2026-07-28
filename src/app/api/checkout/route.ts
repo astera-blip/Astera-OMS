@@ -7,6 +7,7 @@ import {
   currentLegalVersionIds,
 } from "@/lib/legal/documents";
 import { createOrderCreatedNotificationEvent } from "@/lib/notification/events";
+import { attemptNotificationDelivery } from "@/lib/notification/delivery";
 import {
   createOrderNumber,
   createOrderFromCart,
@@ -140,6 +141,7 @@ export async function POST(request: Request) {
           orderId: orders[0]?.orderId,
           orders,
           alreadyExists: true,
+          notificationEventIds: [] as string[],
         };
       }
 
@@ -184,6 +186,7 @@ export async function POST(request: Request) {
           orderId: orders[0]?.orderId ?? firstOrderId,
           orders,
           alreadyExists: true,
+          notificationEventIds: [] as string[],
         };
       }
 
@@ -277,10 +280,20 @@ export async function POST(request: Request) {
         orderId: results[0]?.result.order.id,
         orders,
         alreadyExists: false,
+        notificationEventIds: results.map(({ notificationEvent }) => notificationEvent.id),
       };
     });
 
-    return NextResponse.json({ ok: true, ...checkoutResult });
+    await Promise.allSettled(
+      checkoutResult.notificationEventIds.map((eventId) =>
+        attemptNotificationDelivery(db, eventId)),
+    );
+    return NextResponse.json({
+      ok: true,
+      orderId: checkoutResult.orderId,
+      orders: checkoutResult.orders,
+      alreadyExists: checkoutResult.alreadyExists,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     const status =

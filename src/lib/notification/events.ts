@@ -17,6 +17,8 @@ export type NotificationEvent = {
   lastAttemptAt?: string;
   providerMessageId?: string;
   lastError?: string;
+  deliveryLockId?: string;
+  deliveryLockUntil?: string;
   message: string;
 };
 

@@ -423,9 +423,19 @@ export function PaymentOperationsBoard() {
             <div className="mt-4 grid gap-3 text-sm">
               {notificationEvents.map((event) => (
                 <div key={event.id} className="rounded-2xl bg-slate-50 p-3">
-                  <p className="font-semibold">{event.type}</p>
+                  <p className="font-semibold">
+                    {event.type === "order.created" ? "訂單成立通知" : "付款確認通知"}
+                  </p>
                   <p className="mt-1 text-slate-600">
-                    {event.status} · attempts {event.attemptCount} · {event.recipientEmail}
+                    {event.status === "pending"
+                      ? "等待寄送"
+                      : event.status === "sent"
+                        ? "已寄送"
+                        : "寄送失敗"}
+                    {" · 嘗試次數 "}
+                    {event.attemptCount}
+                    {" · "}
+                    {event.recipientEmail}
                   </p>
                   {event.lastError ? (
                     <p className="mt-1 text-rose-700">{event.lastError}</p>
