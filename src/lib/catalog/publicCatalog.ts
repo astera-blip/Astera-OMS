@@ -7,6 +7,7 @@ export type PublicCatalogItem = {
     name: string;
     publicDescription: string;
     publishState: "draft" | "published" | "archived";
+    updatedAt?: string;
     classifications?: ProductClassifications;
     images?: ProductImage[];
   };
@@ -58,6 +59,7 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
       name: raw.name,
       publicDescription: raw.publicDescription,
       publishState: raw.publishState,
+      ...(toIsoString(raw.updatedAt) ? { updatedAt: toIsoString(raw.updatedAt) } : {}),
       ...(isProductClassifications(raw.classifications)
         ? { classifications: raw.classifications }
         : {}),
@@ -84,6 +86,21 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
       ...(typeof campaign.supplementNote === "string" ? { supplementNote: campaign.supplementNote } : {}),
     })),
   };
+}
+
+function toIsoString(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (
+    value
+    && typeof value === "object"
+    && "toDate" in value
+    && typeof (value as { toDate?: unknown }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  return undefined;
 }
 
 function isProductImages(value: unknown): value is ProductImage[] {

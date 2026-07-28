@@ -17,6 +17,7 @@ import {
   loadAnonymousCart,
   saveAnonymousCart,
 } from "@/lib/cart/anonymousCart";
+import { saleTypeCustomerLabels } from "@/lib/catalog/featuredProducts";
 
 type Props = {
   productId: string;
@@ -188,7 +189,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
             >
               {campaigns.map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>
-                  {campaign.title} / {campaign.saleType}
+                  {campaign.title} / {saleTypeCustomerLabels[campaign.saleType]}
                 </option>
               ))}
             </select>
@@ -212,7 +213,10 @@ export function PublicProductDetailBoard({ productId }: Props) {
 
         <div className="mt-6 grid gap-3 rounded-3xl bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-2">
           <p>售價：NT$ {effectivePrice.toLocaleString()}</p>
-          <p>sale type：{availableCampaign?.saleType ?? "尚未設定"}</p>
+          <p>
+            販售類型：
+            {availableCampaign ? saleTypeCustomerLabels[availableCampaign.saleType] : "尚未設定"}
+          </p>
           <p>二補提示：{availableCampaign?.requiresSupplement ? "需要" : "不需要"}</p>
           <p>狀態：{availableCampaign?.status ?? "未設定"}</p>
           {availableCampaign?.startsAt ? <p>開始：{formatCampaignDateTime(availableCampaign.startsAt)}</p> : null}
@@ -253,7 +257,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
                 <div key={campaign.id} className="rounded-2xl bg-slate-50 p-3">
                   <p className="font-medium">{campaign.title}</p>
                   <p className="mt-1 text-slate-600">
-                    {campaign.saleType} · {campaign.requiresSupplement ? "需要二補" : "不需要二補"}
+                    {saleTypeCustomerLabels[campaign.saleType]} · {campaign.requiresSupplement ? "需要二補" : "不需要二補"}
                   </p>
                   {campaign.endsAt ? (
                     <p className="mt-1 text-slate-500">結單：{formatCampaignDateTime(campaign.endsAt)}</p>
@@ -285,7 +289,10 @@ export function PublicProductDetailBoard({ productId }: Props) {
           <div className="mt-4 grid gap-2 text-sm">
             <p>項目數：{summary.itemCount}</p>
             <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
-            <p>sale type：{summary.saleType ?? "尚未決定"}</p>
+            <p>
+              販售類型：
+              {summary.saleType ? saleTypeCustomerLabels[summary.saleType] : "尚未決定"}
+            </p>
           </div>
           <Link href="/cart" className="mt-5 inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white">
             前往購物車

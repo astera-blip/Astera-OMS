@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const useEmulatedAuth = process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true";
+
 test("public storefront navigation renders without seed fallback", async ({ page }) => {
   await page.goto("/");
 
@@ -14,6 +16,18 @@ test("public storefront navigation renders without seed fallback", async ({ page
 
   await page.getByRole("link", { name: "回首頁" }).click();
   await expect(page).toHaveURL(/\/$/);
+});
+
+test("homepage recommendations use customer copy and responsive product links", async ({ page }) => {
+  test.skip(!useEmulatedAuth, "Requires Firestore emulator product seed.");
+  await page.goto("/");
+
+  const recommendations = page.getByRole("heading", { name: "推薦商品" }).locator("xpath=../../..");
+  await expect(recommendations.getByRole("link", { name: /E2E 流程商品|商品圖片預覽/ }).first())
+    .toBeVisible();
+  await expect(recommendations).not.toContainText("unknown");
+  await expect(recommendations).not.toContainText("sale type");
+  await expect(recommendations).toContainText(/代搶|預購|現貨|候補/);
 });
 
 test("brand page and footer do not expose disabled or empty social links as clickable", async ({ page }) => {

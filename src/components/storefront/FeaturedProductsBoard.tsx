@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { ProductCoverImage } from "@/components/storefront/ProductCoverImage";
 import { useEffect, useMemo, useState } from "react";
-import { getDefaultCampaign, getDefaultVariant, type PublicCatalogItem } from "@/lib/catalog/publicCatalog";
+import {
+  getDefaultVariant,
+  getEffectiveCatalogPriceTwd,
+  type PublicCatalogItem,
+} from "@/lib/catalog/publicCatalog";
+import {
+  featuredCampaign,
+  rankFeaturedProducts,
+  saleTypeCustomerLabels,
+} from "@/lib/catalog/featuredProducts";
 
 type LoadState = "loading" | "ready" | "empty" | "error";
 
@@ -31,29 +40,7 @@ export function FeaturedProductsBoard() {
     void loadCatalog().catch(() => setState("error"));
   }, []);
 
-  const featured = useMemo(() => {
-    return [...catalog]
-      .sort((a, b) => {
-        const aCampaign = getDefaultCampaign(a);
-        const bCampaign = getDefaultCampaign(b);
-
-        if (aCampaign?.saleType === "rushPurchase" && bCampaign?.saleType !== "rushPurchase") {
-          return -1;
-        }
-        if (aCampaign?.saleType !== "rushPurchase" && bCampaign?.saleType === "rushPurchase") {
-          return 1;
-        }
-        if (aCampaign?.saleType === "preorder" && bCampaign?.saleType === "inStock") {
-          return -1;
-        }
-        if (aCampaign?.saleType === "inStock" && bCampaign?.saleType === "preorder") {
-          return 1;
-        }
-
-        return a.product.name.localeCompare(b.product.name);
-      })
-      .slice(0, 6);
-  }, [catalog]);
+  const featured = useMemo(() => rankFeaturedProducts(catalog), [catalog]);
 
   if (state === "loading") {
     return <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">推薦商品載入中。</div>;
@@ -64,7 +51,7 @@ export function FeaturedProductsBoard() {
   }
 
   if (state === "empty") {
-    return <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">目前還沒有已發布商品，請由 owner 先建立 1–3 筆真實商品。</div>;
+    return <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">目前沒有開放中的推薦商品，歡迎稍後再回來看看。</div>;
   }
 
   return (
@@ -79,28 +66,30 @@ export function FeaturedProductsBoard() {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid auto-cols-[minmax(78vw,1fr)] grid-flow-col gap-4 overflow-x-auto pb-3 sm:auto-cols-[minmax(320px,1fr)] lg:grid-flow-row lg:grid-cols-3 lg:overflow-visible">
         {featured.map((item) => {
           const variant = getDefaultVariant(item);
-          const campaign = getDefaultCampaign(item);
+          const campaign = featuredCampaign(item);
+          const price = variant ? getEffectiveCatalogPriceTwd(variant, campaign) : 0;
 
           return (
-            <article key={item.product.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <article key={item.product.id} className="snap-start rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <Link href={`/products/${item.product.id}`} className="block">
                 <ProductCoverImage
                   image={item.product.images?.[0]}
                   productName={item.product.name}
                 />
               </Link>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                {campaign?.saleType ?? "unknown"}
+              <p className="mt-4 text-xs font-semibold tracking-[0.16em] text-slate-500">
+                {campaign ? saleTypeCustomerLabels[campaign.saleType] : "販售資訊準備中"}
               </p>
               <h3 className="mt-2 text-lg font-semibold">{item.product.name}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">{item.product.publicDescription}</p>
               <div className="mt-4 grid gap-2 text-sm text-slate-700">
-                <p>售價：NT$ {variant?.priceTwd.toLocaleString() ?? "0"}</p>
+                <p>售價：NT$ {price.toLocaleString()}</p>
                 <p>活動：{campaign?.title ?? "未設定"}</p>
                 <p>{campaign?.requiresSupplement ? "需要二補" : "不需要二補"}</p>
+                {campaign?.endsAt ? <p>結單：{formatCampaignDateTime(campaign.endsAt)}</p> : null}
               </div>
               <Link
                 href={`/products/${item.product.id}`}
@@ -114,4 +103,11 @@ export function FeaturedProductsBoard() {
       </div>
     </section>
   );
+}
+
+function formatCampaignDateTime(value: string) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

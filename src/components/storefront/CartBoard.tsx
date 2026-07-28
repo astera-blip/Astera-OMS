@@ -19,6 +19,7 @@ import {
   loadAnonymousCart,
   saveAnonymousCart,
 } from "@/lib/cart/anonymousCart";
+import { saleTypeCustomerLabels } from "@/lib/catalog/featuredProducts";
 
 export function CartBoard() {
   const { user } = useAuth();
@@ -293,7 +294,10 @@ export function CartBoard() {
           <div className="mt-4 grid gap-2 text-sm">
             <p>項目數：{summary.itemCount}</p>
             <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
-            <p>sale type：{summary.saleType ?? "尚未決定"}</p>
+            <p>
+              販售類型：
+              {summary.saleType ? saleTypeCustomerLabels[summary.saleType] : "尚未決定"}
+            </p>
           </div>
           <div className="mt-4 grid gap-3 text-sm text-slate-700">
             <label className="flex items-start gap-3">

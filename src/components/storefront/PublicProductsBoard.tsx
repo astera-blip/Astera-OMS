@@ -18,6 +18,10 @@ import {
 } from "@/lib/catalog/publicCatalog";
 import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
 import {
+  campaignStatusCustomerLabels,
+  saleTypeCustomerLabels,
+} from "@/lib/catalog/featuredProducts";
+import {
   clearAnonymousCart,
   loadAnonymousCart,
   saveAnonymousCart,
@@ -296,7 +300,7 @@ export function PublicProductsBoard() {
                 <div className="mt-3 text-xs text-slate-500">
                   {campaign ? (
                     <>
-                      {campaign.saleType} · {campaign.status}
+                      {saleTypeCustomerLabels[campaign.saleType]} · {campaignStatusCustomerLabels[campaign.status]}
                       {campaign.requiresSupplement ? " · 需要二補" : " · 不需要二補"}
                     </>
                   ) : (
@@ -332,7 +336,10 @@ export function PublicProductsBoard() {
           <div className="mt-4 grid gap-2 text-sm">
             <p>項目數：{summary.itemCount}</p>
             <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
-            <p>sale type：{summary.saleType ?? "尚未決定"}</p>
+            <p>
+              販售類型：
+              {summary.saleType ? saleTypeCustomerLabels[summary.saleType] : "尚未決定"}
+            </p>
           </div>
           <Link
             href="/cart"
