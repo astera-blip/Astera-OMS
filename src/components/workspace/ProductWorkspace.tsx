@@ -706,7 +706,7 @@ export function ProductWorkspace() {
                   <button
                     type="button"
                     onClick={addVariantForm}
-                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                    className="min-h-11 rounded-full border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
                   >
                     新增 Variant（規格）
                   </button>
@@ -799,7 +799,7 @@ export function ProductWorkspace() {
                   <button
                     type="button"
                     onClick={addCampaignForm}
-                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                    className="min-h-11 rounded-full border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
                   >
                     新增 Campaign（活動）
                   </button>

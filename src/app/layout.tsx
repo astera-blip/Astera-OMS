@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { RouteFocusManager } from "@/components/accessibility/RouteFocusManager";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,9 +17,10 @@ export default function RootLayout({
   return (
     <html lang="zh-Hant-TW" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
+        <a className="skip-link" href="#main-content">跳至主要內容</a>
         <AuthProvider>
-          <div className="flex min-h-screen flex-col">
-            <div className="flex-1">{children}</div>
+          <div className="flex min-h-dvh flex-col">
+            <RouteFocusManager>{children}</RouteFocusManager>
             <StorefrontFooter />
           </div>
         </AuthProvider>

@@ -381,11 +381,11 @@ export function PaymentOperationsBoard() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold">Ledger</h3>
+          <h3 className="text-lg font-semibold">營運統計</h3>
           <div className="mt-4 grid gap-2 text-sm text-slate-600">
-            <p>Orders：{orders.length}</p>
-            <p>Payment requests：{requests.length}</p>
-            <p>Payment reports：{payments.length}</p>
+            <p>訂單：{orders.length}</p>
+            <p>付款請求：{requests.length}</p>
+            <p>付款回報：{payments.length}</p>
             <p>未分配超額：NT$ {totalUnallocatedAmountTwd.toLocaleString()}</p>
             <p>付款與訂單狀態會以系統紀錄為準。</p>
           </div>

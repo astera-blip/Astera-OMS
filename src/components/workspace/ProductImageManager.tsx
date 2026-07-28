@@ -156,7 +156,7 @@ export function ProductImageManager({
           />
         </label>
       </div>
-      {message ? <p className="mt-3 text-sm text-slate-700">{message}</p> : null}
+      {message ? <p aria-live="polite" className="mt-3 text-sm text-slate-700">{message}</p> : null}
       <div className="mt-5 grid gap-4">
         {images.map((image, index) => (
           <div
@@ -183,12 +183,12 @@ export function ProductImageManager({
               />
             </label>
             <div className="flex flex-wrap items-end gap-2">
-              <button type="button" onClick={() => move(index, -1)} disabled={index === 0}>上移</button>
-              <button type="button" onClick={() => move(index, 1)} disabled={index === images.length - 1}>下移</button>
+              <button className="min-h-11 rounded-lg px-3 disabled:opacity-40" type="button" onClick={() => move(index, -1)} disabled={index === 0}>上移</button>
+              <button className="min-h-11 rounded-lg px-3 disabled:opacity-40" type="button" onClick={() => move(index, 1)} disabled={index === images.length - 1}>下移</button>
               <button
                 type="button"
                 onClick={() => onChanged(images.filter((_, currentIndex) => currentIndex !== index))}
-                className="text-rose-700"
+                className="min-h-11 rounded-lg px-3 text-rose-700"
               >
                 解除引用
               </button>

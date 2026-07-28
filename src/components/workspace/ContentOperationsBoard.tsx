@@ -111,7 +111,9 @@ export function ContentOperationsBoard() {
   return (
     <section className="grid gap-5">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Content</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+          Content（內容）
+        </p>
         <h2 className="mt-2 text-2xl font-semibold">品牌與公告內容</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           管理前台品牌頁與 Footer 會讀取的 siteSettings、社群入口、FAQ 與公告。

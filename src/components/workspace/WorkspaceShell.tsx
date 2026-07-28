@@ -6,13 +6,13 @@ import { ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 const navigation = [
-  { href: "/workspace", label: "Workspace" },
-  { href: "/workspace/products", label: "Products" },
-  { href: "/workspace/members", label: "Members" },
-  { href: "/workspace/orders", label: "Orders" },
-  { href: "/workspace/payments", label: "Payments" },
-  { href: "/workspace/content", label: "Content" },
-  { href: "/workspace/audit-logs", label: "Audit Logs" },
+  { href: "/workspace", label: "Workspace（工作區）" },
+  { href: "/workspace/products", label: "Products（商品）" },
+  { href: "/workspace/members", label: "Members（會員）" },
+  { href: "/workspace/orders", label: "Orders（訂單）" },
+  { href: "/workspace/payments", label: "Payments（付款）" },
+  { href: "/workspace/content", label: "Content（內容）" },
+  { href: "/workspace/audit-logs", label: "Audit Logs（稽核紀錄）" },
 ];
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
@@ -80,13 +80,13 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                 href="/"
                 className="rounded-full border border-white/15 px-4 py-2 text-sm text-slate-100 transition-colors hover:bg-white/10"
               >
-                Home
+                Home（首頁）
               </Link>
               <Link
                 href="/products"
                 className="rounded-full bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
               >
-                Public Products
+                Public Products（前台商品）
               </Link>
             </div>
           </div>

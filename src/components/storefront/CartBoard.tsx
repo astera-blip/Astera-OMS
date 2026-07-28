@@ -34,6 +34,7 @@ export function CartBoard() {
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
+  const [placingOrder, setPlacingOrder] = useState(false);
 
   useEffect(() => {
     async function syncCart() {
@@ -145,6 +146,7 @@ export function CartBoard() {
     const timestamp = new Date().toISOString();
     const idempotencyKey = `${user.uid}_${timestamp.replaceAll(/[-:.TZ]/g, "").slice(0, 17)}`;
 
+    setPlacingOrder(true);
     try {
       const { auth } = await import("@/lib/firebase/client");
       const token = await auth.currentUser?.getIdToken();
@@ -197,6 +199,8 @@ export function CartBoard() {
       setMessage(`已建立訂單 ${orderLabels || payload.orderId || "新訂單"}，付款請求已建立。`);
     } catch {
       setMessage("訂單建立失敗，請確認已登入且網路可用。");
+    } finally {
+      setPlacingOrder(false);
     }
   }
 
@@ -348,11 +352,12 @@ export function CartBoard() {
           <button
             type="button"
             onClick={() => void placeOrder()}
-            className="mt-5 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950"
+            disabled={placingOrder}
+            className="mt-5 min-h-11 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-wait disabled:opacity-60"
           >
-            建立訂單
+            {placingOrder ? "建立中…" : "建立訂單"}
           </button>
-          <p className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
+          <p aria-live="polite" className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
         </div>
       </aside>
     </section>

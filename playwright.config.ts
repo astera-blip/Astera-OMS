@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const useFirebaseEmulators =
+  process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
@@ -7,7 +10,10 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  fullyParallel: true,
+  // Emulator acceptance tests share seeded Auth, Firestore, and Storage state.
+  // Keep those flows serial while retaining parallel smoke tests elsewhere.
+  fullyParallel: !useFirebaseEmulators,
+  workers: useFirebaseEmulators ? 1 : undefined,
   reporter: [["list"]],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
