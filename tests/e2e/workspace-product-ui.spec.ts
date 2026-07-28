@@ -12,9 +12,8 @@ test("workspace product editor remains behind the workspace auth gate", async ({
   await expect(page.getByRole("button", { name: "使用 Google 登入" })).toBeVisible();
 });
 
-test("owner can edit multiple variants and campaigns in emulator mode", async ({ page }, testInfo) => {
+test("owner can edit multiple variants and campaigns in emulator mode", async ({ page }) => {
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
-  test.skip(testInfo.project.name.includes("mobile"), "Desktop workspace form coverage is sufficient; mobile API flow is covered separately.");
 
   await page.addInitScript(() => {
     window.localStorage.setItem("astera-products-workspace-v1", JSON.stringify([
@@ -63,24 +62,32 @@ test("owner can edit multiple variants and campaigns in emulator mode", async ({
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/workspace\/products/);
 
-  await expect(page.getByRole("heading", { name: "商品後台完整化" })).toBeVisible();
-  const variantLabels = page.getByText(/^Variant \d+$/);
-  const campaignLabels = page.getByText(/^Campaign \d+$/);
+  await expect(page.getByRole("heading", { name: "Products（商品管理）" })).toBeVisible();
+  await expect(page.getByText(/商品資料已載入。|目前沒有商品。/)).toBeVisible();
+  await expect(page.getByText("Product ID（商品識別碼）")).toBeVisible();
+  await expect(page.getByText("Product SKU（商品編號）")).toBeVisible();
+  await expect(page.getByText("Internal Note（內部備註）")).toBeVisible();
+  await expect(page.getByText("Publish Status（刊登狀態）")).toBeVisible();
+  await expect(page.getByRole("option", { name: "THB（泰銖）" }).first()).toBeAttached();
+  const variantLabels = page.getByText(/^Variant（規格） \d+$/);
+  const campaignLabels = page.getByText(/^Campaign（活動） \d+$/);
   const variantCount = await variantLabels.count();
   const campaignCount = await campaignLabels.count();
   const variantsFieldset = page.locator("fieldset").filter({ hasText: "Variants" });
   const campaignsFieldset = page.locator("fieldset").filter({ hasText: "Campaigns" });
 
-  await variantsFieldset.getByRole("button", { name: "新增 Variant" }).evaluate((button) => {
+  await variantsFieldset.getByRole("button", { name: "新增 Variant（規格）" }).evaluate((button) => {
     (button as HTMLButtonElement).click();
   });
-  await campaignsFieldset.getByRole("button", { name: "新增 Campaign" }).evaluate((button) => {
+  await campaignsFieldset.getByRole("button", { name: "新增 Campaign（活動）" }).evaluate((button) => {
     (button as HTMLButtonElement).click();
   });
 
   await expect(variantLabels).toHaveCount(variantCount + 1);
   await expect(campaignLabels).toHaveCount(campaignCount + 1);
   await expect(page.getByPlaceholder("未填則用 Variant 售價").last()).toBeVisible();
+  await expect(page.getByRole("option", { name: "Rush Purchase（代搶）" }).first()).toBeAttached();
+  await expect(page.getByRole("option", { name: "Archived（已封存）" }).first()).toBeAttached();
 });
 
 test("member account cannot enter owner workspace in emulator mode", async ({ page }) => {

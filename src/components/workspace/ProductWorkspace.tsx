@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { CopyValueButton } from "@/components/workspace/CopyValueButton";
 import type { PublishState } from "@/domain/common";
 import {
   buildPublicProductProjection,
@@ -19,6 +20,13 @@ import {
   getNewProductFormDefaults,
   getNewVariantFormDefaults,
 } from "@/lib/product/workspaceDefaults";
+import {
+  campaignStatusLabels,
+  classificationStatusLabels,
+  currencyOptions,
+  publishStateLabels,
+  saleTypeLabels,
+} from "@/lib/product/workspaceLabels";
 
 type WorkspaceProduct = ProductCatalogRecord & {
   internalNote?: string;
@@ -87,6 +95,8 @@ const emptyClassifications: ClassificationMasters = {
 
 export function ProductWorkspace() {
   const { role, user } = useAuth();
+  const productsLoadedForUid = useRef("");
+  const classificationsLoadedForUid = useRef("");
   const [products, setProducts] = useState<WorkspaceProduct[]>([]);
   const [classifications, setClassifications] =
     useState<ClassificationMasters>(emptyClassifications);
@@ -101,11 +111,12 @@ export function ProductWorkspace() {
 
   useEffect(() => {
     async function loadFirestoreProducts() {
-      if (role !== "owner") {
+      if (role !== "owner" || !user || productsLoadedForUid.current === user.uid) {
         return;
       }
+      productsLoadedForUid.current = user.uid;
 
-      const token = await user?.getIdToken();
+      const token = await user.getIdToken();
       if (!token) {
         return;
       }
@@ -125,18 +136,24 @@ export function ProductWorkspace() {
       setMessage(workspaceProducts.length > 0 ? "商品資料已載入。" : "目前沒有商品。");
     }
 
-    void loadFirestoreProducts().catch(() =>
-      setMessage("無法載入商品資料，請確認網路後再試一次。"),
-    );
+    void loadFirestoreProducts().catch(() => {
+      productsLoadedForUid.current = "";
+      setMessage("無法載入商品資料，請確認網路後再試一次。");
+    });
   }, [role, user]);
 
   useEffect(() => {
     async function loadFirestoreClassifications() {
-      if (role !== "owner") {
+      if (
+        role !== "owner"
+        || !user
+        || classificationsLoadedForUid.current === user.uid
+      ) {
         return;
       }
+      classificationsLoadedForUid.current = user.uid;
 
-      const token = await user?.getIdToken();
+      const token = await user.getIdToken();
       if (!token) {
         return;
       }
@@ -161,9 +178,10 @@ export function ProductWorkspace() {
       setClassifications(next);
     }
 
-    void loadFirestoreClassifications().catch(() =>
-      setMessage("無法載入分類主檔，請確認網路後再試一次。"),
-    );
+    void loadFirestoreClassifications().catch(() => {
+      classificationsLoadedForUid.current = "";
+      setMessage("無法載入分類主檔，請確認網路後再試一次。");
+    });
   }, [role, user]);
 
   const selectedProduct = useMemo(
@@ -524,7 +542,7 @@ export function ProductWorkspace() {
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
                 商品管理
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">商品後台完整化</h2>
+              <h2 className="mt-2 text-2xl font-semibold">Products（商品管理）</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                 管理商品、商品規格、販售活動，以及公開與內部作業資訊。
               </p>
@@ -550,16 +568,33 @@ export function ProductWorkspace() {
               </button>
             </div>
             <div className="mt-4 grid gap-4">
+              <div className="grid gap-2 text-sm">
+                <span className="font-medium">Product ID（商品識別碼）</span>
+                <div className="flex gap-2">
+                  <input
+                    value={productForm.id || "儲存時自動建立"}
+                    readOnly
+                    className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500"
+                  />
+                  <CopyValueButton value={productForm.id} label="Product ID" />
+                </div>
+              </div>
+              <div className="grid gap-2 text-sm">
+                <span className="font-medium">Product SKU（商品編號）</span>
+                <div className="flex gap-2">
+                  <input
+                    value={selectedProduct?.product.sku || "儲存時自動派發"}
+                    readOnly
+                    className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500"
+                  />
+                  <CopyValueButton value={selectedProduct?.product.sku} label="Product SKU" />
+                </div>
+                <p className="text-xs leading-5 text-slate-500">
+                  SKU 由系統自動派發且不可修改；規格封存後編號不回收，新規格會繼續往後編號。
+                </p>
+              </div>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium">系統商品 ID</span>
-                <input
-                  value={productForm.id || "儲存時自動建立"}
-                  readOnly
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500"
-                />
-              </label>
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium">商品名稱</span>
+                <span className="font-medium">Product Name（商品名稱）</span>
                 <input
                   value={productForm.name}
                   onChange={(event) =>
@@ -569,7 +604,7 @@ export function ProductWorkspace() {
                 />
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium">公開說明</span>
+                <span className="font-medium">Public Description（公開說明）</span>
                 <textarea
                   value={productForm.publicDescription}
                   onChange={(event) =>
@@ -582,7 +617,7 @@ export function ProductWorkspace() {
                 />
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium">內部備註</span>
+                <span className="font-medium">Internal Note（內部備註）</span>
                 <textarea
                   value={productForm.internalNote}
                   onChange={(event) =>
@@ -593,9 +628,12 @@ export function ProductWorkspace() {
                   }
                   className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
                 />
+                <span className="text-xs leading-5 text-slate-500">
+                  僅供後台作業使用，不會顯示於商品頁。可記錄採購來源、限購、成本或交接事項。
+                </span>
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium">刊登狀態</span>
+                <span className="font-medium">Publish Status（刊登狀態）</span>
                 <select
                   value={productForm.publishState}
                   onChange={(event) =>
@@ -606,9 +644,9 @@ export function ProductWorkspace() {
                   }
                   className="rounded-2xl border border-slate-300 px-4 py-3"
                 >
-                  <option value="draft">draft</option>
-                  <option value="published">published</option>
-                  <option value="archived">archived</option>
+                  {Object.entries(publishStateLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
               </label>
               <div className="grid gap-4 md:grid-cols-2">
@@ -644,7 +682,7 @@ export function ProductWorkspace() {
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold">Variant 與 Campaign</h3>
+              <h3 className="text-lg font-semibold">Variants（商品規格）與 Campaigns（販售活動）</h3>
               <button
                 type="button"
                 onClick={archiveSelectedProduct}
@@ -657,19 +695,19 @@ export function ProductWorkspace() {
             <div className="mt-4 grid gap-4">
               <fieldset className="grid gap-3 rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <legend className="px-1 text-sm font-semibold">Variants</legend>
+                  <legend className="px-1 text-sm font-semibold">Variants（商品規格）</legend>
                   <button
                     type="button"
                     onClick={addVariantForm}
                     className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    新增 Variant
+                    新增 Variant（規格）
                   </button>
                 </div>
                 {variantForms.map((variant, index) => (
                   <div key={`${variant.id}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">Variant {index + 1}</p>
+                      <p className="text-sm font-semibold">Variant（規格） {index + 1}</p>
                       <button
                         type="button"
                         onClick={() => archiveVariantForm(index)}
@@ -678,16 +716,19 @@ export function ProductWorkspace() {
                         移除
                       </button>
                     </div>
+                    <div className="grid gap-2 text-sm">
+                      <span className="font-medium">Variant SKU（規格編號）</span>
+                      <div className="flex gap-2">
+                        <input
+                          value={variant.sku || "儲存時自動派發"}
+                          readOnly
+                          className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-500"
+                        />
+                        <CopyValueButton value={variant.sku} label={`Variant ${index + 1} SKU`} />
+                      </div>
+                    </div>
                     <label className="grid gap-2 text-sm">
-                      <span className="font-medium">SKU</span>
-                      <input
-                        value={variant.sku || "儲存時自動派發"}
-                        readOnly
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-500"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm">
-                      <span className="font-medium">規格名稱</span>
+                      <span className="font-medium">Variant Name（規格名稱）</span>
                       <input
                         value={variant.name}
                         onChange={(event) => updateVariantForm(index, { name: event.target.value })}
@@ -696,7 +737,7 @@ export function ProductWorkspace() {
                     </label>
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">售價 TWD</span>
+                        <span className="font-medium">Default Price TWD（預設售價）</span>
                         <input
                           type="number"
                           min="0"
@@ -707,7 +748,7 @@ export function ProductWorkspace() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">原幣成本</span>
+                        <span className="font-medium">Original Cost（原幣成本）</span>
                         <input
                           value={variant.originalCost}
                           onChange={(event) => updateVariantForm(index, { originalCost: event.target.value })}
@@ -717,7 +758,7 @@ export function ProductWorkspace() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">原幣別</span>
+                        <span className="font-medium">Original Currency（原幣別）</span>
                         <select
                           value={variant.originalCurrency}
                           onChange={(event) =>
@@ -727,12 +768,9 @@ export function ProductWorkspace() {
                           }
                           className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         >
-                          <option value="">未設定</option>
-                          <option value="TWD">TWD</option>
-                          <option value="THB">THB</option>
-                          <option value="JPY">JPY</option>
-                          <option value="KRW">KRW</option>
-                          <option value="USD">USD</option>
+                          {currencyOptions.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
                         </select>
                       </label>
                       <label className="flex items-center gap-3 self-end text-sm">
@@ -741,7 +779,7 @@ export function ProductWorkspace() {
                           checked={variant.isDefault}
                           onChange={(event) => updateVariantForm(index, { isDefault: event.target.checked })}
                         />
-                        <span>設為 Default Variant</span>
+                        <span>Default Variant（預設規格）</span>
                       </label>
                     </div>
                   </div>
@@ -750,19 +788,19 @@ export function ProductWorkspace() {
 
               <fieldset className="grid gap-3 rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <legend className="px-1 text-sm font-semibold">Sale Campaigns</legend>
+                  <legend className="px-1 text-sm font-semibold">Sale Campaigns（販售活動）</legend>
                   <button
                     type="button"
                     onClick={addCampaignForm}
                     className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    新增 Campaign
+                    新增 Campaign（活動）
                   </button>
                 </div>
                 {campaignForms.map((campaign, index) => (
                   <div key={`${campaign.id}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">Campaign {index + 1}</p>
+                      <p className="text-sm font-semibold">Campaign（活動） {index + 1}</p>
                       <button
                         type="button"
                         onClick={() => archiveCampaignForm(index)}
@@ -772,7 +810,7 @@ export function ProductWorkspace() {
                       </button>
                     </div>
                     <label className="grid gap-2 text-sm">
-                      <span className="font-medium">活動名稱</span>
+                      <span className="font-medium">Campaign Name（活動名稱）</span>
                       <input
                         value={campaign.title}
                         onChange={(event) => updateCampaignForm(index, { title: event.target.value })}
@@ -781,7 +819,7 @@ export function ProductWorkspace() {
                     </label>
                     <div className="grid gap-4 md:grid-cols-3">
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Sale Type</span>
+                        <span className="font-medium">Sale Type（販售類型）</span>
                         <select
                           value={campaign.saleType}
                           onChange={(event) =>
@@ -791,14 +829,13 @@ export function ProductWorkspace() {
                           }
                           className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         >
-                          <option value="inStock">inStock</option>
-                          <option value="preorder">preorder</option>
-                          <option value="rushPurchase">rushPurchase</option>
-                          <option value="waitlist">waitlist</option>
+                          {Object.entries(saleTypeLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
                         </select>
                       </label>
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">狀態</span>
+                        <span className="font-medium">Campaign Status（活動狀態）</span>
                         <select
                           value={campaign.status}
                           onChange={(event) =>
@@ -808,14 +845,13 @@ export function ProductWorkspace() {
                           }
                           className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         >
-                          <option value="upcoming">upcoming</option>
-                          <option value="open">open</option>
-                          <option value="closed">closed</option>
-                          <option value="archived">archived</option>
+                          {Object.entries(campaignStatusLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
                         </select>
                       </label>
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">活動價 TWD</span>
+                        <span className="font-medium">Sale Price TWD（活動價）</span>
                         <input
                           type="number"
                           min="0"
@@ -833,11 +869,11 @@ export function ProductWorkspace() {
                         checked={campaign.requiresSupplement}
                         onChange={(event) => updateCampaignForm(index, { requiresSupplement: event.target.checked })}
                       />
-                      <span>需要二補</span>
+                      <span>Supplement Required（可能需要二補）</span>
                     </label>
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">開始時間</span>
+                        <span className="font-medium">Start Time（開始時間）</span>
                         <input
                           type="datetime-local"
                           value={campaign.startsAt}
@@ -846,7 +882,7 @@ export function ProductWorkspace() {
                         />
                       </label>
                       <label className="grid gap-2 text-sm">
-                        <span className="font-medium">結單時間</span>
+                        <span className="font-medium">End Time（結單時間）</span>
                         <input
                           type="datetime-local"
                           value={campaign.endsAt}
@@ -856,7 +892,7 @@ export function ProductWorkspace() {
                       </label>
                     </div>
                     <label className="grid gap-2 text-sm">
-                      <span className="font-medium">公開提醒</span>
+                      <span className="font-medium">Public Notice（公開提醒）</span>
                       <textarea
                         value={campaign.publicNotice}
                         onChange={(event) => updateCampaignForm(index, { publicNotice: event.target.value })}
@@ -865,7 +901,7 @@ export function ProductWorkspace() {
                       />
                     </label>
                     <label className="grid gap-2 text-sm">
-                      <span className="font-medium">二補說明</span>
+                      <span className="font-medium">Supplement Note（二補說明）</span>
                       <textarea
                         value={campaign.supplementNote}
                         onChange={(event) => updateCampaignForm(index, { supplementNote: event.target.value })}
@@ -929,8 +965,9 @@ export function ProductWorkspace() {
                   }
                   className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
                 >
-                  <option value="active">active</option>
-                  <option value="archived">archived</option>
+                  {Object.entries(classificationStatusLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
                 <button
                   type="button"
@@ -946,7 +983,9 @@ export function ProductWorkspace() {
                     <span className="font-medium text-slate-900">
                       {classificationLabels[key as ProductClassificationKey]}：
                     </span>
-                    {entries.map((entry) => `${entry.label} (${entry.status})`).join("、")}
+                    {entries
+                      .map((entry) => `${entry.label} (${classificationStatusLabels[entry.status]})`)
+                      .join("、")}
                   </p>
                 ))}
               </div>
