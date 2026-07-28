@@ -26,7 +26,7 @@ const env = {
   GOOGLE_CLOUD_PROJECT: "demo-astera-oms",
 };
 
-const child = spawn(process.execPath, [playwrightCli, "test"], {
+const child = spawn(process.execPath, [playwrightCli, "test", ...process.argv.slice(2)], {
   cwd: process.cwd(),
   stdio: "inherit",
   env,

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { CopyValueButton } from "@/components/workspace/CopyValueButton";
+import { ProductClassificationManager } from "@/components/workspace/ProductClassificationManager";
 import type { PublishState } from "@/domain/common";
 import {
   buildPublicProductProjection,
@@ -11,18 +12,13 @@ import {
   type ProductClassificationKey,
   type ProductClassifications,
 } from "@/lib/product/catalog";
-import {
-  normalizeCatalogClassification,
-  type CatalogClassification,
-  type CatalogClassificationStatus,
-} from "@/lib/product/classifications";
+import type { CatalogClassification } from "@/lib/product/classifications";
 import {
   getNewProductFormDefaults,
   getNewVariantFormDefaults,
 } from "@/lib/product/workspaceDefaults";
 import {
   campaignStatusLabels,
-  classificationStatusLabels,
   currencyOptions,
   publishStateLabels,
   saleTypeLabels,
@@ -68,13 +64,6 @@ type CampaignFormState = {
   supplementNote: string;
 };
 
-type ClassificationFormState = {
-  key: ProductClassificationKey;
-  id: string;
-  label: string;
-  status: CatalogClassificationStatus;
-};
-
 type ClassificationMasters = Record<ProductClassificationKey, CatalogClassification[]>;
 
 const classificationLabels: Record<ProductClassificationKey, string> = {
@@ -102,12 +91,9 @@ export function ProductWorkspace() {
     useState<ClassificationMasters>(emptyClassifications);
   const [selectedId, setSelectedId] = useState("");
   const [message, setMessage] = useState("商品資料載入中。");
-  const [classificationForm, setClassificationForm] = useState<ClassificationFormState>({
-    key: "company",
-    id: "company_002",
-    label: "",
-    status: "active",
-  });
+  const [activeTab, setActiveTab] = useState<"products" | "classifications">("products");
+  const [activeClassificationKey, setActiveClassificationKey] =
+    useState<ProductClassificationKey>("company");
 
   useEffect(() => {
     async function loadFirestoreProducts() {
@@ -406,58 +392,20 @@ export function ProductWorkspace() {
     );
   }
 
-  async function upsertClassification() {
-    const normalized = normalizeCatalogClassification(classificationForm);
-
-    if (!normalized.id || !normalized.label) {
-      setMessage("請填寫分類 ID 與名稱。");
-      return;
-    }
-
-    if (role === "owner") {
-      try {
-        const token = await user?.getIdToken();
-        if (!token) {
-          throw new Error("missing_token");
-        }
-        const response = await fetch("/api/workspace/classifications", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            key: classificationForm.key,
-            classification: normalized,
-          }),
-        });
-        if (!response.ok) {
-          throw new Error("save_classification_failed");
-        }
-        const payload = (await response.json()) as { classification?: CatalogClassification };
-        const saved = payload.classification ?? normalized;
-        setClassifications((current) => {
-          const existing = current[classificationForm.key];
-          const index = existing.findIndex((entry) => entry.id === saved.id);
-          const nextEntries = [...existing];
-          if (index >= 0) {
-            nextEntries[index] = saved;
-          } else {
-            nextEntries.unshift(saved);
-          }
-          return { ...current, [classificationForm.key]: nextEntries };
-        });
-      } catch {
-        setMessage("分類儲存失敗，請確認資料與網路後再試一次。");
-        return;
+  function updateClassification(
+    key: ProductClassificationKey,
+    saved: CatalogClassification,
+  ) {
+    setClassifications((current) => {
+      const index = current[key].findIndex((entry) => entry.id === saved.id);
+      const nextEntries = [...current[key]];
+      if (index >= 0) {
+        nextEntries[index] = saved;
+      } else {
+        nextEntries.unshift(saved);
       }
-    } else {
-      setMessage("需要 Owner 權限才能儲存分類。");
-      return;
-    }
-
-    setMessage(`已儲存${classificationLabels[classificationForm.key]} ${normalized.label}。`);
-    setClassificationForm((current) => ({ ...current, label: "" }));
+      return { ...current, [key]: nextEntries };
+    });
   }
 
   function archiveSelectedProduct() {
@@ -484,7 +432,43 @@ export function ProductWorkspace() {
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="grid gap-5">
+      <nav className="flex flex-wrap gap-2" aria-label="商品工作區">
+        <button
+          type="button"
+          onClick={() => setActiveTab("products")}
+          className={[
+            "rounded-full px-4 py-2 text-sm font-medium",
+            activeTab === "products"
+              ? "bg-slate-950 text-white"
+              : "border border-slate-300 text-slate-700",
+          ].join(" ")}
+        >
+          Products（商品管理）
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("classifications")}
+          className={[
+            "rounded-full px-4 py-2 text-sm font-medium",
+            activeTab === "classifications"
+              ? "bg-slate-950 text-white"
+              : "border border-slate-300 text-slate-700",
+          ].join(" ")}
+        >
+          Classifications（分類管理）
+        </button>
+      </nav>
+
+      {activeTab === "classifications" ? (
+        <ProductClassificationManager
+          classifications={classifications}
+          activeKey={activeClassificationKey}
+          onActiveKeyChange={setActiveClassificationKey}
+          onChanged={updateClassification}
+        />
+      ) : (
+      <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -652,8 +636,20 @@ export function ProductWorkspace() {
               <div className="grid gap-4 md:grid-cols-2">
                 {(["company", "artist", "cp", "brand", "series"] as ProductClassificationKey[]).map(
                   (key) => (
-                    <label key={key} className="grid gap-2 text-sm">
-                      <span className="font-medium">{classificationLabels[key]}</span>
+                    <div key={key} className="grid gap-2 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{classificationLabels[key]}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveClassificationKey(key);
+                            setActiveTab("classifications");
+                          }}
+                          className="text-xs font-medium text-amber-700"
+                        >
+                          管理分類
+                        </button>
+                      </div>
                       <select
                         value={productForm[`${key}Id` as keyof ProductFormState]}
                         onChange={(event) =>
@@ -673,7 +669,7 @@ export function ProductWorkspace() {
                             </option>
                           ))}
                       </select>
-                    </label>
+                    </div>
                   ),
                 )}
               </div>
@@ -916,82 +912,7 @@ export function ProductWorkspace() {
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-semibold">分類主檔</h3>
-            <div className="mt-4 grid gap-4">
-              <div className="grid gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
-                <select
-                  value={classificationForm.key}
-                  onChange={(event) =>
-                    setClassificationForm((current) => ({
-                      ...current,
-                      key: event.target.value as ProductClassificationKey,
-                    }))
-                  }
-                  className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                >
-                  {Object.entries(classificationLabels).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={classificationForm.id}
-                  onChange={(event) =>
-                    setClassificationForm((current) => ({ ...current, id: event.target.value }))
-                  }
-                  className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                  placeholder="分類 ID"
-                />
-              </div>
-              <input
-                value={classificationForm.label}
-                onChange={(event) =>
-                  setClassificationForm((current) => ({ ...current, label: event.target.value }))
-                }
-                className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                placeholder="顯示名稱"
-              />
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={classificationForm.status}
-                  onChange={(event) =>
-                    setClassificationForm((current) => ({
-                      ...current,
-                      status: event.target.value as CatalogClassificationStatus,
-                    }))
-                  }
-                  className="rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                >
-                  {Object.entries(classificationStatusLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void upsertClassification()}
-                  className="rounded-full bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
-                >
-                  儲存分類
-                </button>
-              </div>
-              <div className="grid gap-2 text-sm text-slate-600">
-                {Object.entries(classifications).map(([key, entries]) => (
-                  <p key={key}>
-                    <span className="font-medium text-slate-900">
-                      {classificationLabels[key as ProductClassificationKey]}：
-                    </span>
-                    {entries
-                      .map((entry) => `${entry.label} (${classificationStatusLabels[entry.status]})`)
-                      .join("、")}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </section>
-
+        <div className="grid gap-5">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold">商品預覽</h3>
             {selectedProduct ? (
@@ -1016,6 +937,8 @@ export function ProductWorkspace() {
 
         </div>
       </section>
+    </div>
+      )}
     </div>
   );
 }
