@@ -23,7 +23,7 @@ Last updated: 2026-07-29 Asia/Taipei
 | --- | --- | --- |
 | 0 Safety baseline | Partially complete | Branch created. External backup/deploy actions blocked on Firebase login and console access. |
 | 1 Server trust boundary and rules | Locally complete / deployment pending | Product/classification/profile/cart/content/member-note/order/payment/cancellation/legal/notification business writes now use protected APIs or Admin-only seed paths; Client SDK writes are denied by local rules. Production deployment is pending external Firebase access. |
-| 2 Product, SKU, Campaign | Locally complete / migration pending | Owner Product/Variant/Campaign API added with transaction SKU assignment. UI no longer accepts manual SKU. Owner UI now supports multiple Variants and Campaigns. Formal production product re-save/migration is pending external Firebase access. |
+| 2 Product, SKU, Campaign | Core locally complete / UI clarity batch pending / migration pending | Owner Product/Variant/Campaign API and transaction SKU assignment are complete. Approved bilingual labels, classification tabs, copy-ID/SKU controls, classification server IDs, and help text are pending implementation. Formal production product re-save/migration remains pending external Firebase access. |
 | 3 Checkout split and consent | In progress | Checkout UI/API require consent, split cart by Campaign, create multiple orders/payment requests/consents, and assign `AST-YYYYMMDD-0001` order numbers. |
 | 4 Payments and cancellation | In progress | Payment report, owner confirmation, payment reversal, unpaid direct cancellation, paid cancellation review with refund adjustment, and overpayment reporting UI are implemented locally. Auth emulator owner/member Playwright harness is now available; detailed checkout/payment/cancellation E2E flows still need to be added. |
 | 5 Storage images | In progress / bucket pending | Product image Storage rules and emulator tests are complete for the public product image namespace. Actual bucket creation/upload UI still requires Blaze bucket creation. |
@@ -276,6 +276,22 @@ Last updated: 2026-07-29 Asia/Taipei
 - Checkout now displays the actual Astera terms, privacy summary, and supplement-payment rules next to the two required consent controls.
 - Added `scripts/seed-firebase-emulator.mjs` and `npm run firebase:emulators:seed` for repeatable owner/member manual acceptance data.
 - Added regression tests for optional classifications, ProductWorkspace defaults, cart merging, legal version IDs, and supplement-rule content.
+
+### 2026-07-29 Approved ProductWorkspace Improvement Scope
+
+- Keep Product ID, Product SKU, and Variant SKU server-assigned and read-only in normal operations.
+- Add copy controls for Product ID and SKU. Do not add an unlock/edit button.
+- Reserve Product ID changes for a separate future owner-only migration tool that validates and migrates all relationships.
+- Preserve sequential SKU formats `AST-P000001` and `AST-P000001-V001`.
+- Never reuse archived Variant SKU numbers; after archived `V002` in a `V001`–`V003` sequence, allocate `V004`.
+- Add the confirmed private `Internal Note（內部備註）` explanation below the field.
+- Display Product publish, Campaign, and classification statuses as bilingual labels while preserving English stored enum values.
+- Separate `Products（商品管理）` and `Classifications（分類管理）` into top-level tabs.
+- Add a `管理分類` shortcut beside Product classification selectors.
+- Generate classification IDs on the Server; operators enter only display names.
+- Allow classification display-name edits and archive operations, never hard deletion.
+- Keep new Variant currency default as THB and display all supported currencies as bilingual labels.
+- Variant Name input behavior is not yet approved and is intentionally excluded from this confirmed scope.
 
 ## Verification Log
 

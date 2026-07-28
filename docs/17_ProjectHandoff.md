@@ -20,6 +20,25 @@ Complete the Astera OMS MVP according to the handoff spec without redesigning th
 - Firebase Admin on Vercel: use OIDC/GCP Workload Identity, no long-lived private key.
 - Domain: `asteratw.com`; Resend sender domain: `updates.asteratw.com`.
 - Storage region: `asia-east1`.
+- Product ID, Product SKU, and Variant SKU remain server-assigned and read-only; normal UI adds copy controls only.
+- SKU sequences are immutable and never reused after archive.
+- ProductWorkspace uses bilingual UI labels while preserving existing English API/Firestore values.
+- Classification management moves to its own ProductWorkspace tab with server-generated IDs, rename, and archive-only lifecycle.
+- New Variant currency remains THB by default with bilingual THB/TWD/JPY/KRW/USD options.
+
+## Approved ProductWorkspace Changes Pending Implementation
+
+- Add `Products（商品管理）` and `Classifications（分類管理）` tabs.
+- Add Product ID and SKU copy buttons; do not add direct identifier editing.
+- Add the confirmed Internal Note privacy/purpose help text.
+- Translate Product publish, Campaign, and classification status options into bilingual labels.
+- Add `管理分類` shortcuts beside Product classification selectors.
+- Move classification creation/edit/archive into the classification tab.
+- Generate classification IDs on the protected Server API.
+- Preserve classification history through archive rather than hard delete.
+- Display supported currencies as bilingual labels while retaining THB as the default.
+- Keep future Product ID migration as a separate owner-only tool, outside the normal editor.
+- Variant Name suggested/custom input behavior remains under discussion and is not approved yet.
 
 ## Validation Log
 

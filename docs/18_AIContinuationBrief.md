@@ -240,6 +240,25 @@ These are not locally complete:
   - `tests/unit/clientCart.test.ts`
   - `tests/unit/legalDocuments.test.ts`
 
+## Approved ProductWorkspace Decisions Pending Implementation
+
+- Normal Product ID/Product SKU/Variant SKU fields remain read-only and server-managed.
+- Add copy buttons; never add a normal unlock/edit action.
+- Any future Product ID correction requires a separate owner-only relationship-aware migration tool.
+- Preserve `AST-P000001` and `AST-P000001-V001`.
+- Never reuse archived Variant sequences; allocate after the highest historical number.
+- Show ProductWorkspace technical labels as `English（中文）` without changing stored English values.
+- Confirmed display values:
+  - `Draft（草稿）`, `Published（已刊登）`, `Archived（已封存）`
+  - `Upcoming（即將開始）`, `Open（開放中）`, `Closed（已結束）`, `Archived（已封存）`
+  - `Active（啟用）`, `Archived（已封存）`
+- Add the exact Internal Note helper text recorded in `docs/12_DecisionLog.md`.
+- Split ProductWorkspace into `Products（商品管理）` and `Classifications（分類管理）` tabs.
+- Add `管理分類` shortcuts next to Product classification selectors.
+- Classification IDs become server-generated; display names can be edited and records can be archived, never hard-deleted.
+- Currency labels are bilingual for THB/TWD/JPY/KRW/USD; THB remains the new-Variant default.
+- Do not assume approval for Variant Name suggested/custom input; that decision is still open.
+
 ## Important Validation Results
 
 Latest known passing checks:
@@ -269,6 +288,14 @@ Managed sandbox note:
   - sometimes `npm.cmd run test:unit` or `npm.cmd run build`
 
 ## Recommended Next Step
+
+The approved ProductWorkspace UI/classification batch is locally executable and should be scheduled before externally gated production work:
+
+1. Finish the remaining Variant Name and Campaign field decisions with the owner.
+2. Write and approve the ProductWorkspace design/spec.
+3. Implement bilingual labels, help text, identifier copy controls, and status/currency presentation.
+4. Implement Product/Classifications tabs and server-generated classification IDs with rename/archive behavior.
+5. Add unit/API/Playwright coverage and update this handoff.
 
 If Firebase Blaze / Storage bucket is ready:
 

@@ -109,3 +109,39 @@
 **Alternatives Considered:** Allow helpers to manage products and orders, or define a full permission matrix now.
 
 **Impact:** Small-circle testing uses owner-led operations. Helper expansion remains a later product decision.
+
+## 2026-07-29: Keep Product IDs and SKUs server-managed and immutable
+
+**Decision:** Product ID, Product SKU, and Variant SKU remain server-assigned and read-only in normal ProductWorkspace operations. The UI will provide copy buttons, not edit controls. Product IDs may only be changed in the future through a separate owner-only migration tool that validates and migrates every related record.
+
+**SKU Rules:** Product SKU remains `AST-P000001`; Variant SKU remains `AST-P000001-V001`. Archived SKU numbers are never reused or backfilled. If `V002` is archived after `V001` through `V003` exist, the next Variant is `V004`.
+
+**Reason:** These identifiers connect private/public products, Variants, Campaigns, order snapshots, and future image paths. Direct editing can break referential integrity and historical traceability.
+
+**Impact:** The normal product editor will never unlock identifiers. A future migration tool is a separate, explicitly scoped operation and is not part of the current UI clarity batch.
+
+## 2026-07-29: Use bilingual ProductWorkspace labels without changing stored enum values
+
+**Decision:** ProductWorkspace displays technical names as `English（中文）` and enum options as bilingual labels while preserving the existing English values in Firestore and APIs.
+
+**Confirmed Labels:** Publish status uses `Draft（草稿）`, `Published（已刊登）`, and `Archived（已封存）`. Campaign status uses `Upcoming（即將開始）`, `Open（開放中）`, `Closed（已結束）`, and `Archived（已封存）`. Classification status uses `Active（啟用）` and `Archived（已封存）`.
+
+**Reason:** Operators need understandable Chinese UI while developers, APIs, existing documents, and historical data continue using stable enum values.
+
+**Impact:** This is a presentation-only change; no Collection, API, or data migration is required.
+
+## 2026-07-29: Separate classification management from product editing
+
+**Decision:** ProductWorkspace will expose `Products（商品管理）` and `Classifications（分類管理）` as separate top-level tabs. Product classification selectors will include a `管理分類` shortcut. Classification IDs will be server-generated; operators enter only the display name. Existing classifications can be renamed or archived, but not hard-deleted.
+
+**Reason:** Company, Artist, CP, Brand, and Series are reusable master data. Keeping them normalized prevents duplicate spelling variants and preserves historical references.
+
+**Impact:** Existing classification Collections remain unchanged. The UI and protected classification API need extensions for generated IDs, rename, and archive operations.
+
+## 2026-07-29: Clarify private notes and original currency in ProductWorkspace
+
+**Decision:** `Internal Note（內部備註）` will display: `僅供後台作業使用，不會顯示於商品頁。可記錄採購來源、限購、成本或交接事項。`
+
+**Currency Labels:** New Variants continue to default to THB and allow `THB（泰銖）`, `TWD（新台幣）`, `JPY（日圓）`, `KRW（韓元）`, and `USD（美元）`.
+
+**Impact:** Internal notes remain private and excluded from `productsPublic`. Currency storage remains unchanged.
