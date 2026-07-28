@@ -11,7 +11,6 @@ export type PublicCatalogItem = {
   variants: Array<{
     id: string;
     productId: string;
-    sku: string;
     name: string;
     isDefault: boolean;
     priceTwd: number;
@@ -21,7 +20,8 @@ export type PublicCatalogItem = {
     productId: string;
     title: string;
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-    status: "draft" | "open" | "closed" | "archived";
+    status: "upcoming" | "open" | "closed" | "archived";
+    salePriceTwd?: number;
     requiresSupplement: boolean;
     startsAt?: string;
     endsAt?: string;
@@ -63,7 +63,6 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
     variants: variants.filter(isValidVariant).map((variant) => ({
       id: variant.id,
       productId: variant.productId,
-      sku: variant.sku,
       name: variant.name,
       isDefault: variant.isDefault,
       priceTwd: variant.priceTwd,
@@ -74,6 +73,7 @@ export function mapPublicCatalogItem(data: unknown): PublicCatalogItem | null {
       title: campaign.title,
       saleType: campaign.saleType,
       status: campaign.status,
+      ...(typeof campaign.salePriceTwd === "number" ? { salePriceTwd: campaign.salePriceTwd } : {}),
       requiresSupplement: campaign.requiresSupplement,
       ...(typeof campaign.startsAt === "string" ? { startsAt: campaign.startsAt } : {}),
       ...(typeof campaign.endsAt === "string" ? { endsAt: campaign.endsAt } : {}),
@@ -111,6 +111,13 @@ export function getPurchasableCampaigns(item: PublicCatalogItem) {
   return item.campaigns.filter((campaign) => campaign.status === "open");
 }
 
+export function getEffectiveCatalogPriceTwd(
+  variant: PublicCatalogItem["variants"][number],
+  campaign?: PublicCatalogItem["campaigns"][number] | null,
+) {
+  return typeof campaign?.salePriceTwd === "number" ? campaign.salePriceTwd : variant.priceTwd;
+}
+
 function isPublishState(value: unknown): value is PublicCatalogItem["product"]["publishState"] {
   return value === "draft" || value === "published" || value === "archived";
 }
@@ -126,7 +133,6 @@ function isValidVariant(variant: unknown): variant is PublicCatalogItem["variant
     && typeof variant === "object"
     && typeof (variant as Record<string, unknown>).id === "string"
     && typeof (variant as Record<string, unknown>).productId === "string"
-    && typeof (variant as Record<string, unknown>).sku === "string"
     && typeof (variant as Record<string, unknown>).name === "string"
     && typeof (variant as Record<string, unknown>).isDefault === "boolean"
     && typeof (variant as Record<string, unknown>).priceTwd === "number";
@@ -139,6 +145,10 @@ function isValidCampaign(campaign: unknown): campaign is PublicCatalogItem["camp
     && typeof (campaign as Record<string, unknown>).productId === "string"
     && typeof (campaign as Record<string, unknown>).title === "string"
     && typeof (campaign as Record<string, unknown>).saleType === "string"
-    && typeof (campaign as Record<string, unknown>).status === "string"
+    && isCampaignStatus((campaign as Record<string, unknown>).status)
     && typeof (campaign as Record<string, unknown>).requiresSupplement === "boolean";
+}
+
+function isCampaignStatus(value: unknown): value is PublicCatalogItem["campaigns"][number]["status"] {
+  return value === "upcoming" || value === "open" || value === "closed" || value === "archived";
 }

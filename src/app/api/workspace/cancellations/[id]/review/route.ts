@@ -17,13 +17,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = (await request.json()) as {
       status?: "approved" | "rejected";
       reviewNote?: string;
+      refundAmountTwd?: number;
+      refundCompletedAt?: string;
+      refundReference?: string;
     };
 
     const reviewStatus = body.status;
     const reviewNote = body.reviewNote?.trim() ?? "";
+    const refundAmountTwd = body.refundAmountTwd;
+    const refundCompletedAt = body.refundCompletedAt?.trim() ?? "";
+    const refundReference = body.refundReference?.trim() ?? "";
 
     if (!reviewStatus || !reviewNote) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+    if (
+      reviewStatus === "approved"
+      && (
+        typeof refundAmountTwd !== "number"
+        || !Number.isInteger(refundAmountTwd)
+        || refundAmountTwd <= 0
+        || !refundCompletedAt
+        || !refundReference
+      )
+    ) {
+      return NextResponse.json({ error: "missing_refund_metadata" }, { status: 400 });
     }
 
     const db = getAdminFirestore();
@@ -64,6 +82,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         status: reviewStatus,
         updatedAt: new Date().toISOString(),
         updatedBy: claims.uid,
+        ...(typeof refundAmountTwd === "number" ? { refundAmountTwd } : {}),
+        ...(refundCompletedAt ? { refundCompletedAt } : {}),
+        ...(refundReference ? { refundReference } : {}),
       });
 
       transaction.set(requestRef, reviewed);
@@ -98,6 +119,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           updatedBy: claims.uid,
         });
       }
+      if (reviewedBundle.adjustment) {
+        transaction.set(db.collection("paymentAllocations").doc(reviewedBundle.adjustment.id), {
+          ...reviewedBundle.adjustment,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       transaction.set(db.collection("auditLogs").doc(`audit_${reviewed.id}_${reviewStatus}`), {
         id: `audit_${reviewed.id}_${reviewStatus}`,
@@ -108,6 +135,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         reason: reviewNote,
         createdAt: FieldValue.serverTimestamp(),
       });
+      if (reviewedBundle.auditLog) {
+        transaction.set(db.collection("auditLogs").doc(reviewedBundle.auditLog.id), {
+          ...reviewedBundle.auditLog,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       return {
         status: reviewed.status,

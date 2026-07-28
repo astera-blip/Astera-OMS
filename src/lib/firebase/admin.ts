@@ -31,6 +31,13 @@ function loadServiceAccount() {
   });
 }
 
+function getProjectId() {
+  return process.env.GOOGLE_CLOUD_PROJECT
+    ?? process.env.GCLOUD_PROJECT
+    ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    ?? undefined;
+}
+
 export function getAdminApp() {
   if (adminApp) {
     return adminApp;
@@ -45,10 +52,13 @@ export function getAdminApp() {
   }
 
   const credential = loadServiceAccount();
+  const projectId = getProjectId();
   adminApp = initializeApp(
     credential
       ? { credential }
-      : undefined,
+      : projectId
+        ? { projectId }
+        : undefined,
   );
 
   return adminApp;

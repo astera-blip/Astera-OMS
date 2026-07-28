@@ -13,6 +13,9 @@ export function OrderOperationsBoard() {
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("等待資料載入。");
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
+  const [refundDates, setRefundDates] = useState<Record<string, string>>({});
+  const [refundReferences, setRefundReferences] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function loadFirestoreData() {
@@ -57,6 +60,16 @@ export function OrderOperationsBoard() {
       setMessage("請先填寫審核理由。");
       return;
     }
+    const refundAmountTwd = Number(refundAmounts[requestId] ?? "");
+    const refundCompletedAt = refundDates[requestId]?.trim() ?? "";
+    const refundReference = refundReferences[requestId]?.trim() ?? "";
+    if (
+      status === "approved"
+      && (!Number.isInteger(refundAmountTwd) || refundAmountTwd <= 0 || !refundCompletedAt || !refundReference)
+    ) {
+      setMessage("核准已付款取消時，請填寫退款日期、金額與參考資訊。");
+      return;
+    }
 
     const reviewed = reviewCancellationRequest(current, {
       status,
@@ -79,7 +92,13 @@ export function OrderOperationsBoard() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status, reviewNote: trimmedReviewNote }),
+        body: JSON.stringify({
+          status,
+          reviewNote: trimmedReviewNote,
+          ...(status === "approved"
+            ? { refundAmountTwd, refundCompletedAt, refundReference }
+            : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -213,6 +232,45 @@ export function OrderOperationsBoard() {
                     placeholder="例如：尚未付款，批准取消"
                   />
                 </label>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <label className="grid gap-2">
+                    <span className="font-medium text-slate-700">退款日期</span>
+                    <input
+                      type="date"
+                      value={refundDates[request.id] ?? ""}
+                      onChange={(event) =>
+                        setRefundDates((current) => ({ ...current, [request.id]: event.target.value }))
+                      }
+                      disabled={request.status !== "pending"}
+                      className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="font-medium text-slate-700">退款金額</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={refundAmounts[request.id] ?? ""}
+                      onChange={(event) =>
+                        setRefundAmounts((current) => ({ ...current, [request.id]: event.target.value }))
+                      }
+                      disabled={request.status !== "pending"}
+                      className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="font-medium text-slate-700">退款參考</span>
+                    <input
+                      value={refundReferences[request.id] ?? ""}
+                      onChange={(event) =>
+                        setRefundReferences((current) => ({ ...current, [request.id]: event.target.value }))
+                      }
+                      disabled={request.status !== "pending"}
+                      className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                      placeholder="銀行轉帳序號"
+                    />
+                  </label>
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"

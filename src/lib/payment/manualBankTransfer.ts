@@ -13,6 +13,7 @@ export type LocalPaymentRequest = {
   createdBy: string;
   updatedAt?: string;
   updatedBy?: string;
+  unallocatedAmountTwd?: number;
 };
 
 export type LocalPayment = {
@@ -21,15 +22,21 @@ export type LocalPayment = {
   paymentRequestId: string;
   receivedAmountTwd: number;
   receivedAt: string;
-  status: "pendingReview" | "confirmed" | "rejected";
+  status: "pendingReview" | "confirmed" | "rejected" | "reversed";
+  transferAccountLast5?: string;
+  payerName?: string;
+  memberNote?: string;
   adminNote?: string;
   createdAt: string;
   createdBy: string;
+  updatedAt?: string;
+  updatedBy?: string;
 };
 
 export type LocalPaymentAllocation = {
   id: string;
   paymentId: string;
+  kind?: "payment" | "adjustment";
   targetType: "paymentRequest" | "order" | "orderItem" | "receivable" | "wallet";
   targetId: string;
   amountTwd: number;
@@ -39,7 +46,7 @@ export type LocalPaymentAllocation = {
 
 export type LocalAuditLog = {
   id: string;
-  action: "payment.confirmed" | "order.status.updated";
+  action: "payment.confirmed" | "payment.reversed" | "order.status.updated";
   actorUid: string;
   targetType: "paymentRequest" | "order";
   targetId: string;
@@ -67,6 +74,7 @@ export function createPaymentRequestForOrder(
 export function confirmBankTransfer(input: {
   orderBundle: StoredOrderBundle;
   paymentRequest: LocalPaymentRequest;
+  payment?: LocalPayment;
   receivedAmountTwd: number;
   receivedAt: string;
   confirmedBy: string;
@@ -78,7 +86,7 @@ export function confirmBankTransfer(input: {
   allocation: LocalPaymentAllocation;
   auditLog: LocalAuditLog;
 } {
-  const paymentId = `pay_${input.paymentRequest.id}`;
+  const paymentId = input.payment?.id ?? `pay_${input.paymentRequest.id}`;
   const orderStatus = input.receivedAmountTwd >= input.paymentRequest.amountTwd ? "paid" : "partiallyPaid";
   const itemStatus = orderStatus === "paid" ? "paid" : "awaitingPayment";
 
@@ -94,10 +102,12 @@ export function confirmBankTransfer(input: {
     paymentRequest: {
       ...input.paymentRequest,
       status: orderStatus === "paid" ? "paid" : "partiallyPaid",
+      unallocatedAmountTwd: Math.max(input.receivedAmountTwd - input.paymentRequest.amountTwd, 0),
       updatedAt: input.receivedAt,
       updatedBy: input.confirmedBy,
     },
     payment: {
+      ...input.payment,
       id: paymentId,
       memberUid: input.paymentRequest.memberUid,
       paymentRequestId: input.paymentRequest.id,
@@ -105,12 +115,15 @@ export function confirmBankTransfer(input: {
       receivedAt: input.receivedAt,
       status: "confirmed",
       adminNote: input.reason,
-      createdAt: input.receivedAt,
-      createdBy: input.confirmedBy,
+      createdAt: input.payment?.createdAt ?? input.receivedAt,
+      createdBy: input.payment?.createdBy ?? input.confirmedBy,
+      updatedAt: input.receivedAt,
+      updatedBy: input.confirmedBy,
     },
     allocation: {
       id: `alloc_${paymentId}`,
       paymentId,
+      kind: "payment",
       targetType: "paymentRequest",
       targetId: input.paymentRequest.id,
       amountTwd: Math.min(input.receivedAmountTwd, input.paymentRequest.amountTwd),
@@ -129,9 +142,72 @@ export function confirmBankTransfer(input: {
   };
 }
 
+export function reverseConfirmedPayment(input: {
+  orderBundle: StoredOrderBundle;
+  paymentRequest: LocalPaymentRequest;
+  payment: LocalPayment;
+  reversedAt: string;
+  reversedBy: string;
+  reason: string;
+}): {
+  orderBundle: StoredOrderBundle;
+  paymentRequest: LocalPaymentRequest;
+  payment: LocalPayment;
+  adjustment: LocalPaymentAllocation;
+  auditLog: LocalAuditLog;
+} {
+  if (input.payment.status !== "confirmed") {
+    throw new Error("invalid_payment");
+  }
+
+  return {
+    orderBundle: {
+      order: updateOrder(input.orderBundle.order, "awaitingPayment", input.reversedAt, input.reversedBy),
+      items: input.orderBundle.items.map((item) =>
+        item.status === "cancelled"
+          ? item
+          : updateOrderItem(item, "awaitingPayment", input.reversedAt, input.reversedBy),
+      ),
+    },
+    paymentRequest: {
+      ...input.paymentRequest,
+      status: "open",
+      unallocatedAmountTwd: 0,
+      updatedAt: input.reversedAt,
+      updatedBy: input.reversedBy,
+    },
+    payment: {
+      ...input.payment,
+      status: "reversed",
+      adminNote: input.reason,
+      updatedAt: input.reversedAt,
+      updatedBy: input.reversedBy,
+    },
+    adjustment: {
+      id: `adj_${input.payment.id}_${input.reversedAt.replace(/[^0-9]/g, "")}`,
+      paymentId: input.payment.id,
+      kind: "adjustment",
+      targetType: "paymentRequest",
+      targetId: input.paymentRequest.id,
+      amountTwd: -Math.min(input.payment.receivedAmountTwd, input.paymentRequest.amountTwd),
+      createdAt: input.reversedAt,
+      createdBy: input.reversedBy,
+    },
+    auditLog: {
+      id: `audit_reverse_${input.payment.id}`,
+      action: "payment.reversed",
+      actorUid: input.reversedBy,
+      targetType: "paymentRequest",
+      targetId: input.paymentRequest.id,
+      reason: input.reason,
+      createdAt: input.reversedAt,
+    },
+  };
+}
+
 function updateOrder(
   order: OrderRecord,
-  status: "paid" | "partiallyPaid",
+  status: OrderRecord["status"],
   updatedAt: string,
   updatedBy: string,
 ): OrderRecord {

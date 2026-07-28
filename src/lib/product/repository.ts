@@ -38,6 +38,7 @@ export async function saveProductCatalogRecord(
   });
   batch.set(doc(db, "productsInternal", record.product.id), {
     id: record.product.id,
+    sku: record.product.sku,
     originalCosts: record.variants.map((variant) => ({
       variantId: variant.id,
       originalCurrency: variant.originalCurrency ?? null,
@@ -67,6 +68,7 @@ export async function saveProductCatalogRecord(
       title: campaign.title,
       saleType: campaign.saleType,
       status: campaign.status,
+      ...(typeof campaign.salePriceTwd === "number" ? { salePriceTwd: campaign.salePriceTwd } : {}),
       requiresSupplement: campaign.requiresSupplement,
       ...(campaign.startsAt ? { startsAt: campaign.startsAt } : {}),
       ...(campaign.endsAt ? { endsAt: campaign.endsAt } : {}),

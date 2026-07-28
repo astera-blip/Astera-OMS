@@ -1,0 +1,152 @@
+# Astera OMS Project Handoff
+
+Last updated: 2026-07-28 Asia/Taipei
+
+## Active Objective
+
+Complete the Astera OMS MVP according to the handoff spec without redesigning the existing architecture.
+
+## Repository State
+
+- Working branch: `codex/mvp-completion`.
+- Preserve existing user change: `AGENTS.md`.
+- Existing product authority remains `productsInternal`; public storefront reads only `productsPublic`.
+- Compact continuation brief for another AI: `docs/18_AIContinuationBrief.md`.
+
+## Decisions Confirmed
+
+- Product collection: preserve current `productsInternal` authority.
+- Refund after paid cancellation: manual bank refund with audit and negative adjustment, no Wallet/Finance module.
+- Firebase Admin on Vercel: use OIDC/GCP Workload Identity, no long-lived private key.
+- Domain: `asteratw.com`; Resend sender domain: `updates.asteratw.com`.
+- Storage region: `asia-east1`.
+
+## Validation Log
+
+- 2026-07-27: Branch `codex/mvp-completion` created.
+- 2026-07-27: Sites skill checked. No `.openai/hosting.json`; project stays on existing Vercel/Firebase stack.
+- 2026-07-27: Next.js 16 route handler, auth, and mutation docs reviewed before API-related edits.
+- 2026-07-27: Product/public catalog partial batch complete. Public projection omits SKU, campaign status uses `upcoming | open | closed | archived`, campaign `salePriceTwd` overrides default variant price in public/cart calculations, and mixed sale type cart validation no longer rejects.
+- 2026-07-27: Server brand content repository now uses Firebase Admin SDK directly and reads `siteSettings/site-default`.
+- 2026-07-27: Checkout consent partial batch complete. UI and API require legal/privacy consent plus supplement-rule consent; `ConsentRecord` stores `acceptedSupplementRule`.
+- 2026-07-27: Validation passed: typecheck, lint, unit tests, Firestore rules tests, production build.
+- 2026-07-27: Product owner APIs added. `ProductWorkspace` product/classification writes now go through owner-only Admin SDK APIs. SKU and product IDs are read-only in UI, and new product SKU allocation uses `siteSettings/system-sequences` in a transaction.
+- 2026-07-27: Firestore rules tightened for product business collections. Client SDK writes to product projection, private product master, variants, campaigns, and catalog classifications are denied. Public storefront still reads `productsPublic`; direct public reads of `productVariants` and `saleCampaigns` are denied.
+- 2026-07-27: Checkout split implemented. `/api/checkout` groups by Campaign, creates multiple Orders/PaymentRequests/ConsentRecords, assigns `checkoutGroupId`, and generates `AST-YYYYMMDD-0001` order numbers.
+- 2026-07-27: Payment report partial flow implemented. Members create `pendingReview` payment reports via `/api/payments`; owner confirmation now confirms Payment ID through `/api/workspace/payments/[id]/confirm`.
+- 2026-07-27: Validation passed after these changes: typecheck, lint, unit tests, Firestore rules tests, production build.
+- 2026-07-27: Payment reversal implemented locally. `/api/workspace/payments/[id]/reverse` marks confirmed payments reversed, appends negative adjustment allocation, reopens payment requests, resets active order items, and writes audit logs.
+- 2026-07-27: Cancellation flow rewritten locally. Unpaid items cancel directly and recalculate order/payment request totals. Paid items create cancellation requests; owner approval requires manual refund metadata and writes negative adjustment/audit records.
+- 2026-07-27: Validation passed after payment/cancellation changes: typecheck, lint, unit tests, Firestore rules tests, production build.
+- 2026-07-27: Member profile and cart writes moved behind protected Admin SDK APIs. Client SDK writes to `members` and `carts` are denied by rules; member self reads remain allowed.
+- 2026-07-27: Workspace content and member private-note writes moved behind owner-only Admin SDK APIs. Client SDK writes to `siteSettings`, `socialLinks`, `faqs`, `announcements`, and `memberPrivateNotes` are denied by rules; public content reads and owner note reads remain allowed.
+- 2026-07-27: Validation passed after trust-boundary changes: typecheck, lint, unit tests, Firestore rules tests, production build.
+- 2026-07-27: Firestore rules hardened for remaining business collections. Client SDK writes to `orders`, `orderItems`, `paymentRequests`, `payments`, `paymentAllocations`, `auditLogs`, `notificationEvents`, `legalDocumentVersions`, `consentRecords`, and `cancellationRequests` are denied. Reads remain member/owner/public scoped according to collection.
+- 2026-07-27: Validation passed after business rules hardening: typecheck, lint, unit tests, Firestore rules tests, production build.
+- 2026-07-27: ProductWorkspace now supports multiple Variants and multiple Campaigns per product. Variant SKU remains read-only/server-assigned. Campaign UI supports `salePriceTwd` and archive status.
+- 2026-07-27: Overpayment operations UI added. Owner payment board shows `unallocatedAmountTwd` totals and rows for manual bank refund handling. Payment confirmation now persists unallocated overpayment to `paymentRequests`.
+- 2026-07-27: Owner payment reversal UI added for confirmed payments, using `/api/workspace/payments/[id]/reverse`.
+- 2026-07-27: Storage product image namespace rules added and tested. `product-images/{productId}/{imageId}` allows public read and owner-only JPEG/PNG/WebP uploads up to 5 MB; all other Storage paths are denied.
+- 2026-07-27: Validation passed after Product UI / payment / Storage changes: typecheck, lint, unit tests, Firestore+Storage rules tests, production build, and Playwright smoke tests.
+- 2026-07-27: Auth emulator Playwright harness added. `npm run test:e2e:emulated` starts Auth/Firestore/Storage emulators, seeds owner/member users with custom claims and member profiles, enables E2E-only email/password sign-in, and runs Playwright.
+- 2026-07-27: Emulated Playwright now verifies owner access to ProductWorkspace multi Variant/Campaign UI and member denial from workspace.
+- 2026-07-27: Firebase Admin initialization now supports emulator project ID without service account credentials. Local build uses an Admin content fallback unless Firestore emulator, service account credentials, or actual Vercel OIDC runtime is available.
+- 2026-07-27: Validation passed after Auth emulator harness: typecheck, lint, unit tests, Firestore+Storage rules tests, production build, regular Playwright, and emulated Playwright.
+- 2026-07-27: Authenticated checkout/payment/cancellation Playwright coverage added. The emulator suite now signs in real Auth emulator owner/member users and verifies checkout split by Campaign, order number shape, payment report pending review, owner payment confirmation, overpayment `unallocatedAmountTwd`, payment reversal, unpaid direct cancellation, paid cancellation request, and owner refund approval.
+- 2026-07-27: Playwright global setup now seeds an emulator-only public product projection plus matching `productVariants` SKU data for checkout authority tests.
+- 2026-07-27: `scripts/run-firebase.mjs` now normalizes the Windows Java/PATH environment for Firebase Emulator startup. In the managed sandbox, Java child execution still requires approved unsandboxed execution.
+- 2026-07-27: Validation passed after authenticated Playwright flow: typecheck, lint, unit tests, Firestore+Storage rules tests, production build, and emulated Playwright.
+- 2026-07-27: Formal consumer copy batch completed locally. Homepage, fallback brand content, legal terms/privacy, About, Payments, Members, account profile, and order cancellation copy no longer expose internal MVP/custom-claim/Firestore/Email-record-mode wording.
+- 2026-07-27: Homepage public quick links now point to products, brand, profile, orders, and payments instead of exposing Owner workspace.
+- 2026-07-27: Validation passed after formal copy batch: typecheck, lint, production build, regular Playwright, and unit tests. Build/Playwright/Vitest required approved unsandboxed execution when the managed sandbox returned `spawn EPERM`.
+- 2026-07-27: Local Resend notification event schema/retry batch completed. `notificationEvents` now track `pending | sent | failed`, Resend provider, recipient email, attempt count, provider message ID, and sanitized error.
+- 2026-07-27: Checkout and payment confirmation create pending notification events only after business transaction work is prepared; email delivery failure does not roll back orders or payments.
+- 2026-07-27: Added owner-only `POST /api/workspace/notifications/[id]/retry`; Payment workspace lists notification events and lets owner retry non-sent events.
+- 2026-07-27: Resend env placeholders added to `.env.example`. Real DNS verification, production `RESEND_API_KEY`, and actual send test remain external gates.
+- 2026-07-27: Validation passed after Resend local batch: typecheck, lint, unit tests, Firestore+Storage rules tests, production build, regular Playwright, and emulated Playwright.
+- 2026-07-27: SKU auto-assignment hardened. Server product save now ignores submitted Product/Variant SKU values, preserves existing Product SKU from `productsInternal`, preserves existing Variant SKU by variant document ID, and assigns new Variant SKU after the highest existing sequence.
+- 2026-07-27: Validation passed after SKU hardening: typecheck, lint, unit tests, production build, and emulated Playwright.
+- 2026-07-28: Added compact AI continuation brief at `docs/18_AIContinuationBrief.md` for handoff to another AI agent.
+- 2026-07-28: Updated ESLint global ignores to exclude `.worktrees/**`, preventing unrelated local worktree files from producing lint warnings.
+- 2026-07-28: Full push-readiness validation passed: secret scan, typecheck, lint, unit tests, Firestore+Storage rules tests, production build, regular Playwright, and emulated Playwright.
+
+## Changed Files So Far
+
+- `docs/16_MVPCompletionPlan.md`
+- `docs/17_ProjectHandoff.md`
+- `docs/18_AIContinuationBrief.md`
+- `firestore.rules`
+- `eslint.config.mjs`
+- `package.json`
+- `playwright.config.ts`
+- `scripts/run-firebase.mjs`
+- `scripts/run-playwright-emulated.mjs`
+- `storage.rules`
+- `.env.example`
+- `src/app/account/profile/page.tsx`
+- `src/app/about/page.tsx`
+- `src/app/e2e-auth/E2EAuthForm.tsx`
+- `src/app/e2e-auth/page.tsx`
+- `src/app/members/page.tsx`
+- `src/app/page.tsx`
+- `src/app/payments/page.tsx`
+- `src/app/api/cart/route.ts`
+- `src/app/api/checkout/route.ts`
+- `src/app/api/member/profile/route.ts`
+- `src/app/api/payments/route.ts`
+- `src/app/api/workspace/classifications/route.ts`
+- `src/app/api/workspace/cancellations/[id]/review/route.ts`
+- `src/app/api/workspace/content/route.ts`
+- `src/app/api/workspace/member-private-notes/route.ts`
+- `src/app/api/workspace/notifications/[id]/retry/route.ts`
+- `src/app/api/workspace/payments/[id]/confirm/route.ts`
+- `src/app/api/workspace/payments/[id]/reverse/route.ts`
+- `src/app/api/workspace/products/route.ts`
+- `src/components/storefront/CartBoard.tsx`
+- `src/components/storefront/OrderDetailBoard.tsx`
+- `src/components/storefront/PaymentRequestsBoard.tsx`
+- `src/components/storefront/PublicProductDetailBoard.tsx`
+- `src/components/storefront/PublicProductsBoard.tsx`
+- `src/components/workspace/PaymentOperationsBoard.tsx`
+- `src/components/workspace/ContentOperationsBoard.tsx`
+- `src/components/workspace/MemberOperationsBoard.tsx`
+- `src/components/workspace/OrderOperationsBoard.tsx`
+- `src/components/workspace/ProductWorkspace.tsx`
+- `src/domain/product.ts`
+- `src/lib/catalog/publicCatalog.ts`
+- `src/lib/content/serverRepository.ts`
+- `src/lib/content/brandContent.ts`
+- `src/lib/legal/documents.ts`
+- `src/lib/notification/events.ts`
+- `src/lib/notification/resend.ts`
+- `src/lib/order/cancellation.ts`
+- `src/lib/order/checkout.ts`
+- `src/lib/product/catalog.ts`
+- `src/lib/product/repository.ts`
+- `src/lib/product/serverCatalog.ts`
+- `src/lib/payment/manualBankTransfer.ts`
+- `src/lib/payment/repository.ts`
+- `tests/firebase/firestore-deny.test.ts`
+- `tests/firebase/storage-deny.test.ts`
+- `tests/e2e/global-setup.ts`
+- `tests/e2e/member-payment-cancellation-flow.spec.ts`
+- `tests/e2e/workspace-product-ui.spec.ts`
+- `tests/unit/checkoutFlow.test.ts`
+- `tests/unit/cancellationFlow.test.ts`
+- `tests/unit/paymentFlow.test.ts`
+- `tests/unit/notificationEvents.test.ts`
+- `tests/unit/resendNotificationDelivery.test.ts`
+- `tests/unit/productCatalog.test.ts`
+
+## Known Remaining Gaps
+
+- Actual product image upload UI/API is still pending; Storage bucket creation requires external Firebase Blaze/bucket access.
+- Product API still needs real Storage metadata validation once upload flow/bucket is available.
+- Formal production product re-save/sync still needs Firebase production access; local `productsInternal → productsPublic` projection logic is implemented.
+- Resend DNS verification, production API key setup, and real send test remain pending external gates.
+- Production rules deploy and production/mobile acceptance remain pending.
+- Production rules have not been deployed; Firebase CLI login and production access are still external gates.
+
+## Next Exact Step
+
+Implement actual product image upload UI/API after Firebase Blaze bucket creation is available. If external bucket access is still unavailable, the remaining work is mostly external-gated: production rules deploy, Resend DNS/API-key real send test, Vercel OIDC, and production/mobile acceptance.

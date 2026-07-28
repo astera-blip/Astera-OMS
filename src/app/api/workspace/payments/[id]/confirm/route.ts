@@ -14,22 +14,29 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const { id } = await context.params;
     const body = (await request.json()) as {
-      receivedAmountTwd?: number;
-      receivedAt?: string;
       reason?: string;
     };
 
-    const receivedAmountTwd = body.receivedAmountTwd;
-    const receivedAt = body.receivedAt?.trim() ?? "";
     const reason = body.reason?.trim() ?? "";
 
-    if (!receivedAmountTwd || !receivedAt || !reason) {
+    if (!reason) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }
 
     const db = getAdminFirestore();
     const result = await db.runTransaction(async (transaction) => {
-      const requestRef = db.collection("paymentRequests").doc(id);
+      const paymentRef = db.collection("payments").doc(id);
+      const paymentSnapshot = await transaction.get(paymentRef);
+      if (!paymentSnapshot.exists) {
+        throw new Error("not_found");
+      }
+
+      const pendingPayment = paymentSnapshot.data() as NonNullable<Parameters<typeof confirmBankTransfer>[0]["payment"]>;
+      if (pendingPayment.status !== "pendingReview") {
+        throw new Error("invalid_payment");
+      }
+
+      const requestRef = db.collection("paymentRequests").doc(pendingPayment.paymentRequestId);
       const requestSnapshot = await transaction.get(requestRef);
       if (!requestSnapshot.exists) {
         throw new Error("not_found");
@@ -41,12 +48,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
 
       const orderRef = db.collection("orders").doc(paymentRequest.orderId);
-      const [orderSnapshot, itemsSnapshot] = await Promise.all([
+      const memberRef = db.collection("members").doc(paymentRequest.memberUid);
+      const [orderSnapshot, itemsSnapshot, memberSnapshot] = await Promise.all([
         transaction.get(orderRef),
         transaction.get(db.collection("orderItems").where("orderId", "==", paymentRequest.orderId)),
+        transaction.get(memberRef),
       ]);
       if (!orderSnapshot.exists) {
         throw new Error("order_not_found");
+      }
+      const member = memberSnapshot.data() as { email?: string } | undefined;
+      if (!member?.email) {
+        throw new Error("member_email_not_found");
       }
 
       const orderBundle = {
@@ -57,15 +70,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const confirmation = confirmBankTransfer({
         orderBundle,
         paymentRequest,
-        receivedAmountTwd,
-        receivedAt,
+        payment: pendingPayment,
+        receivedAmountTwd: pendingPayment.receivedAmountTwd,
+        receivedAt: pendingPayment.receivedAt,
         confirmedBy: claims.uid,
         reason,
       });
       const notificationEvent = createPaymentConfirmedNotificationEvent({
         id: `notif_${confirmation.payment.id}`,
         memberUid: confirmation.paymentRequest.memberUid,
+        recipientEmail: member.email,
         orderId: confirmation.paymentRequest.orderId,
+        orderNumber: confirmation.orderBundle.order.orderNumber,
         paymentRequestId: confirmation.paymentRequest.id,
         paymentId: confirmation.payment.id,
         createdAt: confirmation.payment.createdAt,
@@ -85,12 +101,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       transaction.update(requestRef, {
         status: confirmation.paymentRequest.status,
+        unallocatedAmountTwd: confirmation.paymentRequest.unallocatedAmountTwd ?? 0,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: claims.uid,
       });
-      transaction.set(db.collection("payments").doc(confirmation.payment.id), {
+      transaction.update(paymentRef, {
         ...confirmation.payment,
-        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: claims.uid,
       });
       transaction.set(db.collection("paymentAllocations").doc(confirmation.allocation.id), {
         ...confirmation.allocation,
@@ -118,9 +136,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const status =
       message === "missing_token"
         ? 401
-        : message === "not_found" || message === "order_not_found"
+        : message === "not_found" || message === "order_not_found" || message === "member_email_not_found"
           ? 404
-          : message === "invalid_payment_request"
+            : message === "invalid_payment_request" || message === "invalid_payment"
             ? 400
             : 500;
     return NextResponse.json({ error: message }, { status });

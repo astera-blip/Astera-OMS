@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildPublicProductProjection, normalizeProductDraft } from "../../src/lib/product/catalog";
+import {
+  buildPublicProductProjection,
+  createProductSku,
+  createVariantSku,
+  assignServerManagedSkus,
+  getEffectiveVariantPriceTwd,
+  normalizeProductDraft,
+  resolveCampaignStatus,
+} from "../../src/lib/product/catalog";
 import {
   getDefaultCampaign,
   getDefaultVariant,
@@ -25,6 +33,7 @@ describe("normalizeProductDraft", () => {
       value: {
         product: {
           id: "prod_001",
+          sku: "AST-P000001",
           name: "星星耳環",
           publicDescription: "限量現貨",
           publishState: "published",
@@ -33,7 +42,7 @@ describe("normalizeProductDraft", () => {
           {
             id: "prod_001-default",
             productId: "prod_001",
-            sku: "prod_001-default",
+            sku: "AST-P000001-V001",
             name: "Default Variant",
             isDefault: true,
             priceTwd: 0,
@@ -85,6 +94,7 @@ describe("buildPublicProductProjection", () => {
       buildPublicProductProjection({
         product: {
           id: "prod_001",
+          sku: "AST-P000001",
           name: "星星耳環",
           publicDescription: "限量現貨",
           publishState: "published",
@@ -114,6 +124,7 @@ describe("buildPublicProductProjection", () => {
             title: "  七夕檔期  ",
             saleType: "preorder",
             status: "open",
+            salePriceTwd: 820,
             requiresSupplement: true,
             startsAt: "2026-08-01T12:00",
             endsAt: "2026-08-10T23:59",
@@ -132,7 +143,7 @@ describe("buildPublicProductProjection", () => {
       variants: [
         {
           id: "var_001",
-          sku: "STAR-001",
+          productId: "prod_001",
           name: "Default Variant",
           isDefault: true,
           priceTwd: 880,
@@ -143,7 +154,8 @@ describe("buildPublicProductProjection", () => {
           id: "camp_001",
           title: "七夕檔期",
           saleType: "preorder",
-          status: "open",
+          status: "upcoming",
+          salePriceTwd: 820,
           requiresSupplement: true,
           startsAt: "2026-08-01T12:00",
           endsAt: "2026-08-10T23:59",
@@ -158,6 +170,7 @@ describe("buildPublicProductProjection", () => {
     const projection = buildPublicProductProjection({
       product: {
         id: "prod_002",
+        sku: "AST-P000002",
         name: "應援手燈",
         publicDescription: "小圈測試商品",
         publishState: "published",
@@ -214,7 +227,6 @@ describe("mapPublicCatalogItem", () => {
           {
             id: "var_001",
             productId: "prod_001",
-            sku: "STAR-001",
             name: "Default Variant",
             isDefault: true,
             priceTwd: 880,
@@ -227,6 +239,7 @@ describe("mapPublicCatalogItem", () => {
             title: "七夕檔期",
             saleType: "preorder",
             status: "open",
+            salePriceTwd: 820,
             requiresSupplement: true,
             startsAt: "2026-08-01T12:00",
             endsAt: "2026-08-10T23:59",
@@ -249,7 +262,6 @@ describe("mapPublicCatalogItem", () => {
         {
           id: "var_001",
           productId: "prod_001",
-          sku: "STAR-001",
           name: "Default Variant",
           isDefault: true,
           priceTwd: 880,
@@ -262,6 +274,7 @@ describe("mapPublicCatalogItem", () => {
           title: "七夕檔期",
           saleType: "preorder",
           status: "open",
+          salePriceTwd: 820,
           requiresSupplement: true,
           startsAt: "2026-08-01T12:00",
           endsAt: "2026-08-10T23:59",
@@ -290,7 +303,6 @@ describe("public catalog purchase selection", () => {
         {
           id: "var_001",
           productId: "prod_001",
-          sku: "STAR-001",
           name: "Default Variant",
           isDefault: true,
           priceTwd: 880,
@@ -303,6 +315,7 @@ describe("public catalog purchase selection", () => {
           title: "七夕檔期",
           saleType: "preorder" as const,
           status: "open" as const,
+          salePriceTwd: 820,
           requiresSupplement: true,
         },
         {
@@ -310,7 +323,7 @@ describe("public catalog purchase selection", () => {
           productId: "prod_001",
           title: "草稿活動",
           saleType: "preorder" as const,
-          status: "draft" as const,
+          status: "upcoming" as const,
           requiresSupplement: false,
         },
       ],
@@ -318,5 +331,106 @@ describe("public catalog purchase selection", () => {
 
     expect(getDefaultVariant(item)?.id).toBe("var_001");
     expect(getDefaultCampaign(item)?.id).toBe("camp_001");
+  });
+});
+
+describe("SKU and campaign pricing rules", () => {
+  it("creates formal product and variant SKUs", () => {
+    expect(createProductSku(125)).toBe("AST-P000125");
+    expect(createVariantSku("AST-P000125", 3)).toBe("AST-P000125-V003");
+  });
+
+  it("resolves time-based campaign status without exposing archived campaigns as open", () => {
+    const now = new Date("2026-07-27T12:00:00.000Z");
+
+    expect(resolveCampaignStatus({ status: "open", startsAt: "2026-07-28T12:00" }, now)).toBe("upcoming");
+    expect(resolveCampaignStatus({ status: "open", endsAt: "2026-07-26T12:00" }, now)).toBe("closed");
+    expect(resolveCampaignStatus({ status: "archived" }, now)).toBe("archived");
+  });
+
+  it("uses campaign sale price before the variant default price", () => {
+    expect(getEffectiveVariantPriceTwd({ priceTwd: 880 }, { salePriceTwd: 820 })).toBe(820);
+    expect(getEffectiveVariantPriceTwd({ priceTwd: 880 }, null)).toBe(880);
+  });
+
+  it("assigns product and variant SKUs on the server without trusting submitted SKU values", () => {
+    const assigned = assignServerManagedSkus(
+      {
+        product: {
+          id: "prod_new",
+          sku: "MANUAL-PRODUCT-SKU",
+          name: "新品",
+          publicDescription: "新品說明",
+          publishState: "draft",
+        },
+        variants: [
+          {
+            id: "var_new_1",
+            sku: "MANUAL-VARIANT-SKU",
+            name: "A",
+            isDefault: true,
+            priceTwd: 100,
+          },
+          {
+            id: "var_new_2",
+            sku: "",
+            name: "B",
+            isDefault: false,
+            priceTwd: 120,
+          },
+        ],
+        campaigns: [],
+      },
+      {
+        productSku: "AST-P000007",
+        existingVariantSkusById: new Map(),
+      },
+    );
+
+    expect(assigned.product.sku).toBe("AST-P000007");
+    expect(assigned.variants.map((variant) => variant.sku)).toEqual([
+      "AST-P000007-V001",
+      "AST-P000007-V002",
+    ]);
+  });
+
+  it("preserves existing variant SKUs and assigns new variants after the highest existing sequence", () => {
+    const assigned = assignServerManagedSkus(
+      {
+        product: {
+          id: "prod_existing",
+          sku: "",
+          name: "既有商品",
+          publicDescription: "既有商品說明",
+          publishState: "published",
+        },
+        variants: [
+          {
+            id: "var_existing",
+            sku: "",
+            name: "既有規格",
+            isDefault: true,
+            priceTwd: 100,
+          },
+          {
+            id: "var_new",
+            sku: "MANUAL-NEW-SKU",
+            name: "新增規格",
+            isDefault: false,
+            priceTwd: 120,
+          },
+        ],
+        campaigns: [],
+      },
+      {
+        productSku: "AST-P000008",
+        existingVariantSkusById: new Map([["var_existing", "AST-P000008-V003"]]),
+      },
+    );
+
+    expect(assigned.variants.map((variant) => variant.sku)).toEqual([
+      "AST-P000008-V003",
+      "AST-P000008-V004",
+    ]);
   });
 });

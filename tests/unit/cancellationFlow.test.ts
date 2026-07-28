@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDirectUnpaidCancellation,
   applyCancellationReview,
   createCancellationRequest,
   markCancellationRequested,
@@ -93,8 +94,8 @@ describe("markCancellationRequested", () => {
     ]);
   });
 
-  it("rejects a cancellation request for a paid item", () => {
-    expect(() =>
+  it("marks paid items as cancelRequested for owner refund review", () => {
+    expect(
       markCancellationRequested(
         [{ ...items[1], status: "paid" }],
         request,
@@ -102,12 +103,37 @@ describe("markCancellationRequested", () => {
           updatedAt: "2026-07-26T01:00:00.000Z",
           updatedBy: "member-a",
         },
-      ),
-    ).toThrow("invalid_items");
+      )[0].status,
+    ).toBe("cancelRequested");
   });
 });
 
 describe("applyCancellationReview", () => {
+  it("directly cancels unpaid items and recalculates the unpaid amount", () => {
+    expect(
+      applyDirectUnpaidCancellation(order, items, [paymentRequest], {
+        orderItemIds: ["order_001-item-2"],
+        updatedAt: "2026-07-26T01:00:00.000Z",
+        updatedBy: "member-a",
+      }),
+    ).toMatchObject({
+      order: {
+        status: "awaitingPayment",
+        totalTwd: 800,
+      },
+      items: [
+        { id: "order_001-item-1", status: "awaitingPayment" },
+        { id: "order_001-item-2", status: "cancelled" },
+      ],
+      paymentRequests: [
+        {
+          id: "pr_order_001",
+          amountTwd: 800,
+        },
+      ],
+    });
+  });
+
   it("approves a partial cancellation and recalculates the unpaid amount", () => {
     const requestedItems = markCancellationRequested(items, request, {
       updatedAt: "2026-07-26T01:00:00.000Z",
@@ -136,6 +162,48 @@ describe("applyCancellationReview", () => {
           status: "open",
         },
       ],
+    });
+  });
+
+  it("approves a paid cancellation with refund adjustment metadata", () => {
+    const paidItems = items.map((item) => ({ ...item, status: "paid" as const }));
+    const paidOrder = { ...order, status: "paid" as const };
+    const paidRequest = { ...paymentRequest, status: "paid" as const };
+    const paidCancelRequest = createCancellationRequest({
+      id: "cancel_paid_001",
+      orderId: "order_001",
+      orderItemIds: ["order_001-item-2"],
+      memberUid: "member-a",
+      reason: "已付款取消其中一項",
+      createdAt: "2026-07-26T01:00:00.000Z",
+      createdBy: "member-a",
+    });
+    const requestedItems = markCancellationRequested(paidItems, paidCancelRequest, {
+      updatedAt: "2026-07-26T01:00:00.000Z",
+      updatedBy: "member-a",
+    });
+
+    expect(
+      applyCancellationReview(paidOrder, requestedItems, [paidRequest], paidCancelRequest, {
+        status: "approved",
+        updatedAt: "2026-07-26T02:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 400,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-001",
+      }),
+    ).toMatchObject({
+      order: {
+        status: "paid",
+        totalTwd: 800,
+      },
+      adjustment: {
+        kind: "adjustment",
+        amountTwd: -400,
+      },
+      auditLog: {
+        reason: "refund 400 at 2026-07-26 ref BANK-001",
+      },
     });
   });
 

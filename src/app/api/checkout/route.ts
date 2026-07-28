@@ -5,14 +5,16 @@ import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { createConsentRecord } from "@/lib/legal/documents";
 import { createOrderCreatedNotificationEvent } from "@/lib/notification/events";
 import {
+  createOrderNumber,
   createOrderFromCart,
+  groupCartItemsByCampaign,
   normalizeRecipientPhone,
   validateCheckoutCart,
   validateShippingDetails,
   type CartLineItem,
 } from "@/lib/order/checkout";
 import { createPaymentRequestForOrder } from "@/lib/payment/manualBankTransfer";
-import { mapPublicCatalogItem, type PublicCatalogItem } from "@/lib/catalog/publicCatalog";
+import { mapPublicCatalogItem } from "@/lib/catalog/publicCatalog";
 
 type CheckoutRequestBody = {
   cart: CartLineItem[];
@@ -22,18 +24,30 @@ type CheckoutRequestBody = {
   shippingAddress?: string;
   shippingStoreInfo?: string;
   legalVersionIds?: string[];
+  acceptedLegalTerms: boolean;
+  acceptedSupplementRule: boolean;
   idempotencyKey: string;
 };
 
 export async function POST(request: Request) {
   try {
     const claims = await requireFirebaseUser(request);
+    const recipientEmail = typeof claims.email === "string" ? claims.email : "";
     const body = (await request.json()) as Partial<CheckoutRequestBody>;
     const cart = body.cart ?? [];
 
     const idempotencyKey = body.idempotencyKey?.trim() ?? "";
     if (cart.length === 0 || !idempotencyKey || idempotencyKey.length > 80) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+    if (body.acceptedLegalTerms !== true || body.acceptedSupplementRule !== true) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          details: { consent: "請先同意下單條款、隱私權政策與二補規則。" },
+        },
+        { status: 400 },
+      );
     }
 
     const shippingCheck = validateShippingDetails({
@@ -54,10 +68,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "member_blacklisted" }, { status: 403 });
     }
 
-    const catalogSnapshot = await db.collection("productsPublic").get();
-    const catalog = catalogSnapshot.docs
-      .map((snapshot) => mapPublicCatalogItem(snapshot.data()))
-      .filter((item): item is PublicCatalogItem => item !== null);
+    const [catalogSnapshot, variantSnapshot] = await Promise.all([
+      db.collection("productsPublic").get(),
+      db.collection("productVariants").get(),
+    ]);
+    const variantSkuById = new Map(
+      variantSnapshot.docs.map((snapshot) => [
+        snapshot.id,
+        String((snapshot.data() as { sku?: string }).sku ?? ""),
+      ]),
+    );
+    const catalog = catalogSnapshot.docs.flatMap((snapshot) => {
+      const item = mapPublicCatalogItem(snapshot.data());
+
+      return item
+        ? [{
+            ...item,
+            variants: item.variants.map((variant) => ({
+              ...variant,
+              sku: variantSkuById.get(variant.id) ?? "",
+            })),
+          }]
+        : [];
+    });
     const cartCheck = validateCheckoutCart(cart, catalog);
     if (!cartCheck.ok) {
       return NextResponse.json({ error: "validation_error", details: { cart: cartCheck.error } }, { status: 400 });
@@ -65,72 +98,108 @@ export async function POST(request: Request) {
 
     const timestamp = new Date().toISOString();
     const normalizedKey = idempotencyKey.replace(/^order_/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const orderId = `order_${normalizedKey}`;
+    const checkoutGroupId = `checkout_${normalizedKey}`;
+    const cartGroups = groupCartItemsByCampaign(cart);
     const checkoutResult = await db.runTransaction(async (transaction) => {
-      const orderRef = db.collection("orders").doc(orderId);
-      const existing = await transaction.get(orderRef);
+      const firstOrderId = `order_${normalizedKey}_1`;
+      const firstOrderRef = db.collection("orders").doc(firstOrderId);
+      const existing = await transaction.get(firstOrderRef);
 
       if (existing.exists) {
-        const existingOrder = existing.data() as { memberUid?: string };
+        const existingOrder = existing.data() as { memberUid?: string; checkoutGroupId?: string };
         if (existingOrder.memberUid !== claims.uid) {
           throw new Error("idempotency_conflict");
         }
-        return { orderId, paymentRequestId: `pr_${orderId}`, alreadyExists: true };
+        return {
+          orderId: firstOrderId,
+          orders: [{ orderId: firstOrderId, orderNumber: existingOrder.checkoutGroupId ?? firstOrderId }],
+          alreadyExists: true,
+        };
       }
 
-      const result = createOrderFromCart(
-        {
-          orderId,
-          memberUid: claims.uid,
+      const orderDate = new Date(timestamp);
+      const yyyymmdd = timestamp.slice(0, 10).replaceAll("-", "");
+      const sequenceRef = db.collection("siteSettings").doc(`order-sequence-${yyyymmdd}`);
+      const sequenceSnapshot = await transaction.get(sequenceRef);
+      const nextSequence = Number(sequenceSnapshot.data()?.nextOrderSequence ?? 1);
+      const results = cartGroups.map((group, index) => {
+        const orderId = `order_${normalizedKey}_${index + 1}`;
+        const result = createOrderFromCart(
+          {
+            orderId,
+            orderNumber: createOrderNumber(orderDate, nextSequence + index),
+            checkoutGroupId,
+            memberUid: claims.uid,
+            createdAt: timestamp,
+            recipientName: shippingCheck.value.recipientName,
+            recipientPhone: normalizeRecipientPhone(shippingCheck.value.recipientPhone),
+            shippingMethod: body.shippingMethod ?? "address",
+            ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
+            ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
+          },
+          group.items,
+          catalog,
+        );
+        const paymentRequest = createPaymentRequestForOrder(result, {
+          paymentRequestId: `pr_${orderId}`,
           createdAt: timestamp,
-          recipientName: shippingCheck.value.recipientName,
-          recipientPhone: normalizeRecipientPhone(shippingCheck.value.recipientPhone),
-          shippingMethod: body.shippingMethod ?? "address",
-          ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-          ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
-        },
-        cart,
-        catalog,
-      );
+        });
+        const consentRecord = createConsentRecord({
+          memberUid: result.order.memberUid,
+          orderId: result.order.id,
+          acceptedAt: timestamp,
+          acceptedSupplementRule: true,
+        });
+        const notificationEvent = createOrderCreatedNotificationEvent({
+          id: `notif_${orderId}`,
+          memberUid: result.order.memberUid,
+          recipientEmail,
+          orderId: result.order.id,
+          orderNumber: result.order.orderNumber,
+          paymentRequestId: paymentRequest.id,
+          createdAt: timestamp,
+        });
 
-      const paymentRequest = createPaymentRequestForOrder(result, {
-        paymentRequestId: `pr_${orderId}`,
-        createdAt: timestamp,
-      });
-      const consentRecord = createConsentRecord({
-        memberUid: result.order.memberUid,
-        orderId: result.order.id,
-        acceptedAt: timestamp,
-      });
-      const notificationEvent = createOrderCreatedNotificationEvent({
-        id: `notif_${orderId}`,
-        memberUid: result.order.memberUid,
-        orderId: result.order.id,
-        paymentRequestId: paymentRequest.id,
-        createdAt: timestamp,
+        return { result, paymentRequest, consentRecord, notificationEvent };
       });
 
-      transaction.set(orderRef, {
-        ...result.order,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      for (const item of result.items) {
-        transaction.set(db.collection("orderItems").doc(item.id), {
-          ...item,
+      results.forEach(({ result, paymentRequest, consentRecord, notificationEvent }) => {
+        transaction.set(db.collection("orders").doc(result.order.id), {
+          ...result.order,
           createdAt: FieldValue.serverTimestamp(),
         });
-      }
-      transaction.set(db.collection("paymentRequests").doc(paymentRequest.id), {
-        ...paymentRequest,
-        createdAt: FieldValue.serverTimestamp(),
+        for (const item of result.items) {
+          transaction.set(db.collection("orderItems").doc(item.id), {
+            ...item,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        }
+        transaction.set(db.collection("paymentRequests").doc(paymentRequest.id), {
+          ...paymentRequest,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        transaction.set(db.collection("consentRecords").doc(consentRecord.id), consentRecord);
+        transaction.set(db.collection("notificationEvents").doc(notificationEvent.id), {
+          ...notificationEvent,
+          createdAt: FieldValue.serverTimestamp(),
+        });
       });
-      transaction.set(db.collection("consentRecords").doc(consentRecord.id), consentRecord);
-      transaction.set(db.collection("notificationEvents").doc(notificationEvent.id), {
-        ...notificationEvent,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+      transaction.set(sequenceRef, {
+        nextOrderSequence: nextSequence + results.length,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: claims.uid,
+      }, { merge: true });
 
-      return { orderId: result.order.id, paymentRequestId: paymentRequest.id, alreadyExists: false };
+      return {
+        orderId: results[0]?.result.order.id,
+        orders: results.map(({ result, paymentRequest }) => ({
+          orderId: result.order.id,
+          orderNumber: result.order.orderNumber,
+          paymentRequestId: paymentRequest.id,
+          totalTwd: result.order.totalTwd,
+        })),
+        alreadyExists: false,
+      };
     });
 
     return NextResponse.json({ ok: true, ...checkoutResult });

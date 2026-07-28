@@ -226,7 +226,7 @@ export function OrderDetailBoard({ orderId }: Props) {
                   </p>
                   <p className="mt-1 text-slate-500">狀態：{item.status}</p>
                   {hasPendingRequest ? <p className="mt-1 text-xs text-amber-700">這個項目已有待審核取消申請。</p> : null}
-                  {!canCancel ? <p className="mt-1 text-xs text-amber-700">已付款項目請聯絡客服。</p> : null}
+                  {!canCancel ? <p className="mt-1 text-xs text-amber-700">此項目目前不可再次申請取消。</p> : null}
                 </div>
               </label>
             );
@@ -239,7 +239,7 @@ export function OrderDetailBoard({ orderId }: Props) {
           <p className="text-sm font-semibold text-slate-500">Actions</p>
           <h3 className="mt-2 text-2xl font-semibold">取消申請</h3>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            只允許尚未付款的項目提出申請。已付款項目會保留在訂單內。
+            未付款項目可直接取消；已付款項目會送出取消申請，待客服審核退款資訊。
           </p>
           {existingRequest ? (
             <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">

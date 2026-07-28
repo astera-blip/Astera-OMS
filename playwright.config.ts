@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   timeout: 30_000,
   expect: {
     timeout: 10_000,
@@ -19,6 +20,17 @@ export default defineConfig({
         url: "http://127.0.0.1:3000",
         reuseExistingServer: true,
         timeout: 120_000,
+        env: process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true"
+          ? {
+              NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "true",
+              NEXT_PUBLIC_ENABLE_E2E_TEST_AUTH: "true",
+              FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
+              FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
+              FIREBASE_STORAGE_EMULATOR_HOST: "127.0.0.1:9199",
+              GCLOUD_PROJECT: "demo-astera-oms",
+              GOOGLE_CLOUD_PROJECT: "demo-astera-oms",
+            }
+          : undefined,
       },
   projects: [
     {

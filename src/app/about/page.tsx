@@ -10,7 +10,7 @@ export default function AboutPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">About</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            小圈測試階段先提供商品瀏覽、下單、銀行匯款與基本訂單查詢。
+            Astera 提供泰國 GL / 藝人周邊代購服務。下單前請確認商品活動、規格、價格、付款與二補規則。
           </p>
         </div>
 
@@ -25,7 +25,7 @@ export default function AboutPage() {
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  小圈測試草案
+                  現行版本
                 </span>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-700">{document.body}</p>

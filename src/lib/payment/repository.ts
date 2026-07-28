@@ -35,6 +35,12 @@ export async function listAllPaymentRequests(db: Firestore): Promise<LocalPaymen
   return snapshot.docs.map((document) => document.data() as LocalPaymentRequest);
 }
 
+export async function listAllPayments(db: Firestore): Promise<LocalPayment[]> {
+  const snapshot = await getDocs(collection(db, "payments"));
+
+  return snapshot.docs.map((document) => document.data() as LocalPayment);
+}
+
 export async function confirmPaymentBundle(
   db: Firestore,
   input: {

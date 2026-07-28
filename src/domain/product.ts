@@ -24,7 +24,8 @@ export type SaleCampaign = AuditMetadata & {
   productId: EntityId;
   title: string;
   saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-  status: "draft" | "open" | "closed" | "archived";
+  status: "upcoming" | "open" | "closed" | "archived";
+  salePriceTwd?: number;
   startsAt?: string;
   endsAt?: string;
   requiresSupplement: boolean;

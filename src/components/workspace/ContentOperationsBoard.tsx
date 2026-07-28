@@ -14,12 +14,11 @@ import {
   type BrandFaq,
   type SiteSettings,
 } from "@/lib/content/brandContent";
-import { saveBrandContent } from "@/lib/content/repository";
 
 const channelKeys: BrandChannelKey[] = ["lineCommunity", "lineOfficial", "instagram"];
 
 export function ContentOperationsBoard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [content, setContent] = useState<BrandContentBundle>(emptyBrandContent);
   const [message, setMessage] = useState("品牌內容載入中。");
 
@@ -62,16 +61,36 @@ export function ContentOperationsBoard() {
     }
 
     try {
-      const { db } = await import("@/lib/firebase/client");
-      await saveBrandContent(db, {
-        siteSettings: {
-          ...content.siteSettings,
-          updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+
+      if (!token) {
+        setMessage("請重新登入後再儲存。");
+        return;
+      }
+
+      const response = await fetch("/api/workspace/content", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        channels: content.channels,
-        faqs: content.faqs,
-        announcements: content.announcements,
+        body: JSON.stringify({
+          content: {
+            siteSettings: {
+              ...content.siteSettings,
+              updatedAt: new Date().toISOString(),
+            },
+            channels: content.channels,
+            faqs: content.faqs,
+            announcements: content.announcements,
+          },
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("save_content_failed");
+      }
+
       setMessage("已儲存品牌內容。");
     } catch {
       setMessage("儲存品牌內容失敗。");

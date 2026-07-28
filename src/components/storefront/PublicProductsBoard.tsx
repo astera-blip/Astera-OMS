@@ -12,6 +12,7 @@ import {
   findCatalogItem,
   getDefaultCampaign,
   getDefaultVariant,
+  getEffectiveCatalogPriceTwd,
   type PublicCatalogItem,
 } from "@/lib/catalog/publicCatalog";
 import { loadCart, saveCart } from "@/lib/order/localStore";
@@ -43,11 +44,15 @@ export function PublicProductsBoard() {
         return;
       }
 
-      const [{ db }, { saveMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      await saveMemberCart(db, user.uid, cart);
+      const token = await user.getIdToken();
+      await fetch("/api/cart", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items: cart }),
+      });
     }
 
     void syncCart().catch(() => {
@@ -62,11 +67,15 @@ export function PublicProductsBoard() {
         return;
       }
 
-      const [{ db }, { loadMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      setCart(await loadMemberCart(db, user.uid));
+      const token = await user.getIdToken();
+      const response = await fetch("/api/cart", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("load_cart_failed");
+      }
+      const payload = (await response.json()) as { items?: CartLineItem[] };
+      setCart(payload.items ?? []);
     }
 
     void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));
@@ -222,6 +231,7 @@ export function PublicProductsBoard() {
           featuredCatalog.map((item) => {
             const variant = getDefaultVariant(item);
             const campaign = getDefaultCampaign(item);
+            const effectivePrice = variant ? getEffectiveCatalogPriceTwd(variant, campaign) : 0;
             const classifications = item.product.classifications
               ? Object.entries(item.product.classifications).filter(([, value]) => !!value)
               : [];
@@ -267,8 +277,8 @@ export function PublicProductsBoard() {
                   </div>
                 ) : null}
                 <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
-                  <p>SKU：{variant?.sku ?? "未設定"}</p>
-                  <p>售價：NT$ {variant?.priceTwd.toLocaleString() ?? "0"}</p>
+                  <p>規格：{variant?.name ?? "未設定"}</p>
+                  <p>售價：NT$ {effectivePrice.toLocaleString()}</p>
                   <p>活動：{campaign?.title ?? "未設定"}</p>
                 </div>
                 <div className="mt-3 text-xs text-slate-500">
@@ -322,7 +332,7 @@ export function PublicProductsBoard() {
         <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-slate-50 shadow-sm">
           <p className="text-sm font-medium text-slate-400">Rules</p>
           <p className="mt-3 text-sm leading-6 text-slate-200">
-            不同 sale type 的商品不能混在同一張訂單。建立訂單時會保存商品、規格與售價 snapshot。
+            可先把不同活動商品加入購物車；結帳時系統會依活動拆成不同訂單，並保存商品、規格與售價 snapshot。
           </p>
         </div>
       </aside>

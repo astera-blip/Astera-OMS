@@ -4,16 +4,16 @@ import { FeaturedProductsBoard } from "@/components/storefront/FeaturedProductsB
 
 const highlights = [
   {
-    title: "熟客小圈測試",
-    description: "Google 登入、補資料、下單、付款確認、訂單追蹤。",
+    title: "泰國周邊代購",
+    description: "整理 GL / 藝人周邊開團、預購、代搶與候補商品資訊。",
   },
   {
-    title: "清楚商品入口",
-    description: "公開商品、活動與規格分開，先看詳情再加入購物車。",
+    title: "活動與規格清楚",
+    description: "商品頁會標示販售活動、規格、價格、結單資訊與二補提醒。",
   },
   {
-    title: "人工營運流程",
-    description: "先保留手動匯款與 owner 確認機制，穩定後再逐步自動化。",
+    title: "銀行匯款回報",
+    description: "下單後依付款請求匯款，並回報末五碼與匯款資訊方便對帳。",
   },
 ];
 
@@ -34,9 +34,14 @@ const quickLinks = [
     detail: "補齊姓名、社群內 ID 與手機。",
   },
   {
-    href: "/workspace",
-    title: "Owner 後台",
-    detail: "商品、訂單、付款與內容管理。",
+    href: "/orders",
+    title: "我的訂單",
+    detail: "查看訂單、付款狀態與取消申請。",
+  },
+  {
+    href: "/payments",
+    title: "付款回報",
+    detail: "回報匯款資訊並追蹤付款確認。",
   },
 ];
 
@@ -59,13 +64,13 @@ export default function Home() {
         <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[1.35fr_0.85fr]">
           <section className="flex flex-col gap-6">
             <div className="rounded-[2rem] border border-amber-200 bg-white/90 p-7 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-              <p className="text-sm font-medium text-amber-700">Small-circle MVP</p>
+              <p className="text-sm font-medium text-amber-700">Astera Goods</p>
               <p className="mt-4 max-w-3xl text-2xl font-semibold leading-10 sm:text-4xl">
-                先讓熟客可以安全地下單、看訂單、追付款，之後才擴成完整營運系統。
+                泰國 GL / 藝人周邊代購，從商品資訊、下單到匯款回報都集中整理。
               </p>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
-                目前已支援 Google 登入、會員資料補齊、公開商品、購物車、訂單、付款請求、
-                owner 付款確認與 audit log。公開頁面現在以真實商品詳情與品牌入口為主。
+                你可以先查看已開放商品與活動，確認規格、價格、結單時間與二補提醒後加入購物車。
+                下單後請依付款請求完成銀行匯款，並在付款頁回報匯款資訊。
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
@@ -115,14 +120,14 @@ export default function Home() {
 
           <aside className="flex flex-col gap-6">
             <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
-              <p className="text-sm font-medium text-slate-400">Current status</p>
+              <p className="text-sm font-medium text-slate-400">Shopping guide</p>
               <div className="mt-5 grid gap-4">
                 <div className="rounded-2xl bg-white/6 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
                     Products
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-200">
-                    商品列表與詳情頁已接上 Firestore 公開資料，但仍以小圈測試驗證為主。
+                    商品列表只顯示已開放的商品與活動；已封存或未發布商品不會出現在前台。
                   </p>
                 </div>
                 <div className="rounded-2xl bg-white/6 p-4">
@@ -130,25 +135,25 @@ export default function Home() {
                     Checkout
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-200">
-                    加入購物車後可建立訂單與付款請求，正式流程已改成受保護 API。
+                    購物車可加入不同活動商品；系統會依活動拆分訂單與付款請求。
                   </p>
                 </div>
                 <div className="rounded-2xl bg-white/6 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Owner
+                    Payment
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-200">
-                    owner custom claim 已上線，後台權限不再依賴 email 後門。
+                    目前採銀行匯款。付款後請回報日期、金額、帳號末五碼與匯款人。
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">小圈測試重點</h2>
+              <h2 className="text-lg font-semibold">下單前請確認</h2>
               <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
                 <li className="rounded-2xl bg-slate-50 p-4">商品、活動與結單資訊以後台發布資料為準</li>
-                <li className="rounded-2xl bg-slate-50 p-4">下單、付款與取消申請會保存 Firestore 紀錄</li>
+                <li className="rounded-2xl bg-slate-50 p-4">預購、代搶與候補商品可能因實際成本產生二補</li>
                 <li className="rounded-2xl bg-slate-50 p-4">未設定的社群入口不會顯示可點擊連結</li>
               </ul>
             </div>

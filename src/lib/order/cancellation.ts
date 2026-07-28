@@ -1,4 +1,5 @@
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import type { LocalAuditLog, LocalPaymentAllocation } from "@/lib/payment/manualBankTransfer";
 import type { OrderItemRecord, OrderRecord } from "./checkout";
 
 export type CancellationRequestRecord = {
@@ -13,10 +14,61 @@ export type CancellationRequestRecord = {
   reviewedAt?: string;
   reviewedBy?: string;
   reviewNote?: string;
+  refundAmountTwd?: number;
+  refundCompletedAt?: string;
+  refundReference?: string;
 };
 
 export function getPendingCancellationRequestId(orderId: string, orderItemIds: string[]) {
   return `cancel_${orderId}_${orderItemIds.join("_")}`;
+}
+
+export function splitCancellationItems(items: readonly OrderItemRecord[], orderItemIds: readonly string[]) {
+  const targetItemIds = new Set(orderItemIds);
+  const selectedItems = items.filter((item) => targetItemIds.has(item.id));
+
+  if (selectedItems.length !== targetItemIds.size) {
+    throw new Error("invalid_items");
+  }
+
+  return {
+    unpaidItems: selectedItems.filter((item) => item.status === "awaitingPayment"),
+    paidItems: selectedItems.filter((item) => item.status === "paid"),
+  };
+}
+
+export function applyDirectUnpaidCancellation(
+  order: OrderRecord,
+  items: readonly OrderItemRecord[],
+  paymentRequests: readonly LocalPaymentRequest[],
+  input: {
+    orderItemIds: string[];
+    updatedAt: string;
+    updatedBy: string;
+  },
+): {
+  order: OrderRecord;
+  items: OrderItemRecord[];
+  paymentRequests: LocalPaymentRequest[];
+} {
+  const targetItemIds = new Set(input.orderItemIds);
+  const updatedItems = items.map((item) => {
+    if (!targetItemIds.has(item.id)) {
+      return item;
+    }
+    if (item.status !== "awaitingPayment") {
+      throw new Error("invalid_items");
+    }
+
+    return {
+      ...item,
+      status: "cancelled" as const,
+      updatedAt: input.updatedAt,
+      updatedBy: input.updatedBy,
+    };
+  });
+
+  return recalculateOrderAfterCancellation(order, updatedItems, paymentRequests, input);
 }
 
 export function createCancellationRequest(input: {
@@ -75,6 +127,14 @@ export function markCancellationRequested(
     }
 
     if (item.status !== "awaitingPayment") {
+      if (item.status === "paid") {
+        return {
+          ...item,
+          status: "cancelRequested",
+          updatedAt: input.updatedAt,
+          updatedBy: input.updatedBy,
+        };
+      }
       throw new Error("invalid_items");
     }
 
@@ -96,11 +156,16 @@ export function applyCancellationReview(
     status: "approved" | "rejected";
     updatedAt: string;
     updatedBy: string;
+    refundAmountTwd?: number;
+    refundCompletedAt?: string;
+    refundReference?: string;
   },
 ): {
   order: OrderRecord;
   items: OrderItemRecord[];
   paymentRequests: LocalPaymentRequest[];
+  adjustment?: LocalPaymentAllocation;
+  auditLog?: LocalAuditLog;
 } {
   const targetItemIds = new Set(request.orderItemIds);
   const matchedItemCount = items.filter((item) => targetItemIds.has(item.id)).length;
@@ -117,22 +182,70 @@ export function applyCancellationReview(
       throw new Error("invalid_items");
     }
 
+    const nextStatus = input.status === "approved"
+      ? "cancelled"
+      : item.status === "cancelRequested"
+        ? order.status === "paid"
+          ? "paid"
+          : "awaitingPayment"
+        : "awaitingPayment";
+
     return {
       ...item,
-      status: input.status === "approved" ? "cancelled" : "awaitingPayment",
+      status: nextStatus,
       updatedAt: input.updatedAt,
       updatedBy: input.updatedBy,
     } satisfies OrderItemRecord;
   });
-  const remainingTotalTwd = reviewedItems
+  const recalculated = recalculateOrderAfterCancellation(order, reviewedItems, paymentRequests, input);
+  const refundAmountTwd = input.refundAmountTwd ?? 0;
+  const needsRefundAdjustment = input.status === "approved" && refundAmountTwd > 0;
+
+  return {
+    ...recalculated,
+    ...(needsRefundAdjustment
+      ? {
+          adjustment: {
+            id: `adj_refund_${request.id}`,
+            paymentId: `manual_refund_${request.id}`,
+            kind: "adjustment" as const,
+            targetType: "paymentRequest" as const,
+            targetId: paymentRequests[0]?.id ?? request.orderId,
+            amountTwd: -refundAmountTwd,
+            createdAt: input.updatedAt,
+            createdBy: input.updatedBy,
+          },
+          auditLog: {
+            id: `audit_refund_${request.id}`,
+            action: "order.status.updated" as const,
+            actorUid: input.updatedBy,
+            targetType: "order" as const,
+            targetId: request.orderId,
+            reason: `refund ${refundAmountTwd} at ${input.refundCompletedAt ?? input.updatedAt} ref ${input.refundReference ?? ""}`.trim(),
+            createdAt: input.updatedAt,
+          },
+        }
+      : {}),
+  };
+}
+
+function recalculateOrderAfterCancellation(
+  order: OrderRecord,
+  items: readonly OrderItemRecord[],
+  paymentRequests: readonly LocalPaymentRequest[],
+  input: { updatedAt: string; updatedBy: string },
+) {
+  const remainingTotalTwd = items
     .filter((item) => item.status !== "cancelled")
     .reduce((total, item) => total + item.snapshot.unitPriceTwd * item.quantity, 0);
-  const nextOrderStatus = remainingTotalTwd === 0
+  const nextOrderStatus: OrderRecord["status"] = remainingTotalTwd === 0
     ? "cancelled"
     : order.status === "cancelled"
       ? "awaitingPayment"
       : order.status;
-  const nextPaymentStatus = remainingTotalTwd === 0 ? "cancelled" : "open";
+  const nextPaymentStatus: LocalPaymentRequest["status"] = remainingTotalTwd === 0
+    ? "cancelled"
+    : paymentRequests[0]?.status ?? "open";
 
   return {
     order: {
@@ -142,7 +255,7 @@ export function applyCancellationReview(
       updatedAt: input.updatedAt,
       updatedBy: input.updatedBy,
     },
-    items: reviewedItems,
+    items: [...items],
     paymentRequests: paymentRequests.map((paymentRequest) => ({
       ...paymentRequest,
       amountTwd: remainingTotalTwd,

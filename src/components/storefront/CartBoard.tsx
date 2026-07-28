@@ -23,6 +23,8 @@ export function CartBoard() {
   const [shippingMethod, setShippingMethod] = useState<"address" | "seven_eleven" | "family_mart">("address");
   const [shippingAddress, setShippingAddress] = useState("");
   const [shippingStoreInfo, setShippingStoreInfo] = useState("");
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
+  const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
 
   useEffect(() => {
@@ -32,11 +34,15 @@ export function CartBoard() {
         return;
       }
 
-      const [{ db }, { saveMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      await saveMemberCart(db, user.uid, cart);
+      const token = await user.getIdToken();
+      await fetch("/api/cart", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items: cart }),
+      });
     }
 
     void syncCart().catch(() => {
@@ -51,11 +57,15 @@ export function CartBoard() {
         return;
       }
 
-      const [{ db }, { loadMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      const cloudCart = await loadMemberCart(db, user.uid);
+      const token = await user.getIdToken();
+      const response = await fetch("/api/cart", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("load_cart_failed");
+      }
+      const payload = (await response.json()) as { items?: CartLineItem[] };
+      const cloudCart = payload.items ?? [];
       const localCart = loadCart();
 
       setCart(cloudCart.length > 0 ? cloudCart : localCart);
@@ -105,6 +115,10 @@ export function CartBoard() {
       setMessage("公開商品尚未載入，無法建立訂單。");
       return;
     }
+    if (!acceptedLegalTerms || !acceptedSupplementRule) {
+      setMessage("請先同意下單條款、隱私權政策與二補規則。");
+      return;
+    }
 
     const shippingCheck = validateShippingDetails({
       recipientName,
@@ -123,10 +137,7 @@ export function CartBoard() {
     const idempotencyKey = `${user.uid}_${timestamp.replaceAll(/[-:.TZ]/g, "").slice(0, 17)}`;
 
     try {
-      const [{ auth }, { clearMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
+      const { auth } = await import("@/lib/firebase/client");
       const token = await auth.currentUser?.getIdToken();
 
       if (!token) {
@@ -148,6 +159,8 @@ export function CartBoard() {
           ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
           ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
           legalVersionIds: [],
+          acceptedLegalTerms,
+          acceptedSupplementRule,
           idempotencyKey,
         }),
       });
@@ -158,12 +171,21 @@ export function CartBoard() {
         setMessage(details || payload?.error || "訂單建立失敗。");
         return;
       }
-      const payload = (await response.json()) as { orderId?: string };
+      const payload = (await response.json()) as {
+        orderId?: string;
+        orders?: Array<{ orderId: string; orderNumber?: string; totalTwd?: number }>;
+      };
 
-      await clearMemberCart((await import("@/lib/firebase/client")).db, user.uid);
+      await fetch("/api/cart", {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
       clearCart();
       setCart([]);
-      setMessage(`已建立訂單 ${payload.orderId ?? "新訂單"}，付款請求已建立。`);
+      setAcceptedLegalTerms(false);
+      setAcceptedSupplementRule(false);
+      const orderLabels = payload.orders?.map((order) => order.orderNumber ?? order.orderId).join("、");
+      setMessage(`已建立訂單 ${orderLabels || payload.orderId || "新訂單"}，付款請求已建立。`);
     } catch {
       setMessage("訂單建立失敗，請確認已登入且網路可用。");
     }
@@ -265,6 +287,26 @@ export function CartBoard() {
             <p>項目數：{summary.itemCount}</p>
             <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
             <p>sale type：{summary.saleType ?? "尚未決定"}</p>
+          </div>
+          <div className="mt-4 grid gap-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={acceptedLegalTerms}
+                onChange={(event) => setAcceptedLegalTerms(event.target.checked)}
+                className="mt-1"
+              />
+              <span>我同意下單條款與隱私權政策。</span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={acceptedSupplementRule}
+                onChange={(event) => setAcceptedSupplementRule(event.target.checked)}
+                className="mt-1"
+              />
+              <span>我了解此代購商品可能依實際運費、匯率或官方配貨結果產生二補。</span>
+            </label>
           </div>
           <button
             type="button"

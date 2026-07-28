@@ -6,7 +6,7 @@ import type { StoredMemberProfile } from "@/lib/member/repository";
 import type { MemberPrivateNote } from "@/lib/member/operationsRepository";
 
 export function MemberOperationsBoard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [members, setMembers] = useState<StoredMemberProfile[]>([]);
   const [notes, setNotes] = useState<MemberPrivateNote[]>([]);
   const [message, setMessage] = useState("會員營運資料尚未載入。");
@@ -45,11 +45,25 @@ export function MemberOperationsBoard() {
     setNotes((items) => [next, ...items.filter((item) => item.uid !== uid)]);
 
     try {
-      const [{ db }, { saveMemberPrivateNote }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/member/operationsRepository"),
-      ]);
-      await saveMemberPrivateNote(db, next);
+      const token = await user?.getIdToken();
+
+      if (!token) {
+        throw new Error("missing_token");
+      }
+
+      const response = await fetch("/api/workspace/member-private-notes", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ note: next }),
+      });
+
+      if (!response.ok) {
+        throw new Error("save_note_failed");
+      }
+
       setMessage(`已更新 ${uid} 的風險狀態。`);
     } catch {
       setMessage("風險狀態已暫存在畫面，Firestore 同步失敗。");

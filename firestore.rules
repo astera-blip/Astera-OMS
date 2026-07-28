@@ -47,151 +47,74 @@ service cloud.firestore {
       allow get: if isOwnDocument(memberId) || isOwner();
       allow list: if isOwner();
 
-      allow create: if isOwnDocument(memberId)
-        && hasValidMemberShape(request.resource.data)
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.completedAt == request.time
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
-
-      allow update: if isOwnDocument(memberId)
-        && hasValidMemberShape(request.resource.data)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.completedAt == resource.data.completedAt
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'communityId', 'mobilePhone', 'birthday', 'updatedAt'
-        ])
-        && request.resource.data.updatedAt == request.time;
+      allow create, update: if false;
 
       allow delete: if false;
     }
 
     match /memberPrivateNotes/{memberId} {
-      allow get, list, create, update: if isOwner();
+      allow get, list: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /productsPublic/{productId} {
       allow get, list: if resource.data.publishState == 'published' || isOwner();
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'name', 'publicDescription', 'publishState', 'variants',
-          'campaigns', 'classifications', 'updatedAt'
-        ])
-        && request.resource.data.id == productId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.publicDescription is string
-        && request.resource.data.publicDescription.size() > 0
-        && request.resource.data.publishState in ['draft', 'published', 'archived']
-        && request.resource.data.updatedAt is timestamp;
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /catalogCompanies/{entryId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /catalogArtists/{entryId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /catalogCps/{entryId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /catalogBrands/{entryId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /catalogSeries/{entryId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && hasValidCatalogClassification(request.resource.data, entryId);
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /productsInternal/{productId} {
-      allow get, list, create, update: if isOwner();
+      allow get, list: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /productVariants/{variantId} {
-      allow get, list: if resource.data.publishState == 'published' || isOwner();
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'productId', 'sku', 'name', 'isDefault', 'priceTwd',
-          'publishState', 'updatedAt'
-        ])
-        && request.resource.data.id == variantId
-        && request.resource.data.productId is string
-        && request.resource.data.sku is string
-        && request.resource.data.sku.size() > 0
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.isDefault is bool
-        && request.resource.data.priceTwd is number
-        && request.resource.data.priceTwd >= 0
-        && request.resource.data.publishState in ['draft', 'published', 'archived']
-        && request.resource.data.updatedAt is timestamp;
+      allow get, list: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /saleCampaigns/{campaignId} {
-      allow get, list: if resource.data.status == 'open' || isOwner();
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'productId', 'title', 'saleType', 'status',
-          'requiresSupplement', 'startsAt', 'endsAt', 'publicNotice',
-          'supplementNote', 'updatedAt'
-        ])
-        && request.resource.data.id == campaignId
-        && request.resource.data.productId is string
-        && request.resource.data.title is string
-        && request.resource.data.title.size() > 0
-        && request.resource.data.saleType in ['inStock', 'preorder', 'rushPurchase', 'waitlist']
-        && request.resource.data.status in ['draft', 'open', 'closed', 'archived']
-        && request.resource.data.requiresSupplement is bool
-        && (!('startsAt' in request.resource.data)
-          || (request.resource.data.startsAt is string
-            && request.resource.data.startsAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$')))
-        && (!('endsAt' in request.resource.data)
-          || (request.resource.data.endsAt is string
-            && request.resource.data.endsAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$')))
-        && (!('publicNotice' in request.resource.data)
-          || (request.resource.data.publicNotice is string
-            && request.resource.data.publicNotice.size() <= 300))
-        && (!('supplementNote' in request.resource.data)
-          || (request.resource.data.supplementNote is string
-            && request.resource.data.supplementNote.size() <= 300))
-        && request.resource.data.updatedAt is timestamp;
+      allow get, list: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /carts/{memberId} {
       allow get, list: if isOwnDocument(memberId);
-      allow create, update: if isOwnDocument(memberId)
-        && request.resource.data.keys().hasOnly(['memberUid', 'items', 'updatedAt'])
-        && request.resource.data.memberUid == request.auth.uid
-        && request.resource.data.items is list
-        && request.resource.data.items.size() <= 50
-        && request.resource.data.updatedAt is timestamp;
-      allow delete: if isOwnDocument(memberId);
+      allow create, update, delete: if false;
     }
 
     match /orders/{orderId} {
@@ -199,42 +122,7 @@ service cloud.firestore {
         && (resource.data.memberUid == request.auth.uid || isOwner());
       allow list: if isOwner()
         || (isSignedIn() && resource.data.memberUid == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'id', 'memberUid', 'status', 'totalTwd', 'recipientName',
-          'recipientPhone', 'shippingMethod', 'shippingAddress',
-          'shippingStoreInfo', 'createdAt', 'createdBy'
-        ])
-        && request.resource.data.id == orderId
-        && request.resource.data.memberUid == request.auth.uid
-        && request.resource.data.status == 'awaitingPayment'
-        && request.resource.data.totalTwd is number
-        && request.resource.data.recipientName is string
-        && request.resource.data.recipientName.size() > 0
-        && request.resource.data.recipientName.size() <= 80
-        && request.resource.data.recipientPhone is string
-        && request.resource.data.recipientPhone.matches('^09[0-9]{8}$')
-        && request.resource.data.shippingMethod in ['address', 'seven_eleven', 'family_mart']
-        && (
-          (request.resource.data.shippingMethod == 'address'
-            && request.resource.data.shippingAddress is string
-            && request.resource.data.shippingAddress.size() > 0
-            && request.resource.data.shippingAddress.size() <= 200
-            && !('shippingStoreInfo' in request.resource.data))
-          || (request.resource.data.shippingMethod != 'address'
-            && request.resource.data.shippingStoreInfo is string
-            && request.resource.data.shippingStoreInfo.size() > 0
-            && request.resource.data.shippingStoreInfo.size() <= 200
-            && !('shippingAddress' in request.resource.data))
-        )
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'memberUid', 'status', 'totalTwd', 'recipientName',
-          'recipientPhone', 'shippingMethod', 'shippingAddress',
-          'shippingStoreInfo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'
-        ]);
+      allow create, update: if false;
       allow delete: if false;
     }
 
@@ -243,28 +131,7 @@ service cloud.firestore {
         && (resource.data.memberUid == request.auth.uid || isOwner());
       allow list: if isOwner()
         || (isSignedIn() && resource.data.memberUid == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'id', 'orderId', 'memberUid', 'productId', 'variantId', 'saleCampaignId',
-          'quantity', 'status', 'snapshot', 'createdAt', 'createdBy'
-        ])
-        && request.resource.data.id == itemId
-        && request.resource.data.memberUid == request.auth.uid
-        && request.resource.data.status == 'awaitingPayment'
-        && request.resource.data.orderId is string
-        && request.resource.data.productId is string
-        && request.resource.data.variantId is string
-        && request.resource.data.saleCampaignId is string
-        && request.resource.data.quantity is number
-        && request.resource.data.quantity > 0
-        && request.resource.data.snapshot is map
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'orderId', 'memberUid', 'productId', 'variantId', 'saleCampaignId',
-          'quantity', 'status', 'snapshot', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'
-        ]);
+      allow create, update: if false;
       allow delete: if false;
     }
 
@@ -273,25 +140,7 @@ service cloud.firestore {
         && (resource.data.memberUid == request.auth.uid || isOwner());
       allow list: if isOwner()
         || (isSignedIn() && resource.data.memberUid == request.auth.uid);
-      allow create: if (isOwner() || isOwnDocument(request.resource.data.memberUid))
-        && request.resource.data.keys().hasOnly([
-          'id', 'memberUid', 'orderId', 'amountTwd', 'status', 'method',
-          'createdAt', 'createdBy', 'dueAt'
-        ])
-        && request.resource.data.id == requestId
-        && request.resource.data.memberUid is string
-        && request.resource.data.orderId is string
-        && request.resource.data.amountTwd is number
-        && request.resource.data.amountTwd >= 0
-        && request.resource.data.status == 'open'
-        && request.resource.data.method == 'bankTransfer'
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.createdBy is string;
-      allow update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'memberUid', 'orderId', 'amountTwd', 'status', 'method',
-          'createdAt', 'createdBy', 'dueAt', 'updatedAt', 'updatedBy'
-        ]);
+      allow create, update: if false;
       allow delete: if false;
     }
 
@@ -300,141 +149,61 @@ service cloud.firestore {
         && (resource.data.memberUid == request.auth.uid || isOwner());
       allow list: if isOwner()
         || (isSignedIn() && resource.data.memberUid == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'id', 'orderId', 'orderItemIds', 'memberUid', 'reason', 'status',
-          'createdAt', 'createdBy'
-        ])
-        && request.resource.data.id == requestId
-        && request.resource.data.memberUid == request.auth.uid
-        && request.resource.data.orderId is string
-        && request.resource.data.orderItemIds is list
-        && request.resource.data.orderItemIds.size() > 0
-        && request.resource.data.reason is string
-        && request.resource.data.reason.size() > 0
-        && request.resource.data.status == 'pending'
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'orderId', 'orderItemIds', 'memberUid', 'reason', 'status',
-          'createdAt', 'createdBy', 'reviewedAt', 'reviewedBy', 'reviewNote'
-        ])
-        && request.resource.data.id == requestId
-        && request.resource.data.status in ['pending', 'approved', 'rejected'];
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /payments/{paymentId} {
-      allow get, list, create, update: if isOwner();
+      allow get, list: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /paymentAllocations/{allocationId} {
-      allow get, list, create, update: if isOwner();
+      allow get, list: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /auditLogs/{auditId} {
-      allow get, list, create: if isOwner();
+      allow get, list: if isOwner();
+      allow create: if false;
       allow update, delete: if false;
     }
 
     match /notificationEvents/{eventId} {
       allow get, list: if isOwner();
-      allow create: if (isOwner() || isOwnDocument(request.resource.data.memberUid))
-        && request.resource.data.keys().hasOnly([
-          'id', 'type', 'channel', 'status', 'provider', 'memberUid',
-          'orderId', 'paymentRequestId', 'paymentId', 'createdAt', 'message'
-        ])
-        && request.resource.data.id == eventId
-        && request.resource.data.type in ['order.created', 'payment.confirmed']
-        && request.resource.data.channel == 'email'
-        && request.resource.data.status == 'recorded'
-        && request.resource.data.provider == 'manual'
-        && request.resource.data.memberUid is string
-        && request.resource.data.orderId is string
-        && request.resource.data.paymentRequestId is string
-        && request.resource.data.createdAt is timestamp;
+      allow create: if false;
       allow update, delete: if false;
     }
 
     match /legalDocumentVersions/{versionId} {
       allow get, list: if true;
-      allow create, update: if isOwner();
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /siteSettings/{settingId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'brandName', 'heroTitle', 'heroDescription', 'contactEmail',
-          'supportHours', 'shippingNote', 'updatedAt'
-        ])
-        && request.resource.data.id == settingId
-        && request.resource.data.brandName is string
-        && request.resource.data.brandName.size() > 0
-        && request.resource.data.heroTitle is string
-        && request.resource.data.heroTitle.size() > 0
-        && request.resource.data.heroDescription is string
-        && request.resource.data.heroDescription.size() > 0
-        && request.resource.data.contactEmail is string
-        && request.resource.data.contactEmail.size() > 0
-        && request.resource.data.supportHours is string
-        && request.resource.data.supportHours.size() > 0
-        && request.resource.data.shippingNote is string
-        && request.resource.data.shippingNote.size() > 0
-        && request.resource.data.updatedAt is string;
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /socialLinks/{linkId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'key', 'title', 'url', 'description', 'status'
-        ])
-        && request.resource.data.key == linkId
-        && request.resource.data.title is string
-        && request.resource.data.title.size() > 0
-        && request.resource.data.url is string
-        && request.resource.data.description is string
-        && request.resource.data.description.size() > 0
-        && request.resource.data.status in ['active', 'planned', 'disabled'];
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /faqs/{faqId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'question', 'answer', 'order', 'status'
-        ])
-        && request.resource.data.id == faqId
-        && request.resource.data.question is string
-        && request.resource.data.question.size() > 0
-        && request.resource.data.answer is string
-        && request.resource.data.answer.size() > 0
-        && request.resource.data.order is number
-        && request.resource.data.order >= 0
-        && request.resource.data.status in ['published', 'draft'];
+      allow create, update: if false;
       allow delete: if false;
     }
 
     match /announcements/{announcementId} {
       allow get, list: if true;
-      allow create, update: if isOwner()
-        && request.resource.data.keys().hasOnly([
-          'id', 'title', 'body', 'publishedAt', 'status'
-        ])
-        && request.resource.data.id == announcementId
-        && request.resource.data.title is string
-        && request.resource.data.title.size() > 0
-        && request.resource.data.body is string
-        && request.resource.data.body.size() > 0
-        && request.resource.data.publishedAt is string
-        && request.resource.data.status in ['published', 'draft'];
+      allow create, update: if false;
       allow delete: if false;
     }
 
@@ -442,15 +211,7 @@ service cloud.firestore {
       allow get: if isSignedIn()
         && (resource.data.memberUid == request.auth.uid || isOwner());
       allow list: if isOwner();
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'id', 'memberUid', 'orderId', 'legalVersionIds', 'acceptedAt'
-        ])
-        && request.resource.data.id == recordId
-        && request.resource.data.memberUid == request.auth.uid
-        && request.resource.data.orderId is string
-        && request.resource.data.legalVersionIds is list
-        && request.resource.data.acceptedAt is string;
+      allow create: if false;
       allow update, delete: if false;
     }
 

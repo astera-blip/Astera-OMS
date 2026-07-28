@@ -10,7 +10,7 @@ export default function PaymentsPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Payment Requests</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            MVP uses bank transfer. Each order creates a payment request that can be confirmed by the workspace.
+            下單後會產生付款請求。請依金額完成銀行匯款，並回報匯款日期、金額、帳號末五碼與匯款人。
           </p>
         </div>
 

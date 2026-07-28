@@ -7,6 +7,7 @@ import { buildCartSummary, type CartLineItem, validateCartAddition } from "@/lib
 import {
   getDefaultCampaign,
   getDefaultVariant,
+  getEffectiveCatalogPriceTwd,
   getPurchasableCampaigns,
   getPurchasableVariants,
   type PublicCatalogItem,
@@ -62,11 +63,15 @@ export function PublicProductDetailBoard({ productId }: Props) {
         return;
       }
 
-      const [{ db }, { saveMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      await saveMemberCart(db, user.uid, cart);
+      const token = await user.getIdToken();
+      await fetch("/api/cart", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items: cart }),
+      });
     }
 
     void syncCart().catch(() => saveCart(cart));
@@ -124,6 +129,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
   }
 
   const availableCampaign = selectedCampaign ?? getDefaultCampaign(catalogItem);
+  const effectivePrice = selectedVariant ? getEffectiveCatalogPriceTwd(selectedVariant, availableCampaign) : 0;
   const activeCampaigns = campaigns.filter((campaign) => campaign.status === "open");
 
   return (
@@ -150,7 +156,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
             >
               {variants.map((variant) => (
                 <option key={variant.id} value={variant.id}>
-                  {variant.name} / {variant.sku}
+                  {variant.name}
                 </option>
               ))}
             </select>
@@ -187,7 +193,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
         ) : null}
 
         <div className="mt-6 grid gap-3 rounded-3xl bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-2">
-          <p>售價：NT$ {selectedVariant?.priceTwd.toLocaleString() ?? "0"}</p>
+          <p>售價：NT$ {effectivePrice.toLocaleString()}</p>
           <p>sale type：{availableCampaign?.saleType ?? "尚未設定"}</p>
           <p>二補提示：{availableCampaign?.requiresSupplement ? "需要" : "不需要"}</p>
           <p>狀態：{availableCampaign?.status ?? "未設定"}</p>
@@ -216,7 +222,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
           <p className="font-medium">購買提示</p>
           <ul className="grid gap-2 leading-6">
             <li>只有公開且開啟中的活動可以加入購物車。</li>
-            <li>不同 sale type 不能混在同一張訂單。</li>
+            <li>不同活動商品可先加入購物車，結帳時會依活動拆單。</li>
             <li>若商品沒有可購買活動，會顯示不可購買狀態。</li>
           </ul>
         </div>

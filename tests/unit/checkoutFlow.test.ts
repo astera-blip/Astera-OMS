@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCartSummary,
+  createOrderNumber,
   createOrderFromCart,
+  groupCartItemsByCampaign,
   validateCheckoutCart,
   validateCartAddition,
 } from "../../src/lib/order/checkout";
@@ -18,7 +20,6 @@ const catalog = [
       {
         id: "var_001",
         productId: "prod_001",
-        sku: "STAR-001",
         name: "Default Variant",
         isDefault: true,
         priceTwd: 880,
@@ -46,7 +47,6 @@ const catalog = [
       {
         id: "var_002",
         productId: "prod_002",
-        sku: "HAIR-001",
         name: "Default Variant",
         isDefault: true,
         priceTwd: 320,
@@ -66,7 +66,7 @@ const catalog = [
 ] as const;
 
 describe("validateCartAddition", () => {
-  it("rejects mixing different sale types in one cart", () => {
+  it("accepts mixing different sale types before checkout split", () => {
     expect(
       validateCartAddition(
         [
@@ -85,10 +85,7 @@ describe("validateCartAddition", () => {
         },
         catalog,
       ),
-    ).toEqual({
-      ok: false,
-      error: "不同 sale type 不能混在同一張訂單。",
-    });
+    ).toEqual({ ok: true });
   });
 
   it("rejects adding an item with no open campaign", () => {
@@ -113,7 +110,6 @@ describe("validateCartAddition", () => {
               {
                 id: "var_003",
                 productId: "prod_003",
-                sku: "LIGHT-001",
                 name: "Default Variant",
                 isDefault: true,
                 priceTwd: 1280,
@@ -188,7 +184,7 @@ describe("validateCheckoutCart", () => {
     ).toEqual({ ok: false, error: "購物車內含不可購買商品。" });
   });
 
-  it("rejects mixed sale types", () => {
+  it("accepts mixed sale types for server-side campaign splitting", () => {
     expect(
       validateCheckoutCart(
         [
@@ -207,7 +203,37 @@ describe("validateCheckoutCart", () => {
         ],
         catalog,
       ),
-    ).toEqual({ ok: false, error: "不同 sale type 不能混在同一張訂單。" });
+    ).toEqual({ ok: true });
+  });
+});
+
+describe("checkout splitting helpers", () => {
+  it("groups cart items by campaign for split orders", () => {
+    expect(
+      groupCartItemsByCampaign([
+        { productId: "prod_001", variantId: "var_001", saleCampaignId: "camp_001", quantity: 1 },
+        { productId: "prod_002", variantId: "var_002", saleCampaignId: "camp_002", quantity: 1 },
+        { productId: "prod_001", variantId: "var_001", saleCampaignId: "camp_001", quantity: 2 },
+      ]),
+    ).toEqual([
+      {
+        saleCampaignId: "camp_001",
+        items: [
+          { productId: "prod_001", variantId: "var_001", saleCampaignId: "camp_001", quantity: 1 },
+          { productId: "prod_001", variantId: "var_001", saleCampaignId: "camp_001", quantity: 2 },
+        ],
+      },
+      {
+        saleCampaignId: "camp_002",
+        items: [
+          { productId: "prod_002", variantId: "var_002", saleCampaignId: "camp_002", quantity: 1 },
+        ],
+      },
+    ]);
+  });
+
+  it("creates formal order numbers", () => {
+    expect(createOrderNumber(new Date("2026-07-27T01:00:00.000Z"), 7)).toBe("AST-20260727-0007");
   });
 });
 
@@ -259,7 +285,7 @@ describe("createOrderFromCart", () => {
         snapshot: {
           productName: "星星耳環",
           variantName: "Default Variant",
-          sku: "STAR-001",
+          sku: "",
           unitPriceTwd: 880,
           publicSaleNotes: "七夕檔期",
         },

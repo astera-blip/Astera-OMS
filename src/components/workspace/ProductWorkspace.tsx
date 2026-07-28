@@ -47,7 +47,8 @@ type CampaignFormState = {
   id: string;
   title: string;
   saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-  status: "draft" | "open" | "closed" | "archived";
+  status: "upcoming" | "open" | "closed" | "archived";
+  salePriceTwd: string;
   requiresSupplement: boolean;
   startsAt: string;
   endsAt: string;
@@ -84,7 +85,7 @@ const seedClassifications: ClassificationMasters = {
 };
 
 export function ProductWorkspace() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const initialProducts = loadWorkspaceProducts();
   const initialProduct = initialProducts[0] ?? null;
   const [products, setProducts] = useState<WorkspaceProduct[]>(initialProducts);
@@ -114,44 +115,29 @@ export function ProductWorkspace() {
         return;
       }
 
-      const [{ db }, { listPublicProducts }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/product/repository"),
-      ]);
-      const firestoreProducts = await listPublicProducts(db);
-
-      if (firestoreProducts.length === 0) {
+      const token = await user?.getIdToken();
+      if (!token) {
         return;
       }
+      const response = await fetch("/api/workspace/products", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("load_products_failed");
+      }
+      const payload = (await response.json()) as { products?: WorkspaceProduct[] };
+      const workspaceProducts = payload.products ?? [];
 
-      const workspaceProducts = firestoreProducts.map((entry) => ({
-        product: {
-          id: entry.product.id,
-          name: entry.product.name,
-          publicDescription: entry.product.publicDescription,
-          publishState: entry.product.publishState,
-          ...(entry.product.classifications ? { classifications: entry.product.classifications } : {}),
-          createdAt: new Date().toISOString(),
-          createdBy: "system" as const,
-        },
-        variants: entry.variants.map((variant) => ({
-          ...variant,
-          createdAt: new Date().toISOString(),
-          createdBy: "system" as const,
-        })),
-        campaigns: entry.campaigns.map((campaign) => ({
-          ...campaign,
-          createdAt: new Date().toISOString(),
-          createdBy: "system" as const,
-        })),
-      }));
+      if (workspaceProducts.length === 0) {
+        return;
+      }
 
       setProducts(workspaceProducts);
       selectProduct(workspaceProducts[0]);
     }
 
     void loadFirestoreProducts().catch(() => setMessage("無法載入 Firestore 商品，先使用本機資料。"));
-  }, [role]);
+  }, [role, user]);
 
   useEffect(() => {
     async function loadFirestoreClassifications() {
@@ -159,23 +145,22 @@ export function ProductWorkspace() {
         return;
       }
 
-      const [{ db }, { listCatalogClassifications }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/product/classificationRepository"),
-      ]);
-      const entries = await Promise.all(
-        (Object.keys(classificationLabels) as ProductClassificationKey[]).map(
-          async (key): Promise<[ProductClassificationKey, CatalogClassification[]]> => [
-            key,
-            await listCatalogClassifications(db, key),
-          ],
-        ),
-      );
+      const token = await user?.getIdToken();
+      if (!token) {
+        return;
+      }
+      const response = await fetch("/api/workspace/classifications", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("load_classifications_failed");
+      }
+      const payload = (await response.json()) as { classifications?: Partial<ClassificationMasters> };
       const next = { ...seedClassifications };
 
-      entries.forEach(([key, values]) => {
+      Object.entries(payload.classifications ?? {}).forEach(([key, values]) => {
         if (values.length > 0) {
-          next[key] = values;
+          next[key as ProductClassificationKey] = values;
         }
       });
       setClassifications(next);
@@ -184,7 +169,7 @@ export function ProductWorkspace() {
     void loadFirestoreClassifications().catch(() =>
       setMessage("無法載入 Firestore 分類主檔，先使用本機資料。"),
     );
-  }, [role]);
+  }, [role, user]);
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.product.id === selectedId) ?? null,
@@ -194,18 +179,18 @@ export function ProductWorkspace() {
   const [productForm, setProductForm] = useState<ProductFormState>(() =>
     buildProductForm(initialProduct, "prod_002"),
   );
-  const [variantForm, setVariantForm] = useState<VariantFormState>(() =>
-    buildVariantForm(initialProduct, "var_002"),
+  const [variantForms, setVariantForms] = useState<VariantFormState[]>(() =>
+    buildVariantForms(initialProduct),
   );
-  const [campaignForm, setCampaignForm] = useState<CampaignFormState>(() =>
-    buildCampaignForm(initialProduct, "camp_002"),
+  const [campaignForms, setCampaignForms] = useState<CampaignFormState[]>(() =>
+    buildCampaignForms(initialProduct),
   );
 
   function selectProduct(product: WorkspaceProduct) {
     setSelectedId(product.product.id);
     setProductForm(buildProductForm(product, "prod_002"));
-    setVariantForm(buildVariantForm(product, "var_002"));
-    setCampaignForm(buildCampaignForm(product, "camp_002"));
+    setVariantForms(buildVariantForms(product));
+    setCampaignForms(buildCampaignForms(product));
   }
 
   async function upsertCurrentProduct() {
@@ -217,30 +202,27 @@ export function ProductWorkspace() {
         publishState: productForm.publishState,
         classifications: buildSelectedClassifications(productForm, classifications),
       },
-      variants: [
-        {
-          id: variantForm.id.trim(),
-          sku: variantForm.sku,
-          name: variantForm.name,
-          isDefault: variantForm.isDefault,
-          priceTwd: Number(variantForm.priceTwd),
-          ...(variantForm.originalCurrency ? { originalCurrency: variantForm.originalCurrency } : {}),
-          ...(variantForm.originalCost ? { originalCost: Number(variantForm.originalCost) } : {}),
-        },
-      ],
-      campaigns: [
-        {
-          id: campaignForm.id.trim(),
-          title: campaignForm.title,
-          saleType: campaignForm.saleType,
-          status: campaignForm.status,
-          requiresSupplement: campaignForm.requiresSupplement,
-          startsAt: campaignForm.startsAt,
-          endsAt: campaignForm.endsAt,
-          publicNotice: campaignForm.publicNotice,
-          supplementNote: campaignForm.supplementNote,
-        },
-      ],
+      variants: variantForms.map((variant) => ({
+          id: variant.id.trim(),
+          sku: "",
+          name: variant.name,
+          isDefault: variant.isDefault,
+          priceTwd: Number(variant.priceTwd),
+          ...(variant.originalCurrency ? { originalCurrency: variant.originalCurrency } : {}),
+          ...(variant.originalCost ? { originalCost: Number(variant.originalCost) } : {}),
+        })),
+      campaigns: campaignForms.map((campaign) => ({
+          id: campaign.id.trim(),
+          title: campaign.title,
+          saleType: campaign.saleType,
+          status: campaign.status,
+          ...(campaign.salePriceTwd ? { salePriceTwd: Number(campaign.salePriceTwd) } : {}),
+          requiresSupplement: campaign.requiresSupplement,
+          startsAt: campaign.startsAt,
+          endsAt: campaign.endsAt,
+          publicNotice: campaign.publicNotice,
+          supplementNote: campaign.supplementNote,
+        })),
     });
 
     if (!result.ok) {
@@ -303,11 +285,45 @@ export function ProductWorkspace() {
     });
     if (role === "owner") {
       try {
-        const [{ db }, { saveProductCatalogRecord }] = await Promise.all([
-          import("@/lib/firebase/client"),
-          import("@/lib/product/repository"),
-        ]);
-        await saveProductCatalogRecord(db, nextProduct, nextProduct.internalNote);
+        const token = await user?.getIdToken();
+        if (!token) {
+          throw new Error("missing_token");
+        }
+        const response = await fetch("/api/workspace/products", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            product: result.value.product,
+            variants: result.value.variants.map((variant) => ({ ...variant, sku: "" })),
+            campaigns: result.value.campaigns,
+            internalNote: nextProduct.internalNote,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error("save_product_failed");
+        }
+        const payload = (await response.json()) as { product?: WorkspaceProduct };
+        const savedProduct = payload.product;
+        if (savedProduct) {
+          setProducts((current) => {
+            const index = current.findIndex((item) => item.product.id === savedProduct.product.id);
+
+            if (index >= 0) {
+              const updated = [...current];
+              updated[index] = savedProduct;
+              return updated;
+            }
+
+            return [savedProduct, ...current];
+          });
+          setSelectedId(savedProduct.product.id);
+          selectProduct(savedProduct);
+          setMessage(`已儲存 ${savedProduct.product.name}。`);
+          return;
+        }
       } catch {
         setMessage("商品已儲存在本機，但 Firestore 同步失敗。");
         return;
@@ -318,7 +334,7 @@ export function ProductWorkspace() {
   }
 
   function createBlankProduct() {
-    const nextId = `prod_${String(products.length + 1).padStart(3, "0")}`;
+    const nextId = "";
     setSelectedId(nextId);
     setProductForm({
       id: nextId,
@@ -332,27 +348,61 @@ export function ProductWorkspace() {
         brandId: "",
         seriesId: "",
       });
-    setVariantForm({
-      id: `var_${String(products.length + 1).padStart(3, "0")}`,
-      sku: "",
-      name: "Default Variant",
-      isDefault: true,
-      priceTwd: "0",
-      originalCurrency: "",
-      originalCost: "",
-    });
-    setCampaignForm({
-      id: `camp_${String(products.length + 1).padStart(3, "0")}`,
-      title: "",
-      saleType: "preorder",
-      status: "draft",
-      requiresSupplement: false,
-      startsAt: "",
-      endsAt: "",
-      publicNotice: "",
-      supplementNote: "",
-    });
+    setVariantForms([buildBlankVariantForm("", true)]);
+    setCampaignForms([buildBlankCampaignForm("")]);
     setMessage("已建立新商品草稿。");
+  }
+
+  function addVariantForm() {
+    setVariantForms((current) => [
+      ...current,
+      buildBlankVariantForm("", current.length === 0),
+    ]);
+  }
+
+  function updateVariantForm(index: number, patch: Partial<VariantFormState>) {
+    setVariantForms((current) => current.map((variant, currentIndex) => {
+      if (currentIndex !== index) {
+        return patch.isDefault ? { ...variant, isDefault: false } : variant;
+      }
+
+      return { ...variant, ...patch };
+    }));
+  }
+
+  function archiveVariantForm(index: number) {
+    setVariantForms((current) => {
+      if (current.length <= 1) {
+        setMessage("至少需要保留一個 Variant。");
+        return current;
+      }
+
+      const next = current.filter((_, currentIndex) => currentIndex !== index);
+
+      return next.some((variant) => variant.isDefault)
+        ? next
+        : next.map((variant, currentIndex) => ({ ...variant, isDefault: currentIndex === 0 }));
+    });
+  }
+
+  function addCampaignForm() {
+    setCampaignForms((current) => [...current, buildBlankCampaignForm("")]);
+  }
+
+  function updateCampaignForm(index: number, patch: Partial<CampaignFormState>) {
+    setCampaignForms((current) =>
+      current.map((campaign, currentIndex) =>
+        currentIndex === index ? { ...campaign, ...patch } : campaign,
+      ),
+    );
+  }
+
+  function archiveCampaignForm(index: number) {
+    setCampaignForms((current) =>
+      current.map((campaign, currentIndex) =>
+        currentIndex === index ? { ...campaign, status: "archived" } : campaign,
+      ),
+    );
   }
 
   async function upsertClassification() {
@@ -379,11 +429,24 @@ export function ProductWorkspace() {
 
     if (role === "owner") {
       try {
-        const [{ db }, { saveCatalogClassification }] = await Promise.all([
-          import("@/lib/firebase/client"),
-          import("@/lib/product/classificationRepository"),
-        ]);
-        await saveCatalogClassification(db, classificationForm.key, normalized);
+        const token = await user?.getIdToken();
+        if (!token) {
+          throw new Error("missing_token");
+        }
+        const response = await fetch("/api/workspace/classifications", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            key: classificationForm.key,
+            classification: normalized,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error("save_classification_failed");
+        }
       } catch {
         setMessage("分類已儲存在本機，但 Firestore 同步失敗。");
         return;
@@ -503,13 +566,11 @@ export function ProductWorkspace() {
             </div>
             <div className="mt-4 grid gap-4">
               <label className="grid gap-2 text-sm">
-                <span className="font-medium">商品 ID</span>
+                <span className="font-medium">系統商品 ID</span>
                 <input
-                  value={productForm.id}
-                  onChange={(event) =>
-                    setProductForm((current) => ({ ...current, id: event.target.value }))
-                  }
-                  className="rounded-2xl border border-slate-300 px-4 py-3"
+                  value={productForm.id || "儲存時自動建立"}
+                  readOnly
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500"
                 />
               </label>
               <label className="grid gap-2 text-sm">
@@ -610,186 +671,225 @@ export function ProductWorkspace() {
 
             <div className="mt-4 grid gap-4">
               <fieldset className="grid gap-3 rounded-2xl border border-slate-200 p-4">
-                <legend className="px-1 text-sm font-semibold">Default Variant</legend>
-                <label className="grid gap-2 text-sm">
-                  <span className="font-medium">SKU</span>
-                  <input
-                    value={variantForm.sku}
-                    onChange={(event) =>
-                      setVariantForm((current) => ({ ...current, sku: event.target.value }))
-                    }
-                    className="rounded-2xl border border-slate-300 px-4 py-3"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm">
-                  <span className="font-medium">規格名稱</span>
-                  <input
-                    value={variantForm.name}
-                    onChange={(event) =>
-                      setVariantForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                    className="rounded-2xl border border-slate-300 px-4 py-3"
-                  />
-                </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2 text-sm">
-                    <span className="font-medium">售價 TWD</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={variantForm.priceTwd}
-                      onChange={(event) =>
-                        setVariantForm((current) => ({ ...current, priceTwd: event.target.value }))
-                      }
-                      className="rounded-2xl border border-slate-300 px-4 py-3"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm">
-                    <span className="font-medium">原幣成本</span>
-                    <input
-                      value={variantForm.originalCost}
-                      onChange={(event) =>
-                        setVariantForm((current) => ({
-                          ...current,
-                          originalCost: event.target.value,
-                        }))
-                      }
-                      className="rounded-2xl border border-slate-300 px-4 py-3"
-                    />
-                  </label>
-                </div>
-                <label className="grid gap-2 text-sm">
-                  <span className="font-medium">原幣別</span>
-                  <select
-                    value={variantForm.originalCurrency}
-                    onChange={(event) =>
-                      setVariantForm((current) => ({
-                        ...current,
-                        originalCurrency: event.target.value as VariantFormState["originalCurrency"],
-                      }))
-                    }
-                    className="rounded-2xl border border-slate-300 px-4 py-3"
+                <div className="flex items-center justify-between gap-3">
+                  <legend className="px-1 text-sm font-semibold">Variants</legend>
+                  <button
+                    type="button"
+                    onClick={addVariantForm}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
                   >
-                    <option value="">未設定</option>
-                    <option value="TWD">TWD</option>
-                    <option value="THB">THB</option>
-                    <option value="JPY">JPY</option>
-                    <option value="KRW">KRW</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </label>
+                    新增 Variant
+                  </button>
+                </div>
+                {variantForms.map((variant, index) => (
+                  <div key={`${variant.id}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">Variant {index + 1}</p>
+                      <button
+                        type="button"
+                        onClick={() => archiveVariantForm(index)}
+                        className="text-xs font-medium text-rose-600"
+                      >
+                        移除
+                      </button>
+                    </div>
+                    <label className="grid gap-2 text-sm">
+                      <span className="font-medium">SKU</span>
+                      <input
+                        value={variant.sku || "儲存時自動派發"}
+                        readOnly
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-500"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm">
+                      <span className="font-medium">規格名稱</span>
+                      <input
+                        value={variant.name}
+                        onChange={(event) => updateVariantForm(index, { name: event.target.value })}
+                        className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                      />
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">售價 TWD</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={variant.priceTwd}
+                          onChange={(event) => updateVariantForm(index, { priceTwd: event.target.value })}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">原幣成本</span>
+                        <input
+                          value={variant.originalCost}
+                          onChange={(event) => updateVariantForm(index, { originalCost: event.target.value })}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">原幣別</span>
+                        <select
+                          value={variant.originalCurrency}
+                          onChange={(event) =>
+                            updateVariantForm(index, {
+                              originalCurrency: event.target.value as VariantFormState["originalCurrency"],
+                            })
+                          }
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        >
+                          <option value="">未設定</option>
+                          <option value="TWD">TWD</option>
+                          <option value="THB">THB</option>
+                          <option value="JPY">JPY</option>
+                          <option value="KRW">KRW</option>
+                          <option value="USD">USD</option>
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-3 self-end text-sm">
+                        <input
+                          type="checkbox"
+                          checked={variant.isDefault}
+                          onChange={(event) => updateVariantForm(index, { isDefault: event.target.checked })}
+                        />
+                        <span>設為 Default Variant</span>
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </fieldset>
 
               <fieldset className="grid gap-3 rounded-2xl border border-slate-200 p-4">
-                <legend className="px-1 text-sm font-semibold">Sale Campaign</legend>
-                <label className="grid gap-2 text-sm">
-                  <span className="font-medium">活動名稱</span>
-                  <input
-                    value={campaignForm.title}
-                    onChange={(event) =>
-                      setCampaignForm((current) => ({ ...current, title: event.target.value }))
-                    }
-                    className="rounded-2xl border border-slate-300 px-4 py-3"
-                  />
-                </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2 text-sm">
-                    <span className="font-medium">Sale Type</span>
-                    <select
-                      value={campaignForm.saleType}
-                      onChange={(event) =>
-                        setCampaignForm((current) => ({
-                          ...current,
-                          saleType: event.target.value as CampaignFormState["saleType"],
-                        }))
-                      }
-                      className="rounded-2xl border border-slate-300 px-4 py-3"
-                    >
-                      <option value="inStock">inStock</option>
-                      <option value="preorder">preorder</option>
-                      <option value="rushPurchase">rushPurchase</option>
-                      <option value="waitlist">waitlist</option>
-                    </select>
-                  </label>
-                  <label className="grid gap-2 text-sm">
-                    <span className="font-medium">狀態</span>
-                    <select
-                      value={campaignForm.status}
-                      onChange={(event) =>
-                        setCampaignForm((current) => ({
-                          ...current,
-                          status: event.target.value as CampaignFormState["status"],
-                        }))
-                      }
-                      className="rounded-2xl border border-slate-300 px-4 py-3"
-                    >
-                      <option value="draft">draft</option>
-                      <option value="open">open</option>
-                      <option value="closed">closed</option>
-                      <option value="archived">archived</option>
-                    </select>
-                  </label>
+                <div className="flex items-center justify-between gap-3">
+                  <legend className="px-1 text-sm font-semibold">Sale Campaigns</legend>
+                  <button
+                    type="button"
+                    onClick={addCampaignForm}
+                    className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
+                  >
+                    新增 Campaign
+                  </button>
                 </div>
-                <label className="flex items-center gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={campaignForm.requiresSupplement}
-                    onChange={(event) =>
-                      setCampaignForm((current) => ({
-                        ...current,
-                        requiresSupplement: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>需要二補</span>
-                </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2 text-sm">
-                    <span className="font-medium">開始時間</span>
-                    <input
-                      type="datetime-local"
-                      value={campaignForm.startsAt}
-                      onChange={(event) =>
-                        setCampaignForm((current) => ({ ...current, startsAt: event.target.value }))
-                      }
-                      className="rounded-2xl border border-slate-300 px-4 py-3"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm">
-                    <span className="font-medium">結單時間</span>
-                    <input
-                      type="datetime-local"
-                      value={campaignForm.endsAt}
-                      onChange={(event) =>
-                        setCampaignForm((current) => ({ ...current, endsAt: event.target.value }))
-                      }
-                      className="rounded-2xl border border-slate-300 px-4 py-3"
-                    />
-                  </label>
-                </div>
-                <label className="grid gap-2 text-sm">
-                  <span className="font-medium">公開提醒</span>
-                  <textarea
-                    value={campaignForm.publicNotice}
-                    onChange={(event) =>
-                      setCampaignForm((current) => ({ ...current, publicNotice: event.target.value }))
-                    }
-                    className="min-h-20 rounded-2xl border border-slate-300 px-4 py-3"
-                    placeholder="例如：此商品需等待官方公布配貨結果。"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm">
-                  <span className="font-medium">二補說明</span>
-                  <textarea
-                    value={campaignForm.supplementNote}
-                    onChange={(event) =>
-                      setCampaignForm((current) => ({ ...current, supplementNote: event.target.value }))
-                    }
-                    className="min-h-20 rounded-2xl border border-slate-300 px-4 py-3"
-                    placeholder="例如：二補金額依實際國際運費與匯率通知。"
-                  />
-                </label>
+                {campaignForms.map((campaign, index) => (
+                  <div key={`${campaign.id}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">Campaign {index + 1}</p>
+                      <button
+                        type="button"
+                        onClick={() => archiveCampaignForm(index)}
+                        className="text-xs font-medium text-rose-600"
+                      >
+                        封存
+                      </button>
+                    </div>
+                    <label className="grid gap-2 text-sm">
+                      <span className="font-medium">活動名稱</span>
+                      <input
+                        value={campaign.title}
+                        onChange={(event) => updateCampaignForm(index, { title: event.target.value })}
+                        className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                      />
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">Sale Type</span>
+                        <select
+                          value={campaign.saleType}
+                          onChange={(event) =>
+                            updateCampaignForm(index, {
+                              saleType: event.target.value as CampaignFormState["saleType"],
+                            })
+                          }
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        >
+                          <option value="inStock">inStock</option>
+                          <option value="preorder">preorder</option>
+                          <option value="rushPurchase">rushPurchase</option>
+                          <option value="waitlist">waitlist</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">狀態</span>
+                        <select
+                          value={campaign.status}
+                          onChange={(event) =>
+                            updateCampaignForm(index, {
+                              status: event.target.value as CampaignFormState["status"],
+                            })
+                          }
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        >
+                          <option value="upcoming">upcoming</option>
+                          <option value="open">open</option>
+                          <option value="closed">closed</option>
+                          <option value="archived">archived</option>
+                        </select>
+                      </label>
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">活動價 TWD</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={campaign.salePriceTwd}
+                          onChange={(event) => updateCampaignForm(index, { salePriceTwd: event.target.value })}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          placeholder="未填則用 Variant 售價"
+                        />
+                      </label>
+                    </div>
+                    <label className="flex items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={campaign.requiresSupplement}
+                        onChange={(event) => updateCampaignForm(index, { requiresSupplement: event.target.checked })}
+                      />
+                      <span>需要二補</span>
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">開始時間</span>
+                        <input
+                          type="datetime-local"
+                          value={campaign.startsAt}
+                          onChange={(event) => updateCampaignForm(index, { startsAt: event.target.value })}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm">
+                        <span className="font-medium">結單時間</span>
+                        <input
+                          type="datetime-local"
+                          value={campaign.endsAt}
+                          onChange={(event) => updateCampaignForm(index, { endsAt: event.target.value })}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        />
+                      </label>
+                    </div>
+                    <label className="grid gap-2 text-sm">
+                      <span className="font-medium">公開提醒</span>
+                      <textarea
+                        value={campaign.publicNotice}
+                        onChange={(event) => updateCampaignForm(index, { publicNotice: event.target.value })}
+                        className="min-h-20 rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        placeholder="例如：此商品需等待官方公布配貨結果。"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm">
+                      <span className="font-medium">二補說明</span>
+                      <textarea
+                        value={campaign.supplementNote}
+                        onChange={(event) => updateCampaignForm(index, { supplementNote: event.target.value })}
+                        className="min-h-20 rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                        placeholder="例如：二補金額依實際國際運費與匯率通知。"
+                      />
+                    </label>
+                  </div>
+                ))}
               </fieldset>
             </div>
           </div>
@@ -940,40 +1040,67 @@ function buildProductForm(
   };
 }
 
-function buildVariantForm(
-  product: WorkspaceProduct | null,
-  fallbackId: string,
-): VariantFormState {
-  const defaultVariant =
-    product?.variants.find((variant) => variant.isDefault) ?? product?.variants[0];
+function buildVariantForms(product: WorkspaceProduct | null): VariantFormState[] {
+  if (!product || product.variants.length === 0) {
+    return [buildBlankVariantForm("", true)];
+  }
 
+  const hasDefault = product.variants.some((variant) => variant.isDefault);
+
+  return product.variants.map((variant, index) => ({
+    id: variant.id,
+    sku: variant.sku,
+    name: variant.name,
+    isDefault: hasDefault ? variant.isDefault : index === 0,
+    priceTwd: String(variant.priceTwd),
+    originalCurrency: variant.originalCurrency ?? "",
+    originalCost: variant.originalCost ? String(variant.originalCost) : "",
+  }));
+}
+
+function buildBlankVariantForm(id: string, isDefault: boolean): VariantFormState {
   return {
-    id: defaultVariant?.id ?? fallbackId,
-    sku: defaultVariant?.sku ?? "",
-    name: defaultVariant?.name ?? "Default Variant",
-    isDefault: defaultVariant?.isDefault ?? true,
-    priceTwd: String(defaultVariant?.priceTwd ?? 0),
-    originalCurrency: defaultVariant?.originalCurrency ?? "",
-    originalCost: defaultVariant?.originalCost ? String(defaultVariant.originalCost) : "",
+    id,
+    sku: "",
+    name: isDefault ? "Default Variant" : "",
+    isDefault,
+    priceTwd: "0",
+    originalCurrency: "",
+    originalCost: "",
   };
 }
 
-function buildCampaignForm(
-  product: WorkspaceProduct | null,
-  fallbackId: string,
-): CampaignFormState {
-  const campaign = product?.campaigns[0];
+function buildCampaignForms(product: WorkspaceProduct | null): CampaignFormState[] {
+  if (!product || product.campaigns.length === 0) {
+    return [buildBlankCampaignForm("")];
+  }
 
+  return product.campaigns.map((campaign) => ({
+    id: campaign.id,
+    title: campaign.title,
+    saleType: campaign.saleType,
+    status: campaign.status,
+    salePriceTwd: typeof campaign.salePriceTwd === "number" ? String(campaign.salePriceTwd) : "",
+    requiresSupplement: campaign.requiresSupplement,
+    startsAt: campaign.startsAt ?? "",
+    endsAt: campaign.endsAt ?? "",
+    publicNotice: campaign.publicNotice ?? "",
+    supplementNote: campaign.supplementNote ?? "",
+  }));
+}
+
+function buildBlankCampaignForm(id: string): CampaignFormState {
   return {
-    id: campaign?.id ?? fallbackId,
-    title: campaign?.title ?? "",
-    saleType: campaign?.saleType ?? "preorder",
-    status: campaign?.status ?? "draft",
-    requiresSupplement: campaign?.requiresSupplement ?? false,
-    startsAt: campaign?.startsAt ?? "",
-    endsAt: campaign?.endsAt ?? "",
-    publicNotice: campaign?.publicNotice ?? "",
-    supplementNote: campaign?.supplementNote ?? "",
+    id,
+    title: "",
+    saleType: "preorder",
+    status: "upcoming",
+    salePriceTwd: "",
+    requiresSupplement: false,
+    startsAt: "",
+    endsAt: "",
+    publicNotice: "",
+    supplementNote: "",
   };
 }
 

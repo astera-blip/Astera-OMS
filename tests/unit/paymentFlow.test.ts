@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { confirmBankTransfer, createPaymentRequestForOrder } from "../../src/lib/payment/manualBankTransfer";
+import {
+  confirmBankTransfer,
+  createPaymentRequestForOrder,
+  reverseConfirmedPayment,
+} from "../../src/lib/payment/manualBankTransfer";
 import type { StoredOrderBundle } from "../../src/lib/order/localStore";
 
 const orderBundle: StoredOrderBundle = {
@@ -58,6 +62,56 @@ describe("createPaymentRequestForOrder", () => {
   });
 });
 
+describe("reverseConfirmedPayment", () => {
+  it("marks payment reversed and appends a negative adjustment", () => {
+    const request = createPaymentRequestForOrder(orderBundle, {
+      paymentRequestId: "pr_001",
+      createdAt: "2026-07-26T00:00:00.000Z",
+    });
+    const confirmation = confirmBankTransfer({
+      orderBundle,
+      paymentRequest: request,
+      receivedAmountTwd: 1760,
+      receivedAt: "2026-07-26T01:00:00.000Z",
+      confirmedBy: "owner-a",
+      reason: "對帳末五碼 12345",
+    });
+
+    expect(
+      reverseConfirmedPayment({
+        orderBundle: confirmation.orderBundle,
+        paymentRequest: confirmation.paymentRequest,
+        payment: confirmation.payment,
+        reversedAt: "2026-07-26T02:00:00.000Z",
+        reversedBy: "owner-a",
+        reason: "銀行通知入錯帳",
+      }),
+    ).toMatchObject({
+      orderBundle: {
+        order: { status: "awaitingPayment" },
+        items: [{ status: "awaitingPayment" }],
+      },
+      paymentRequest: {
+        status: "open",
+        unallocatedAmountTwd: 0,
+      },
+      payment: {
+        status: "reversed",
+        adminNote: "銀行通知入錯帳",
+      },
+      adjustment: {
+        kind: "adjustment",
+        paymentId: "pay_pr_001",
+        amountTwd: -1760,
+      },
+      auditLog: {
+        action: "payment.reversed",
+        reason: "銀行通知入錯帳",
+      },
+    });
+  });
+});
+
 describe("confirmBankTransfer", () => {
   it("creates payment allocation and audit log when payment is confirmed", () => {
     const request = createPaymentRequestForOrder(orderBundle, {
@@ -94,6 +148,7 @@ describe("confirmBankTransfer", () => {
       paymentRequest: {
         ...request,
         status: "paid",
+        unallocatedAmountTwd: 0,
         updatedAt: "2026-07-26T01:00:00.000Z",
         updatedBy: "owner-a",
       },
@@ -107,10 +162,13 @@ describe("confirmBankTransfer", () => {
         adminNote: "對帳末五碼 12345",
         createdAt: "2026-07-26T01:00:00.000Z",
         createdBy: "owner-a",
+        updatedAt: "2026-07-26T01:00:00.000Z",
+        updatedBy: "owner-a",
       },
       allocation: {
         id: "alloc_pay_pr_001",
         paymentId: "pay_pr_001",
+        kind: "payment",
         targetType: "paymentRequest",
         targetId: "pr_001",
         amountTwd: 1760,
@@ -126,6 +184,31 @@ describe("confirmBankTransfer", () => {
         reason: "對帳末五碼 12345",
         createdAt: "2026-07-26T01:00:00.000Z",
       },
+    });
+  });
+
+  it("records overpayment as unallocated without creating wallet behavior", () => {
+    const request = createPaymentRequestForOrder(orderBundle, {
+      paymentRequestId: "pr_001",
+      createdAt: "2026-07-26T00:00:00.000Z",
+    });
+
+    const confirmation = confirmBankTransfer({
+      orderBundle,
+      paymentRequest: request,
+      receivedAmountTwd: 2000,
+      receivedAt: "2026-07-26T01:00:00.000Z",
+      confirmedBy: "owner-a",
+      reason: "會員多匯，待人工退款",
+    });
+
+    expect(confirmation.paymentRequest).toMatchObject({
+      status: "paid",
+      unallocatedAmountTwd: 240,
+    });
+    expect(confirmation.allocation).toMatchObject({
+      targetType: "paymentRequest",
+      amountTwd: 1760,
     });
   });
 });

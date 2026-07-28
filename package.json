@@ -15,13 +15,14 @@
     "test": "npm run test:unit && npm run firebase:rules:test",
     "test:unit": "vitest run tests/unit",
     "test:e2e": "playwright test",
+    "test:e2e:emulated": "node scripts/run-firebase.mjs emulators:exec --only auth,firestore,storage --project demo-astera-oms \"node scripts/run-playwright-emulated.mjs\"",
     "test:rules": "vitest run tests/firebase",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "admin:set-role": "node scripts/set-user-role.mjs",
     "firebase:version": "node scripts/run-firebase.mjs --version",
     "firebase:emulators": "node scripts/run-firebase.mjs emulators:start --only auth,firestore,storage --project demo-astera-oms",
-    "firebase:rules:test": "node scripts/run-firebase.mjs emulators:exec --only firestore --project demo-astera-oms \"npm run test:rules\""
+    "firebase:rules:test": "node scripts/run-firebase.mjs emulators:exec --only firestore,storage --project demo-astera-oms \"npm run test:rules\""
   },
   "dependencies": {
     "firebase": "^12.16.0",

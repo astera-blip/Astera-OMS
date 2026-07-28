@@ -7,7 +7,14 @@ import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 export function PaymentRequestsBoard() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [receivedAt, setReceivedAt] = useState("");
+  const [amount, setAmount] = useState("");
+  const [last5, setLast5] = useState("");
+  const [payerName, setPayerName] = useState("");
+  const [memberNote, setMemberNote] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     async function loadFirestoreRequests() {
@@ -22,7 +29,10 @@ export function PaymentRequestsBoard() {
         import("@/lib/firebase/client"),
         import("@/lib/payment/repository"),
       ]);
-      setRequests(await listMemberPaymentRequests(db, user.uid));
+      const nextRequests = await listMemberPaymentRequests(db, user.uid);
+      setRequests(nextRequests);
+      setSelectedRequestId(nextRequests[0]?.id ?? "");
+      setAmount(nextRequests[0] ? String(nextRequests[0].amountTwd) : "");
       setStatus("ready");
     }
 
@@ -56,8 +66,127 @@ export function PaymentRequestsBoard() {
     );
   }
 
+  async function reportPayment() {
+    if (!user || !selectedRequestId) {
+      setMessage("請先選擇付款請求。");
+      return;
+    }
+
+    const receivedAmountTwd = Number(amount);
+    if (!receivedAt || !Number.isInteger(receivedAmountTwd) || receivedAmountTwd <= 0 || !/^[0-9]{5}$/.test(last5) || !payerName.trim()) {
+      setMessage("請填寫日期、金額、帳號末五碼與匯款人。");
+      return;
+    }
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/payments", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          paymentRequestId: selectedRequestId,
+          receivedAt,
+          receivedAmountTwd,
+          transferAccountLast5: last5,
+          payerName: payerName.trim(),
+          memberNote: memberNote.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("report_failed");
+      }
+
+      setMessage("已送出付款回報，等待 owner 對帳確認。");
+      setLast5("");
+      setPayerName("");
+      setMemberNote("");
+    } catch {
+      setMessage("付款回報送出失敗，請稍後再試。");
+    }
+  }
+
   return (
     <section className="grid gap-4">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold">匯款回報</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="grid gap-2 text-sm">
+            <span className="font-medium">付款請求</span>
+            <select
+              value={selectedRequestId}
+              onChange={(event) => {
+                const request = requests.find((item) => item.id === event.target.value);
+                setSelectedRequestId(event.target.value);
+                setAmount(request ? String(request.amountTwd) : "");
+              }}
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            >
+              {requests.map((request) => (
+                <option key={request.id} value={request.id}>
+                  {request.id} / NT$ {request.amountTwd.toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm">
+            <span className="font-medium">匯款日期</span>
+            <input
+              type="date"
+              value={receivedAt}
+              onChange={(event) => setReceivedAt(event.target.value)}
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+          </label>
+          <label className="grid gap-2 text-sm">
+            <span className="font-medium">匯款金額</span>
+            <input
+              type="number"
+              min="1"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+          </label>
+          <label className="grid gap-2 text-sm">
+            <span className="font-medium">帳號末五碼</span>
+            <input
+              inputMode="numeric"
+              maxLength={5}
+              value={last5}
+              onChange={(event) => setLast5(event.target.value.replace(/\D/g, "").slice(0, 5))}
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+          </label>
+          <label className="grid gap-2 text-sm">
+            <span className="font-medium">匯款人</span>
+            <input
+              value={payerName}
+              onChange={(event) => setPayerName(event.target.value)}
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+          </label>
+          <label className="grid gap-2 text-sm md:col-span-2">
+            <span className="font-medium">備註</span>
+            <textarea
+              value={memberNote}
+              onChange={(event) => setMemberNote(event.target.value)}
+              className="min-h-20 rounded-2xl border border-slate-300 px-4 py-3"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => void reportPayment()}
+          className="mt-4 rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950"
+        >
+          送出付款回報
+        </button>
+        {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
+      </div>
       {requests.length === 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           目前沒有待付款資料。

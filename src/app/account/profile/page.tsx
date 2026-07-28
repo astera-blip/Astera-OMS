@@ -67,18 +67,23 @@ export default function MemberProfilePage() {
     setMessage(null);
 
     try {
-      const [{ db }, { saveMemberProfile }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/member/repository"),
-      ]);
-      const result = await saveMemberProfile(
-        db,
-        { uid: user.uid, email: user.email },
-        draft,
-      );
+      const token = await user.getIdToken();
+      const response = await fetch("/api/member/profile", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(draft),
+      });
+      const result = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        errors?: Partial<Record<MemberProfileField, string>>;
+      } | null;
 
-      if (!result.ok) {
-        setErrors(result.errors);
+      if (!response.ok || !result?.ok) {
+        setErrors(result?.errors ?? {});
+        setMessage("儲存失敗，請檢查資料後再試一次。");
         return;
       }
 
@@ -102,7 +107,7 @@ export default function MemberProfilePage() {
           <p className="text-sm font-semibold text-amber-700">Astera OMS 會員</p>
           <h1 className="mt-2 text-2xl font-semibold">登入後建立會員資料</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            小圈測試階段僅支援 Google 登入。
+            目前會員帳號使用 Google 登入。請補齊聯絡資訊，方便訂單、付款與配送聯繫。
           </p>
           <button
             type="button"
