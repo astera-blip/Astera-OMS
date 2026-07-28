@@ -175,9 +175,14 @@ export async function POST(request: Request) {
           ? 403
           : message.endsWith("_not_found")
             ? 404
-            : message === "invalid_items" || message === "duplicate_pending_request"
-              ? 400
+            : message === "duplicate_pending_request"
+              ? 409
+              : message === "invalid_items"
+                ? 400
               : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }

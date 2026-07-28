@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
-import { createConsentRecord } from "@/lib/legal/documents";
+import {
+  createConsentRecord,
+  currentLegalVersionIds,
+} from "@/lib/legal/documents";
 import { createOrderCreatedNotificationEvent } from "@/lib/notification/events";
 import {
   createOrderNumber,
@@ -29,6 +32,13 @@ type CheckoutRequestBody = {
   idempotencyKey: string;
 };
 
+type CheckoutOrderResult = {
+  orderId: string;
+  orderNumber: string;
+  paymentRequestId: string;
+  totalTwd: number;
+};
+
 export async function POST(request: Request) {
   try {
     const claims = await requireFirebaseUser(request);
@@ -45,6 +55,20 @@ export async function POST(request: Request) {
         {
           error: "validation_error",
           details: { consent: "請先同意下單條款、隱私權政策與二補規則。" },
+        },
+        { status: 400 },
+      );
+    }
+    const requiredLegalVersionIds = currentLegalVersionIds();
+    const submittedLegalVersionIds = [...new Set(body.legalVersionIds ?? [])].sort();
+    if (
+      submittedLegalVersionIds.length !== requiredLegalVersionIds.length
+      || !requiredLegalVersionIds.every((id) => submittedLegalVersionIds.includes(id))
+    ) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          details: { consent: "條款或隱私權政策版本已更新，請重新確認後再下單。" },
         },
         { status: 400 },
       );
@@ -99,20 +123,66 @@ export async function POST(request: Request) {
     const timestamp = new Date().toISOString();
     const normalizedKey = idempotencyKey.replace(/^order_/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
     const checkoutGroupId = `checkout_${normalizedKey}`;
+    const attemptRef = db.collection("checkoutAttempts").doc(checkoutGroupId);
     const cartGroups = groupCartItemsByCampaign(cart);
     const checkoutResult = await db.runTransaction(async (transaction) => {
+      const existingAttempt = await transaction.get(attemptRef);
+      if (existingAttempt.exists) {
+        const manifest = existingAttempt.data() as {
+          memberUid?: string;
+          orders?: CheckoutOrderResult[];
+        };
+        if (manifest.memberUid !== claims.uid) {
+          throw new Error("idempotency_conflict");
+        }
+        const orders = manifest.orders ?? [];
+        return {
+          orderId: orders[0]?.orderId,
+          orders,
+          alreadyExists: true,
+        };
+      }
+
       const firstOrderId = `order_${normalizedKey}_1`;
       const firstOrderRef = db.collection("orders").doc(firstOrderId);
       const existing = await transaction.get(firstOrderRef);
 
       if (existing.exists) {
-        const existingOrder = existing.data() as { memberUid?: string; checkoutGroupId?: string };
+        const existingOrder = existing.data() as {
+          memberUid?: string;
+          checkoutGroupId?: string;
+          orderNumber?: string;
+          totalTwd?: number;
+        };
         if (existingOrder.memberUid !== claims.uid) {
           throw new Error("idempotency_conflict");
         }
+        const existingOrdersSnapshot = await transaction.get(
+          db.collection("orders").where("checkoutGroupId", "==", checkoutGroupId),
+        );
+        const orders = existingOrdersSnapshot.docs
+          .map((document) => {
+            const order = document.data() as {
+              orderNumber?: string;
+              totalTwd?: number;
+            };
+            return {
+              orderId: document.id,
+              orderNumber: order.orderNumber ?? document.id,
+              paymentRequestId: `pr_${document.id}`,
+              totalTwd: order.totalTwd ?? 0,
+            };
+          })
+          .sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
+        transaction.set(attemptRef, {
+          memberUid: claims.uid,
+          checkoutGroupId,
+          orders,
+          createdAt: FieldValue.serverTimestamp(),
+        });
         return {
-          orderId: firstOrderId,
-          orders: [{ orderId: firstOrderId, orderNumber: existingOrder.checkoutGroupId ?? firstOrderId }],
+          orderId: orders[0]?.orderId ?? firstOrderId,
+          orders,
           alreadyExists: true,
         };
       }
@@ -190,14 +260,22 @@ export async function POST(request: Request) {
         updatedBy: claims.uid,
       }, { merge: true });
 
+      const orders: CheckoutOrderResult[] = results.map(({ result, paymentRequest }) => ({
+        orderId: result.order.id,
+        orderNumber: result.order.orderNumber ?? result.order.id,
+        paymentRequestId: paymentRequest.id,
+        totalTwd: result.order.totalTwd,
+      }));
+      transaction.set(attemptRef, {
+        memberUid: claims.uid,
+        checkoutGroupId,
+        orders,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
       return {
         orderId: results[0]?.result.order.id,
-        orders: results.map(({ result, paymentRequest }) => ({
-          orderId: result.order.id,
-          orderNumber: result.order.orderNumber,
-          paymentRequestId: paymentRequest.id,
-          totalTwd: result.order.totalTwd,
-        })),
+        orders,
         alreadyExists: false,
       };
     });
@@ -211,6 +289,9 @@ export async function POST(request: Request) {
         : message === "idempotency_conflict"
           ? 409
           : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }

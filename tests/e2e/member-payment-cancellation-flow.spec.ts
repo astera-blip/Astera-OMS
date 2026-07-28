@@ -12,14 +12,13 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
 
   const db = getAdminDb();
-  const runKey = testInfo.project.name.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const runKey = `${testInfo.project.name}_${Date.now()}`
+    .replace(/[^a-zA-Z0-9_-]/g, "_");
   const memberToken = await signIn(request, "member-e2e@example.test");
   const ownerToken = await signIn(request, "owner-e2e@example.test");
 
-  const checkoutResponse = await request.post("/api/checkout", {
-    headers: authorized(memberToken),
-    data: {
-      idempotencyKey: `e2e_split_${runKey}`,
+  const checkoutRequest = {
+    idempotencyKey: `e2e_split_${runKey}`,
       cart: [
         {
           productId: "prod_e2e_flow",
@@ -40,7 +39,11 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       shippingAddress: "台北市測試路 1 號",
       acceptedLegalTerms: true,
       acceptedSupplementRule: true,
-    },
+      legalVersionIds: ["terms-v2026-07-26", "privacy-v2026-07-26"],
+  };
+  const checkoutResponse = await request.post("/api/checkout", {
+    headers: authorized(memberToken),
+    data: checkoutRequest,
   });
   expect(checkoutResponse.ok()).toBe(true);
   const checkout = await checkoutResponse.json() as {
@@ -54,6 +57,18 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   ]);
   expect(new Set(checkout.orders.map((order) => order.paymentRequestId)).size).toBe(2);
   expect(checkout.orders.map((order) => order.totalTwd).sort((a, b) => a - b)).toEqual([640, 1500]);
+
+  const repeatedCheckoutResponse = await request.post("/api/checkout", {
+    headers: authorized(memberToken),
+    data: checkoutRequest,
+  });
+  expect(repeatedCheckoutResponse.ok()).toBe(true);
+  const repeatedCheckout = await repeatedCheckoutResponse.json() as {
+    alreadyExists: boolean;
+    orders: typeof checkout.orders;
+  };
+  expect(repeatedCheckout.alreadyExists).toBe(true);
+  expect(repeatedCheckout.orders).toEqual(checkout.orders);
 
   const paidOrder = checkout.orders.find((order) => order.totalTwd === 640);
   const unpaidOrder = checkout.orders.find((order) => order.totalTwd === 1500);
@@ -139,6 +154,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       shippingAddress: "台北市測試路 1 號",
       acceptedLegalTerms: true,
       acceptedSupplementRule: true,
+      legalVersionIds: ["terms-v2026-07-26", "privacy-v2026-07-26"],
     },
   });
   expect(paidCheckoutResponse.ok()).toBe(true);

@@ -14,6 +14,7 @@ export type LocalPaymentRequest = {
   updatedAt?: string;
   updatedBy?: string;
   unallocatedAmountTwd?: number;
+  allocatedAmountTwd?: number;
 };
 
 export type LocalPayment = {
@@ -87,7 +88,15 @@ export function confirmBankTransfer(input: {
   auditLog: LocalAuditLog;
 } {
   const paymentId = input.payment?.id ?? `pay_${input.paymentRequest.id}`;
-  const orderStatus = input.receivedAmountTwd >= input.paymentRequest.amountTwd ? "paid" : "partiallyPaid";
+  const previouslyAllocated = input.paymentRequest.allocatedAmountTwd ?? 0;
+  const remainingAmount = Math.max(input.paymentRequest.amountTwd - previouslyAllocated, 0);
+  const allocatedFromPayment = Math.min(input.receivedAmountTwd, remainingAmount);
+  const allocatedAmountTwd = previouslyAllocated + allocatedFromPayment;
+  const unallocatedAmountTwd =
+    (input.paymentRequest.unallocatedAmountTwd ?? 0)
+    + Math.max(input.receivedAmountTwd - allocatedFromPayment, 0);
+  const orderStatus =
+    allocatedAmountTwd >= input.paymentRequest.amountTwd ? "paid" : "partiallyPaid";
   const itemStatus = orderStatus === "paid" ? "paid" : "awaitingPayment";
 
   return {
@@ -102,7 +111,8 @@ export function confirmBankTransfer(input: {
     paymentRequest: {
       ...input.paymentRequest,
       status: orderStatus === "paid" ? "paid" : "partiallyPaid",
-      unallocatedAmountTwd: Math.max(input.receivedAmountTwd - input.paymentRequest.amountTwd, 0),
+      allocatedAmountTwd,
+      unallocatedAmountTwd,
       updatedAt: input.receivedAt,
       updatedBy: input.confirmedBy,
     },
@@ -126,7 +136,7 @@ export function confirmBankTransfer(input: {
       kind: "payment",
       targetType: "paymentRequest",
       targetId: input.paymentRequest.id,
-      amountTwd: Math.min(input.receivedAmountTwd, input.paymentRequest.amountTwd),
+      amountTwd: allocatedFromPayment,
       createdAt: input.receivedAt,
       createdBy: input.confirmedBy,
     },
@@ -146,6 +156,7 @@ export function reverseConfirmedPayment(input: {
   orderBundle: OrderBundle;
   paymentRequest: LocalPaymentRequest;
   payment: LocalPayment;
+  allocatedAmountTwd?: number;
   reversedAt: string;
   reversedBy: string;
   reason: string;
@@ -159,20 +170,57 @@ export function reverseConfirmedPayment(input: {
   if (input.payment.status !== "confirmed") {
     throw new Error("invalid_payment");
   }
+  const allocatedByPayment =
+    input.allocatedAmountTwd
+    ?? Math.min(
+      input.payment.receivedAmountTwd,
+      input.paymentRequest.allocatedAmountTwd ?? input.paymentRequest.amountTwd,
+    );
+  const allocatedAmountTwd = Math.max(
+    (input.paymentRequest.allocatedAmountTwd ?? input.paymentRequest.amountTwd)
+      - allocatedByPayment,
+    0,
+  );
+  const unallocatedFromPayment = Math.max(
+    input.payment.receivedAmountTwd - allocatedByPayment,
+    0,
+  );
+  const unallocatedAmountTwd = Math.max(
+    (input.paymentRequest.unallocatedAmountTwd ?? 0) - unallocatedFromPayment,
+    0,
+  );
+  const reopenedStatus =
+    allocatedAmountTwd === 0
+      ? "awaitingPayment"
+      : allocatedAmountTwd >= input.paymentRequest.amountTwd
+        ? "paid"
+        : "partiallyPaid";
+  const paymentRequestStatus =
+    reopenedStatus === "awaitingPayment"
+      ? "open"
+      : reopenedStatus === "paid"
+        ? "paid"
+        : "partiallyPaid";
 
   return {
     orderBundle: {
-      order: updateOrder(input.orderBundle.order, "awaitingPayment", input.reversedAt, input.reversedBy),
+      order: updateOrder(input.orderBundle.order, reopenedStatus, input.reversedAt, input.reversedBy),
       items: input.orderBundle.items.map((item) =>
         item.status === "cancelled"
           ? item
-          : updateOrderItem(item, "awaitingPayment", input.reversedAt, input.reversedBy),
+          : updateOrderItem(
+            item,
+            reopenedStatus === "paid" ? "paid" : "awaitingPayment",
+            input.reversedAt,
+            input.reversedBy,
+          ),
       ),
     },
     paymentRequest: {
       ...input.paymentRequest,
-      status: "open",
-      unallocatedAmountTwd: 0,
+      status: paymentRequestStatus,
+      allocatedAmountTwd,
+      unallocatedAmountTwd,
       updatedAt: input.reversedAt,
       updatedBy: input.reversedBy,
     },
@@ -189,7 +237,7 @@ export function reverseConfirmedPayment(input: {
       kind: "adjustment",
       targetType: "paymentRequest",
       targetId: input.paymentRequest.id,
-      amountTwd: -Math.min(input.payment.receivedAmountTwd, input.paymentRequest.amountTwd),
+      amountTwd: -allocatedByPayment,
       createdAt: input.reversedAt,
       createdBy: input.reversedBy,
     },

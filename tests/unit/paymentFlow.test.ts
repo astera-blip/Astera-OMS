@@ -110,6 +110,65 @@ describe("reverseConfirmedPayment", () => {
       },
     });
   });
+
+  it("reopens only the amount allocated by the reversed payment", () => {
+    const request = createPaymentRequestForOrder(orderBundle, {
+      paymentRequestId: "pr_multi_reverse",
+      createdAt: "2026-07-26T00:00:00.000Z",
+    });
+    const first = confirmBankTransfer({
+      orderBundle,
+      paymentRequest: request,
+      payment: {
+        id: "pay_multi_1",
+        memberUid: "member-a",
+        paymentRequestId: request.id,
+        receivedAmountTwd: 600,
+        receivedAt: "2026-07-26T01:00:00.000Z",
+        status: "pendingReview",
+        createdAt: "2026-07-26T01:00:00.000Z",
+        createdBy: "member-a",
+      },
+      receivedAmountTwd: 600,
+      receivedAt: "2026-07-26T01:00:00.000Z",
+      confirmedBy: "owner-a",
+      reason: "第一筆",
+    });
+    const second = confirmBankTransfer({
+      orderBundle: first.orderBundle,
+      paymentRequest: first.paymentRequest,
+      payment: {
+        id: "pay_multi_2",
+        memberUid: "member-a",
+        paymentRequestId: request.id,
+        receivedAmountTwd: 1160,
+        receivedAt: "2026-07-26T02:00:00.000Z",
+        status: "pendingReview",
+        createdAt: "2026-07-26T02:00:00.000Z",
+        createdBy: "member-a",
+      },
+      receivedAmountTwd: 1160,
+      receivedAt: "2026-07-26T02:00:00.000Z",
+      confirmedBy: "owner-a",
+      reason: "第二筆",
+    });
+    const reversal = reverseConfirmedPayment({
+      orderBundle: second.orderBundle,
+      paymentRequest: second.paymentRequest,
+      payment: second.payment,
+      allocatedAmountTwd: second.allocation.amountTwd,
+      reversedAt: "2026-07-26T03:00:00.000Z",
+      reversedBy: "owner-a",
+      reason: "撤銷第二筆",
+    });
+
+    expect(reversal.paymentRequest).toMatchObject({
+      status: "partiallyPaid",
+      allocatedAmountTwd: 600,
+    });
+    expect(reversal.orderBundle.order.status).toBe("partiallyPaid");
+    expect(reversal.adjustment.amountTwd).toBe(-1160);
+  });
 });
 
 describe("confirmBankTransfer", () => {
@@ -148,6 +207,7 @@ describe("confirmBankTransfer", () => {
       paymentRequest: {
         ...request,
         status: "paid",
+        allocatedAmountTwd: 1760,
         unallocatedAmountTwd: 0,
         updatedAt: "2026-07-26T01:00:00.000Z",
         updatedBy: "owner-a",
@@ -210,5 +270,59 @@ describe("confirmBankTransfer", () => {
       targetType: "paymentRequest",
       amountTwd: 1760,
     });
+  });
+
+  it("accumulates multiple confirmed payments until the request is fully paid", () => {
+    const request = createPaymentRequestForOrder(orderBundle, {
+      paymentRequestId: "pr_cumulative",
+      createdAt: "2026-07-26T00:00:00.000Z",
+    });
+    const first = confirmBankTransfer({
+      orderBundle,
+      paymentRequest: request,
+      payment: {
+        id: "pay_partial_1",
+        memberUid: "member-a",
+        paymentRequestId: request.id,
+        receivedAmountTwd: 600,
+        receivedAt: "2026-07-26T01:00:00.000Z",
+        status: "pendingReview",
+        createdAt: "2026-07-26T01:00:00.000Z",
+        createdBy: "member-a",
+      },
+      receivedAmountTwd: 600,
+      receivedAt: "2026-07-26T01:00:00.000Z",
+      confirmedBy: "owner-a",
+      reason: "第一筆",
+    });
+    const second = confirmBankTransfer({
+      orderBundle: first.orderBundle,
+      paymentRequest: first.paymentRequest,
+      payment: {
+        id: "pay_partial_2",
+        memberUid: "member-a",
+        paymentRequestId: request.id,
+        receivedAmountTwd: 1160,
+        receivedAt: "2026-07-26T02:00:00.000Z",
+        status: "pendingReview",
+        createdAt: "2026-07-26T02:00:00.000Z",
+        createdBy: "member-a",
+      },
+      receivedAmountTwd: 1160,
+      receivedAt: "2026-07-26T02:00:00.000Z",
+      confirmedBy: "owner-a",
+      reason: "第二筆",
+    });
+
+    expect(first.paymentRequest).toMatchObject({
+      status: "partiallyPaid",
+      allocatedAmountTwd: 600,
+    });
+    expect(second.paymentRequest).toMatchObject({
+      status: "paid",
+      allocatedAmountTwd: 1760,
+      unallocatedAmountTwd: 0,
+    });
+    expect(second.orderBundle.order.status).toBe("paid");
   });
 });

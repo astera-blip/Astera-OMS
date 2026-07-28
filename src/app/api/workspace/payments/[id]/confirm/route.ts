@@ -101,6 +101,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       transaction.update(requestRef, {
         status: confirmation.paymentRequest.status,
+        allocatedAmountTwd: confirmation.paymentRequest.allocatedAmountTwd ?? 0,
         unallocatedAmountTwd: confirmation.paymentRequest.unallocatedAmountTwd ?? 0,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: claims.uid,
@@ -136,11 +137,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const status =
       message === "missing_token"
         ? 401
+        : message === "forbidden"
+          ? 403
         : message === "not_found" || message === "order_not_found" || message === "member_email_not_found"
           ? 404
             : message === "invalid_payment_request" || message === "invalid_payment"
             ? 400
             : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }

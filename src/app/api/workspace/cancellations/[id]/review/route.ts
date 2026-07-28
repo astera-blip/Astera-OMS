@@ -157,9 +157,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ? 401
         : message === "not_found" || message === "order_not_found"
           ? 404
-          : message === "already_reviewed" || message === "invalid_items"
-            ? 400
+          : message === "already_reviewed"
+            ? 409
+            : message === "invalid_items"
+              ? 400
             : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }

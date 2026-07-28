@@ -30,7 +30,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
       const payment = paymentSnapshot.data() as LocalPayment;
       const requestRef = db.collection("paymentRequests").doc(payment.paymentRequestId);
-      const requestSnapshot = await transaction.get(requestRef);
+      const allocationRef = db.collection("paymentAllocations").doc(`alloc_${payment.id}`);
+      const [requestSnapshot, allocationSnapshot] = await Promise.all([
+        transaction.get(requestRef),
+        transaction.get(allocationRef),
+      ]);
       if (!requestSnapshot.exists) {
         throw new Error("request_not_found");
       }
@@ -52,6 +56,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
         paymentRequest,
         payment,
+        allocatedAmountTwd: allocationSnapshot.exists
+          ? Number(allocationSnapshot.data()?.amountTwd ?? 0)
+          : undefined,
         reversedAt,
         reversedBy: claims.uid,
         reason,
@@ -65,6 +72,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       });
       transaction.update(requestRef, {
         status: reversal.paymentRequest.status,
+        allocatedAmountTwd: reversal.paymentRequest.allocatedAmountTwd ?? 0,
         unallocatedAmountTwd: reversal.paymentRequest.unallocatedAmountTwd ?? 0,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: claims.uid,
@@ -109,9 +117,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           : message.endsWith("_not_found") || message === "not_found"
             ? 404
             : message === "invalid_payment"
-              ? 400
+              ? 409
               : 500;
 
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }
