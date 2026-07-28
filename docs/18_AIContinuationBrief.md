@@ -1,6 +1,6 @@
 # Astera OMS AI Continuation Brief
 
-Last updated: 2026-07-28 Asia/Taipei
+Last updated: 2026-07-29 Asia/Taipei
 
 This file is the compact handoff for another AI agent. Treat it together with:
 
@@ -227,6 +227,19 @@ These are not locally complete:
    - needs external Vercel/GCP setup.
    - then run production desktop, Pixel 7, and real phone acceptance.
 
+## 2026-07-29 Manual Acceptance Fixes
+
+- Product creation no longer crashes when optional classifications are unselected.
+- ProductWorkspace defaults new products to `published` and new Variant original currency to `THB`.
+- Authenticated storefront/cart startup merges local and cloud cart lines instead of letting an empty cloud cart erase a newly added item.
+- Checkout displays the current Astera terms/privacy and supplement-payment rules and sends the current legal version IDs.
+- Manual emulator data can be seeded with `npm run firebase:emulators:seed`.
+- Regression coverage was added in:
+  - `tests/unit/productCatalog.test.ts`
+  - `tests/unit/workspaceDefaults.test.ts`
+  - `tests/unit/clientCart.test.ts`
+  - `tests/unit/legalDocuments.test.ts`
+
 ## Important Validation Results
 
 Latest known passing checks:
@@ -234,7 +247,7 @@ Latest known passing checks:
 - `npm.cmd run typecheck`
 - `npm.cmd run lint`
 - `npm.cmd run test:unit`
-  - 9 files / 57 tests
+  - 12 files / 64 tests
 - `npm.cmd run firebase:rules:test`
   - 2 files / 29 tests
 - `npm.cmd run build`
@@ -242,6 +255,8 @@ Latest known passing checks:
   - 8 passed / 6 emulator-only skips
 - `npm.cmd run test:e2e:emulated`
   - 11 passed / 3 skips
+
+Latest full verification: 2026-07-29 Asia/Taipei.
 
 Managed sandbox note:
 
@@ -268,4 +283,3 @@ If external Firebase/Resend/Vercel gates are still not ready:
 1. Do not invent external state.
 2. Prepare production deployment scripts/checklists only.
 3. Keep updating `docs/16_MVPCompletionPlan.md` and `docs/17_ProjectHandoff.md`.
-

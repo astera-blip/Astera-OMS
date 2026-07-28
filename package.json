@@ -22,6 +22,7 @@
     "admin:set-role": "node scripts/set-user-role.mjs",
     "firebase:version": "node scripts/run-firebase.mjs --version",
     "firebase:emulators": "node scripts/run-firebase.mjs emulators:start --only auth,firestore,storage --project demo-astera-oms",
+    "firebase:emulators:seed": "node scripts/seed-firebase-emulator.mjs",
     "firebase:rules:test": "node scripts/run-firebase.mjs emulators:exec --only firestore,storage --project demo-astera-oms \"npm run test:rules\""
   },
   "dependencies": {

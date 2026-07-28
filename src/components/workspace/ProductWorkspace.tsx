@@ -15,6 +15,10 @@ import {
   type CatalogClassification,
   type CatalogClassificationStatus,
 } from "@/lib/product/classifications";
+import {
+  getNewProductFormDefaults,
+  getNewVariantFormDefaults,
+} from "@/lib/product/workspaceDefaults";
 
 type WorkspaceProduct = ProductCatalogRecord & {
   internalNote?: string;
@@ -159,7 +163,7 @@ export function ProductWorkspace() {
       const next = { ...seedClassifications };
 
       Object.entries(payload.classifications ?? {}).forEach(([key, values]) => {
-        if (values.length > 0) {
+        if (values && values.length > 0) {
           next[key as ProductClassificationKey] = values;
         }
       });
@@ -340,7 +344,7 @@ export function ProductWorkspace() {
       id: nextId,
       name: "",
       publicDescription: "",
-      publishState: "draft",
+      publishState: getNewProductFormDefaults().publishState,
         internalNote: "",
         companyId: "",
         artistId: "",
@@ -1030,7 +1034,7 @@ function buildProductForm(
     id: product?.product.id ?? fallbackId,
     name: product?.product.name ?? "",
     publicDescription: product?.product.publicDescription ?? "",
-    publishState: product?.product.publishState ?? "draft",
+    publishState: product?.product.publishState ?? getNewProductFormDefaults().publishState,
     internalNote: product?.internalNote ?? "",
     companyId: product?.product.classifications?.company?.id ?? "",
     artistId: product?.product.classifications?.artist?.id ?? "",
@@ -1065,7 +1069,7 @@ function buildBlankVariantForm(id: string, isDefault: boolean): VariantFormState
     name: isDefault ? "Default Variant" : "",
     isDefault,
     priceTwd: "0",
-    originalCurrency: "",
+    originalCurrency: getNewVariantFormDefaults().originalCurrency,
     originalCost: "",
   };
 }

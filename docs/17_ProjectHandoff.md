@@ -1,6 +1,6 @@
 # Astera OMS Project Handoff
 
-Last updated: 2026-07-28 Asia/Taipei
+Last updated: 2026-07-29 Asia/Taipei
 
 ## Active Objective
 
@@ -22,6 +22,14 @@ Complete the Astera OMS MVP according to the handoff spec without redesigning th
 - Storage region: `asia-east1`.
 
 ## Validation Log
+
+- 2026-07-29: Manual acceptance fixes prepared for product creation, product visibility defaults, THB Variant defaults, authenticated cart startup, and checkout consent content.
+- 2026-07-29: Product classification normalization now ignores unselected optional classification entries instead of reading `id` from `undefined`.
+- 2026-07-29: New products default to `published`; new Variant original currency defaults to `THB`.
+- 2026-07-29: Storefront and cart startup merge local and cloud cart lines, preventing an empty cloud response from clearing a newly added local line.
+- 2026-07-29: Checkout displays the current terms/privacy text and supplement-payment rules and submits the current legal version IDs.
+- 2026-07-29: Added repeatable Firebase Emulator manual-test seeding through `npm run firebase:emulators:seed`.
+- 2026-07-29: Post-fix validation passed: secret scan, typecheck, lint, 64 unit tests, 29 Firestore/Storage Rules tests, production dependency audit, production build, 8 regular Playwright tests, and 11 authenticated emulator Playwright tests.
 
 - 2026-07-27: Branch `codex/mvp-completion` created.
 - 2026-07-27: Sites skill checked. No `.openai/hosting.json`; project stays on existing Vercel/Firebase stack.

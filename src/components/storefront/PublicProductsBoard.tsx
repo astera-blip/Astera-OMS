@@ -15,6 +15,7 @@ import {
   getEffectiveCatalogPriceTwd,
   type PublicCatalogItem,
 } from "@/lib/catalog/publicCatalog";
+import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
 import { loadCart, saveCart } from "@/lib/order/localStore";
 
 type LoadState = "loading" | "ready" | "empty" | "error";
@@ -75,7 +76,7 @@ export function PublicProductsBoard() {
         throw new Error("load_cart_failed");
       }
       const payload = (await response.json()) as { items?: CartLineItem[] };
-      setCart(payload.items ?? []);
+      setCart(mergeClientAndCloudCart(payload.items ?? [], loadCart()));
     }
 
     void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));

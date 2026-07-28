@@ -1,6 +1,6 @@
 # Astera OMS MVP Completion Plan
 
-Last updated: 2026-07-28 Asia/Taipei
+Last updated: 2026-07-29 Asia/Taipei
 
 ## Execution Rules
 
@@ -266,6 +266,17 @@ Last updated: 2026-07-28 Asia/Taipei
 - Updated this execution plan and `docs/17_ProjectHandoff.md` to reference the AI continuation brief.
 - Updated `eslint.config.mjs` to ignore `.worktrees/**`; `.worktrees/` was already Git-ignored, but ESLint was still scanning unrelated local worktree files and producing warnings.
 
+### 2026-07-29 Manual Acceptance Fix Batch
+
+- Fixed `normalizeClassifications` so unselected optional classifications no longer throw while creating a product.
+- New ProductWorkspace products now default to `published`, so a newly saved product is eligible for the public projection without an easily missed draft-state change.
+- New Variants now default `originalCurrency` to `THB`.
+- Added deterministic client/cloud cart merging so an empty cloud cart cannot erase a product that was just added locally during authenticated cart startup.
+- Checkout now submits the active terms/privacy version IDs instead of an empty version list.
+- Checkout now displays the actual Astera terms, privacy summary, and supplement-payment rules next to the two required consent controls.
+- Added `scripts/seed-firebase-emulator.mjs` and `npm run firebase:emulators:seed` for repeatable owner/member manual acceptance data.
+- Added regression tests for optional classifications, ProductWorkspace defaults, cart merging, legal version IDs, and supplement-rule content.
+
 ## Verification Log
 
 - `npm.cmd run typecheck`: passed.
@@ -345,6 +356,15 @@ Last updated: 2026-07-28 Asia/Taipei
 - 2026-07-28 09:48: `npm.cmd run build`: passed.
 - 2026-07-28 09:49: `npm.cmd run test:e2e`: passed, 8 tests and 6 intentional emulator-only skips across desktop Chromium and Pixel 7.
 - 2026-07-28 09:50: `npm.cmd run test:e2e:emulated`: passed, 11 tests and 3 intentional skips across desktop Chromium and Pixel 7.
+- 2026-07-29 01:10: `npm.cmd run typecheck`: passed after manual acceptance fixes.
+- 2026-07-29 01:10: `npm.cmd run lint`: passed after manual acceptance fixes.
+- 2026-07-29 01:10: `npm.cmd run check:secrets`: passed, no obvious secrets detected.
+- 2026-07-29 01:10: `npm.cmd run test:unit`: passed, 12 files and 64 tests. Required approved unsandboxed execution after sandbox `spawn EPERM`.
+- 2026-07-29 01:11: `npm.cmd run test:rules`: passed against the already-running Firestore/Storage Emulators, 2 files and 29 tests.
+- 2026-07-29 01:12: `npm.cmd run audit:production`: passed, 0 vulnerabilities.
+- 2026-07-29 01:13: `npm.cmd run build`: passed. Required approved unsandboxed execution after sandbox `spawn EPERM`.
+- 2026-07-29 01:14: `npm.cmd run test:e2e`: passed, 8 tests and 6 intentional emulator-only skips across desktop Chromium and Pixel 7.
+- 2026-07-29 01:15: `node scripts/run-playwright-emulated.mjs`: passed against the already-running Auth/Firestore/Storage Emulators, 11 tests and 3 intentional skips across desktop Chromium and Pixel 7.
 
 ## Next Exact Steps
 

@@ -413,15 +413,21 @@ function normalizeClassifications(
   }
 
   const entries = (Object.entries(classifications) as Array<
-    [ProductClassificationKey, ProductClassificationLink]
+    [ProductClassificationKey, ProductClassificationLink | undefined]
   >)
-    .map(([key, value]): [ProductClassificationKey, ProductClassificationLink] => [
-      key,
-      {
-        id: value.id.trim(),
-        label: value.label.trim(),
-      },
-    ])
+    .flatMap(([key, value]) => {
+      if (!value) {
+        return [];
+      }
+
+      return [[
+        key,
+        {
+          id: value.id.trim(),
+          label: value.label.trim(),
+        },
+      ] satisfies [ProductClassificationKey, ProductClassificationLink]];
+    })
     .filter(([, value]) => value.id && value.label);
 
   return entries.length > 0

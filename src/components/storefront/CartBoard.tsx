@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
+import {
+  currentLegalVersionIds,
+  legalDocumentVersions,
+  supplementRuleContent,
+} from "@/lib/legal/documents";
 import {
   buildCartSummary,
   type CartLineItem,
@@ -65,10 +71,7 @@ export function CartBoard() {
         throw new Error("load_cart_failed");
       }
       const payload = (await response.json()) as { items?: CartLineItem[] };
-      const cloudCart = payload.items ?? [];
-      const localCart = loadCart();
-
-      setCart(cloudCart.length > 0 ? cloudCart : localCart);
+      setCart(mergeClientAndCloudCart(payload.items ?? [], loadCart()));
     }
 
     void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));
@@ -87,6 +90,9 @@ export function CartBoard() {
   }, []);
 
   const summary = useMemo(() => buildCartSummary(cart, catalog), [cart, catalog]);
+  const legalDocuments = legalDocumentVersions.filter(
+    (document) => document.documentType === "terms" || document.documentType === "privacy",
+  );
 
   function updateQuantity(index: number, quantity: number) {
     setCart((current) =>
@@ -151,18 +157,18 @@ export function CartBoard() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          cart,
-          recipientName: shippingCheck.value.recipientName,
-          recipientPhone: shippingCheck.value.recipientPhone,
-          shippingMethod,
-          ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-          ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
-          legalVersionIds: [],
-          acceptedLegalTerms,
-          acceptedSupplementRule,
-          idempotencyKey,
-        }),
+          body: JSON.stringify({
+            cart,
+            recipientName: shippingCheck.value.recipientName,
+            recipientPhone: shippingCheck.value.recipientPhone,
+            shippingMethod,
+            ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
+            ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
+            legalVersionIds: currentLegalVersionIds(),
+            acceptedLegalTerms,
+            acceptedSupplementRule,
+            idempotencyKey,
+          }),
       });
 
       if (!response.ok) {
@@ -298,6 +304,16 @@ export function CartBoard() {
               />
               <span>我同意下單條款與隱私權政策。</span>
             </label>
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              {legalDocuments.map((document) => (
+                <div key={document.id} className="not-first:mt-4">
+                  <p className="font-medium text-slate-900">
+                    {document.title} <span className="text-xs text-slate-500">v{document.version}</span>
+                  </p>
+                  <p className="mt-1">{document.body}</p>
+                </div>
+              ))}
+            </div>
             <label className="flex items-start gap-3">
               <input
                 type="checkbox"
@@ -307,6 +323,15 @@ export function CartBoard() {
               />
               <span>我了解此代購商品可能依實際運費、匯率或官方配貨結果產生二補。</span>
             </label>
+            <div className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-slate-700">
+              <p className="font-medium text-slate-900">{supplementRuleContent.title}</p>
+              <p className="mt-1">{supplementRuleContent.summary}</p>
+              <ul className="mt-2 list-disc pl-5">
+                {supplementRuleContent.points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
           </div>
           <button
             type="button"

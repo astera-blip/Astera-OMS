@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-07-29
+
+- Fixed ProductWorkspace product creation when optional classifications are unselected.
+- Defaulted new products to `published` and new Variant original currency to `THB`.
+- Prevented an empty authenticated cloud cart from clearing newly added local cart lines.
+- Added visible checkout terms/privacy and supplement-payment rule content and submitted the active legal version IDs.
+- Added a repeatable Firebase Emulator seed script for manual owner/member acceptance.
+- Added regression tests for product defaults, optional classifications, cart merging, and checkout legal content.
+
 ## 2026-07-26
 
 - Installed Node.js LTS `v24.18.0`.

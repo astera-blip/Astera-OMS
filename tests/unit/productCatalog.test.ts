@@ -53,6 +53,54 @@ describe("normalizeProductDraft", () => {
     });
   });
 
+  it("ignores unselected classifications instead of throwing", () => {
+    expect(
+      normalizeProductDraft({
+        product: {
+          id: "prod_003",
+          name: "  應援毛巾  ",
+          publicDescription: "  小圈測試商品  ",
+          publishState: "published",
+          classifications: {
+            company: { id: "company_001", label: "  Astera Goods  " },
+            artist: undefined,
+            cp: undefined,
+            brand: { id: "brand_001", label: "  Official Shop  " },
+            series: undefined,
+          },
+        },
+        variants: [],
+        campaigns: [],
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        product: {
+          id: "prod_003",
+          sku: "AST-P000003",
+          name: "應援毛巾",
+          publicDescription: "小圈測試商品",
+          publishState: "published",
+          classifications: {
+            company: { id: "company_001", label: "Astera Goods" },
+            brand: { id: "brand_001", label: "Official Shop" },
+          },
+        },
+        variants: [
+          {
+            id: "prod_003-default",
+            productId: "prod_003",
+            sku: "AST-P000003-V001",
+            name: "Default Variant",
+            isDefault: true,
+            priceTwd: 0,
+          },
+        ],
+        campaigns: [],
+      },
+    });
+  });
+
   it("returns field errors for missing product name and invalid variant price", () => {
     expect(
       normalizeProductDraft({
