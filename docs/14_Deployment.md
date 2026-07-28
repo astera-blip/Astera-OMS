@@ -43,6 +43,26 @@ This project is prepared for deployment, but production deployment is intentiona
 3. Run rules tests before real files are added.
 4. Add the production web app environment variables to Vercel after import.
 
+## Production Read-only Preflight
+
+Run these commands before any production write or Rules deployment:
+
+```powershell
+npm run production:env:check
+npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
+npm run production:smoke -- --base-url https://astera-oms.vercel.app
+```
+
+- The environment checker prints variable names and `configured` / `missing` only.
+- The product audit uses Application Default Credentials and performs Firestore reads only.
+- `--project` must exactly match `--confirm-project`; this prevents accidental inspection of the wrong project.
+- The smoke command sends no credentials and requires HTTPS.
+- Full backup, comparison, rollout, rollback, and recovery steps are in
+  `docs/SOP/正式資料備份與商品同步SOP.md`.
+
+Before deployment, verify both `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` and
+`NEXT_PUBLIC_ENABLE_E2E_TEST_AUTH` are absent or set to `false`.
+
 ## GitHub Actions
 
 The CI workflow runs on push and pull request to `main`:
@@ -54,5 +74,8 @@ The CI workflow runs on push and pull request to `main`:
 - secret scan
 - high-severity audit
 - production build
+- Firestore and Storage Rules tests
+- regular desktop / Pixel 7 Playwright
+- authenticated Auth / Firestore / Storage Emulator Playwright
 
 If GitHub Actions is disabled or requires billing confirmation, the workflow file can remain in the repo and run after the owner enables Actions.

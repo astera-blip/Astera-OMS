@@ -24,6 +24,8 @@
 - Admin role checks for product/order/member operations.
 - Order item snapshot preservation test.
 - Manual payment confirmation audit log test.
+- Production tool contract tests: argument confirmation, secret-safe reporting,
+  anonymous HTTPS smoke, and mutation-free projection audit.
 
 ## Continuous Integration
 
@@ -40,7 +42,21 @@
 - Order item cancellation request and admin review.
 - Waitlist ordering and notification deadline.
 - Payment allocation across multiple orders.
-- Overpayment to wallet.
+- Overpayment retained as an unallocated amount for manual bank refund; no Wallet.
 - Underpayment to receivable.
 - Supplement payment creation.
 - Export logging for sensitive data.
+
+## Production Acceptance Commands
+
+The following commands are read-only and must run before a production release:
+
+```powershell
+npm run production:env:check
+npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
+npm run production:smoke -- --base-url https://astera-oms.vercel.app
+```
+
+`production:products:audit` compares Product IDs and counts, Variant/Campaign
+counts, immutable SKU formats, projected prices, public image fields, and absence
+of private Product fields. A non-zero exit blocks migration or release.
