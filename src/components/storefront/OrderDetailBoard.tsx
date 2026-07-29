@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createCancellationRequest, getPendingCancellationRequestId } from "@/lib/order/cancellation";
 import type { OrderBundle } from "@/lib/order/checkout";
@@ -25,17 +25,18 @@ export function OrderDetailBoard({ orderId }: Props) {
   const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function loadFirestoreOrder() {
-      if (!user) {
-        setBundles([]);
-        setCancellationRequests([]);
-        setStatus("idle");
-        return;
-      }
+  const loadOrder = useCallback(async () => {
+    if (!user) {
+      setBundles([]);
+      setCancellationRequests([]);
+      setStatus("idle");
+      return;
+    }
 
-      setStatus("loading");
+    setStatus("loading");
+    try {
       const [{ db }, { listMemberOrders, listMemberCancellationRequests }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/order/repository"),
@@ -48,15 +49,19 @@ export function OrderDetailBoard({ orderId }: Props) {
       setBundles(nextBundles);
       setCancellationRequests(nextCancellationRequests);
       setStatus("ready");
-    }
-
-    void loadFirestoreOrder().catch(() => {
+    } catch {
       setBundles([]);
       setCancellationRequests([]);
       setStatus("error");
       setMessage("無法讀取雲端訂單，請稍後再試。");
-    });
+    }
   }, [user]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadOrder();
+    });
+  }, [loadOrder]);
 
   const order = useMemo(() => bundles.find((bundle) => bundle.order.id === orderId) ?? null, [bundles, orderId]);
   const existingRequest = useMemo(
@@ -87,6 +92,10 @@ export function OrderDetailBoard({ orderId }: Props) {
       return;
     }
 
+    if (isSubmitting) {
+      return;
+    }
+
     const trimmedReason = reason.trim();
     if (!trimmedReason) {
       setMessage("請填寫取消原因。");
@@ -111,6 +120,7 @@ export function OrderDetailBoard({ orderId }: Props) {
     });
 
     try {
+      setIsSubmitting(true);
       const { auth } = await import("@/lib/firebase/client");
       const token = await auth.currentUser?.getIdToken();
       if (!token) {
@@ -152,14 +162,15 @@ export function OrderDetailBoard({ orderId }: Props) {
       setMessage("已送出取消申請，等待客服審核。");
     } catch {
       setMessage("取消申請送出失敗，請稍後再試。");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  if (!order) {
+  if (!user) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-lg font-semibold">找不到這張訂單</p>
-        <p className="mt-2 text-sm text-slate-600">如果你剛下單，請先確認已登入同一個帳號。</p>
+        請先登入，才能查看自己的訂單。
       </div>
     );
   }
@@ -175,7 +186,23 @@ export function OrderDetailBoard({ orderId }: Props) {
   if (status === "error") {
     return (
       <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 shadow-sm text-rose-700">
-        訂單讀取失敗，請稍後再試。
+        <p role="alert">訂單讀取失敗，請確認網路後再試一次。</p>
+        <button
+          type="button"
+          onClick={() => void loadOrder()}
+          className="mt-4 min-h-11 rounded-full border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-800 transition-colors hover:bg-rose-100"
+        >
+          重新載入
+        </button>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-lg font-semibold">找不到這張訂單</p>
+        <p className="mt-2 text-sm text-slate-600">如果你剛下單，請先確認已登入同一個帳號。</p>
       </div>
     );
   }
@@ -263,11 +290,12 @@ export function OrderDetailBoard({ orderId }: Props) {
               <button
                 type="button"
                 onClick={() => void submitCancellationRequest()}
-                className="rounded-full border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700"
+                disabled={isSubmitting}
+                className="min-h-11 rounded-full border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                申請取消
+                {isSubmitting ? "送出中…" : "申請取消"}
               </button>
-              {message ? <p className="text-sm text-slate-600">{message}</p> : null}
+              {message ? <p aria-live="polite" className="text-sm text-slate-600">{message}</p> : null}
             </div>
           ) : (
             <Link

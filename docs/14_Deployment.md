@@ -102,6 +102,26 @@ After the script prints the environment variable names/values, add those names
 to Vercel Production and Preview environments, redeploy, then test
 `POST /api/member/profile`, `/api/cart`, and Owner Product save.
 
+### Completed configuration (2026-07-30)
+
+- GCP service account created:
+  `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`.
+- Workload Identity Pool `vercel-oidc` and Provider `vercel` are active. The
+  Provider accepts only the documented audience and maps the Vercel project ID
+  claim.
+- The service account has only `roles/datastore.user`,
+  `roles/firebaseauth.viewer`, and `roles/storage.objectViewer`; it has no
+  downloaded private key.
+- `roles/iam.workloadIdentityUser` is restricted to Vercel Project
+  `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
+- All seven OIDC variables above were stored as sensitive variables in both
+  Vercel Preview and Production, then a Preview was rebuilt successfully:
+  `https://astera-n850fxxzw-astera-oms.vercel.app`.
+
+The next release verification is authenticated: save a member profile, update
+the cart, and save an Owner Product on that Preview. These operations must
+succeed before promoting the branch to Production.
+
 ## GitHub Actions
 
 The CI workflow runs on push and pull request to `main`:

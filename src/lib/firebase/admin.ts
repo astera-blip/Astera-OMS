@@ -61,10 +61,7 @@ function getVercelOidcCredential(): Credential | null {
       "https://www.googleapis.com/auth/devstorage.read_write",
     ],
     subject_token_supplier: {
-      getSubjectToken: () => getVercelOidcToken({
-        audience,
-        expirationBufferMs: 5 * 60 * 1000,
-      }),
+      getSubjectToken: () => getVercelOidcToken(),
     },
   });
 

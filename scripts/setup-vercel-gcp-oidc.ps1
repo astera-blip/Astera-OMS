@@ -17,6 +17,21 @@ function Require-Command($Name) {
   }
 }
 
+function Test-GcloudResource([string[]]$Arguments) {
+  # Missing resources are expected on a first run. PowerShell on Windows can
+  # otherwise turn gcloud's non-zero exit status into a terminating error.
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    gcloud @Arguments *> $null
+    return $LASTEXITCODE -eq 0
+  } catch {
+    return $false
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
 Require-Command "gcloud"
 
 if (-not $ProjectNumber) {
@@ -48,8 +63,7 @@ gcloud services enable `
   storage.googleapis.com `
   --project $ProjectId
 
-gcloud iam service-accounts describe $ServiceAccountEmail --project $ProjectId *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-GcloudResource @("iam", "service-accounts", "describe", $ServiceAccountEmail, "--project", $ProjectId))) {
   gcloud iam service-accounts create $ServiceAccountId `
     --project $ProjectId `
     --display-name $ServiceAccountDisplayName
@@ -70,21 +84,14 @@ gcloud projects add-iam-policy-binding $ProjectId `
   --role "roles/storage.objectViewer" `
   --condition=None
 
-gcloud iam workload-identity-pools describe $PoolId `
-  --project $ProjectId `
-  --location "global" *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-GcloudResource @("iam", "workload-identity-pools", "describe", $PoolId, "--project", $ProjectId, "--location", "global"))) {
   gcloud iam workload-identity-pools create $PoolId `
     --project $ProjectId `
     --location "global" `
     --display-name "Vercel OIDC"
 }
 
-gcloud iam workload-identity-pools providers describe $ProviderId `
-  --project $ProjectId `
-  --location "global" `
-  --workload-identity-pool $PoolId *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-GcloudResource @("iam", "workload-identity-pools", "providers", "describe", $ProviderId, "--project", $ProjectId, "--location", "global", "--workload-identity-pool", $PoolId))) {
   gcloud iam workload-identity-pools providers create-oidc $ProviderId `
     --project $ProjectId `
     --location "global" `

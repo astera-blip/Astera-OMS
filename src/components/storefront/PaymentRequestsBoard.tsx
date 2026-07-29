@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 import { paymentRequestStatusLabel } from "@/lib/storefront/customerLabels";
@@ -16,16 +16,17 @@ export function PaymentRequestsBoard() {
   const [memberNote, setMemberNote] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    async function loadFirestoreRequests() {
-      if (!user) {
-        setRequests([]);
-        setStatus("idle");
-        return;
-      }
+  const loadRequests = useCallback(async () => {
+    if (!user) {
+      setRequests([]);
+      setStatus("idle");
+      return;
+    }
 
-      setStatus("loading");
+    setStatus("loading");
+    try {
       const [{ db }, { listMemberPaymentRequests }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/payment/repository"),
@@ -35,13 +36,17 @@ export function PaymentRequestsBoard() {
       setSelectedRequestId(nextRequests[0]?.id ?? "");
       setAmount(nextRequests[0] ? String(nextRequests[0].amountTwd) : "");
       setStatus("ready");
-    }
-
-    void loadFirestoreRequests().catch(() => {
+    } catch {
       setRequests([]);
       setStatus("error");
-    });
+    }
   }, [user]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadRequests();
+    });
+  }, [loadRequests]);
 
   if (!user) {
     return (
@@ -62,7 +67,23 @@ export function PaymentRequestsBoard() {
   if (status === "error") {
     return (
       <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700 shadow-sm">
-        付款請求讀取失敗，請稍後再試。
+        <p role="alert">付款請求讀取失敗，請確認網路後再試一次。</p>
+        <button
+          type="button"
+          onClick={() => void loadRequests()}
+          className="mt-4 min-h-11 rounded-full border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-800 transition-colors hover:bg-rose-100"
+        >
+          重新載入
+        </button>
+      </div>
+    );
+  }
+
+  if (requests.length === 0) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold">匯款回報</h2>
+        <p className="mt-2 text-sm text-slate-600">目前沒有待付款資料。</p>
       </div>
     );
   }
@@ -73,6 +94,10 @@ export function PaymentRequestsBoard() {
       return;
     }
 
+    if (isSubmitting) {
+      return;
+    }
+
     const receivedAmountTwd = Number(amount);
     if (!receivedAt || !Number.isInteger(receivedAmountTwd) || receivedAmountTwd <= 0 || !/^[0-9]{5}$/.test(last5) || !payerName.trim()) {
       setMessage("請填寫日期、金額、帳號末五碼與匯款人。");
@@ -80,6 +105,7 @@ export function PaymentRequestsBoard() {
     }
 
     try {
+      setIsSubmitting(true);
       const token = await user.getIdToken();
       const response = await fetch("/api/payments", {
         method: "POST",
@@ -107,6 +133,8 @@ export function PaymentRequestsBoard() {
       setMemberNote("");
     } catch {
       setMessage("付款回報送出失敗，請稍後再試。");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -182,18 +210,14 @@ export function PaymentRequestsBoard() {
         <button
           type="button"
           onClick={() => void reportPayment()}
-          className="mt-4 rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950"
+          disabled={isSubmitting}
+          className="mt-4 min-h-11 rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          送出付款回報
+          {isSubmitting ? "送出中…" : "送出付款回報"}
         </button>
-        {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
+        {message ? <p aria-live="polite" className="mt-3 text-sm text-slate-600">{message}</p> : null}
       </div>
-      {requests.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          目前沒有待付款資料。
-        </div>
-      ) : (
-        requests.map((request) => (
+      {requests.map((request) => (
           <article key={request.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -212,8 +236,7 @@ export function PaymentRequestsBoard() {
               <p>建立時間：{request.createdAt}</p>
             </div>
           </article>
-        ))
-      )}
+        ))}
     </section>
   );
 }

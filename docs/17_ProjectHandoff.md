@@ -501,3 +501,182 @@ Committed and pushed as `f954e2e` (`fix: polish storefront manual test ux`) to
 check `/`, `/products`, `/brand`, `/cart`, `/payments`, `/orders`, `/members`, and
 `/about` after Preview is Ready. Do not stage the existing user modification in
 `AGENTS.md`. The preceding GCloud login/OIDC step remains independently pending.
+
+## 2026-07-29 Authenticated Member Board Reliability Follow-up
+
+### Files changed
+
+- `src/components/storefront/PaymentRequestsBoard.tsx`
+- `src/components/storefront/OrderHistoryBoard.tsx`
+- `src/components/storefront/OrderDetailBoard.tsx`
+- `tests/unit/productionDataSource.test.ts`
+- `docs/16_MVPCompletionPlan.md`
+- `docs/17_ProjectHandoff.md`
+
+### Completed behavior
+
+- Payment requests and order history now provide mutually exclusive loading,
+  empty, or announced error states. Error cards include a 44px `重新載入` action.
+- Order detail now prioritizes signed-out, loading, and error states before the
+  final not-found state; it no longer tells a signed-in member that an order is
+  absent while the Firestore read is still in progress.
+- Payment-report and cancellation-submit actions become disabled and show
+  `送出中…` during their own request. Result messages use `aria-live="polite"`.
+- No data model, API contract, order calculation, payment allocation, or
+  authorization behavior was changed.
+
+### Test sequence and result
+
+1. Added a focused regression assertion for retryable member-board states.
+2. Ran it before implementation: failed as expected because `重新載入` was not
+   present in the three boards.
+3. After implementation, `npm.cmd run test:unit` passed: **24 files / 117
+   tests**.
+4. `npm.cmd run typecheck`, `npm.cmd run lint`, and
+   `npm.cmd run firebase:rules:test` passed (**2 files / 29 Rules tests**).
+5. `npm.cmd run build` compiled successfully and completed its TypeScript stage.
+6. Authenticated Emulator Playwright requires a rerun: an isolated 3100 Next
+   server and Auth/Firestore/Storage emulators were confirmed reachable, but
+   the managed execution layer did not return the Playwright final result and
+   left child processes active. Only the newly created test PIDs were stopped;
+   no production service or user source file was removed.
+
+### Next exact step
+
+In a persistent terminal, run `npm.cmd run test:e2e:emulated`, wait for
+`test-results/.last-run.json`, and confirm no failed tests. Then stage only the
+six files listed above (never `AGENTS.md`), commit, push
+`codex/mvp-completion`, and wait for the Vercel Preview deployment. The following
+MVP work is external-gated: Firebase Blaze/Storage bucket, GCP Workload Identity
+and Vercel env variables, production Rules/data migration, Resend DNS/API key,
+legal review, domain/DNS, and physical-device acceptance.
+
+## 2026-07-29 Vercel OIDC / GCP Workload Identity Execution Attempt
+
+### Evidence
+
+- Google Cloud interactive login completed for `astera.0920@gmail.com`.
+- Ran `scripts/setup-vercel-gcp-oidc.ps1` against `astera-oms-prod` with
+  Project Number `1032606875618` and Vercel Project ID
+  `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
+- The script correctly calculated the expected pool/provider/service-account
+  names, then stopped at GCP IAM:
+  - `gcloud services enable`: permission denied.
+  - `gcloud iam service-accounts describe`: project/service-account access
+    denied/not found because the caller has no project access.
+- No Workload Identity Pool, provider, service account, IAM binding, Vercel
+  environment variable, private key, Rules change, or production data change was
+  created by this attempt.
+- A later Console screenshot listed the same email as Owner, but refreshing the
+  local Google access token and retrying `gcloud projects describe` still
+  returned `PERMISSION_DENIED`. Verify the selected Console Project ID is
+  `astera-oms-prod`, the policy update was saved, and propagation is complete
+  before resuming; the yellow basic-role warning does not prove API access.
+
+### Blocking authority and resume steps
+
+`astera.0920@gmail.com` needs project access from an existing
+`astera-oms-prod` Owner/IAM administrator. The simplest temporary grant is
+`roles/owner`; otherwise grant Service Usage Admin, Service Account Admin,
+Project IAM Admin, and Workload Identity Pool Admin for this one-time setup.
+After it propagates:
+
+1. Re-run `scripts/setup-vercel-gcp-oidc.ps1` with the same Project Number and
+   Vercel Project ID.
+2. Add its printed `GOOGLE_CLOUD_PROJECT` and `GCP_*` variables to both Vercel
+   Preview and Production.
+3. Redeploy Preview and test profile save, cart API, and Owner Product save.
+4. Only after Preview succeeds, repeat the verification on Production.
+
+### 2026-07-30 Console/CLI account mismatch follow-up
+
+- The user-provided IAM Console page confirmed the selected project URL is
+  `astera-oms-prod`; its browser account is `ting1811tin@gmail.com`, which has
+  an explicit Owner role. The same page also lists `astera.0920@gmail.com` as
+  Owner, but GCP API calls for that account remain denied.
+- A `gcloud auth login ting1811tin@gmail.com` attempt opened the Google consent
+  screen, but the browser automatically returned credentials for
+  `astera.0920@gmail.com`; `gcloud` safely rejected the mismatch. No IAM or
+  production resource changed.
+- Resume: on the Google consent page, explicitly choose
+  `ting1811tin@gmail.com` (not the auto-selected `astera.0920@gmail.com`),
+  complete consent, verify `gcloud auth list` marks it active, then rerun
+  `scripts/setup-vercel-gcp-oidc.ps1`.
+## 2026-07-30 OIDC setup completed with verified Owner account
+
+### External changes made
+
+- Active gcloud account: `ting1811tin@gmail.com` (verified project Owner).
+- Created GCP service account:
+  `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`.
+- Created Workload Identity Pool / Provider: `vercel-oidc` / `vercel`, Provider
+  state `ACTIVE`, issuer `https://oidc.vercel.com`.
+- Added `roles/iam.workloadIdentityUser` only for the Vercel Project ID claim
+  `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
+- Granted the service account only `roles/datastore.user`,
+  `roles/firebaseauth.viewer`, and `roles/storage.objectViewer`. No long-lived
+  JSON key was generated, stored, or displayed.
+- Stored the documented seven OIDC variables as Vercel Sensitive variables in
+  both Preview and Production. CLI read-back showed every variable in both
+  targets.
+- Rebuilt Preview deployment `dpl_H5qAEehRU6chfaVnjBFJY4UiS5es`, status `Ready`:
+  `https://astera-n850fxxzw-astera-oms.vercel.app`.
+
+### Local source and verification
+
+- Fixed `scripts/setup-vercel-gcp-oidc.ps1` so a missing first-run resource
+  does not terminate PowerShell before creation; added a regression assertion
+  in `tests/unit/productionScripts.test.ts`.
+- Focused verification passed:
+  `npm.cmd run test:unit -- tests/unit/productionScripts.test.ts`
+  (24 files / 118 tests).
+- GCP service-account IAM policy, Provider configuration, and Vercel
+  environment-variable names/targets were read back successfully.
+
+### Precise remaining verification
+
+1. On the rebuilt Preview, sign in and save a valid member profile.
+2. Add/remove a cart item and confirm the cart persists after reload.
+3. Sign in with an Owner custom-claim account and save a Product; verify the
+   server writes its `productsPublic` projection.
+4. If any call fails, obtain the Vercel Function log for that route before
+   modifying credentials or source. Only promote to Production after all three
+   calls work.
+## 2026-07-30 OIDC runtime root cause and exact resume point
+
+### Reproduction evidence
+
+- The stable branch Preview permitted Google sign-in with
+  `astera.0920@gmail.com`; the member profile page rendered after sign-in.
+- Saving non-personal verification values (`測試`, `preview-oidc-test`,
+  `0900000000`; birthday left blank) failed and remained on
+  `/account/profile`. This confirms the prior profile issue is server
+  credentials/federation related, not browser form validation.
+- Vercel Project Settings → Security shows OIDC federation already enabled in
+  Team mode. The rendered live values are:
+  - issuer `https://oidc.vercel.com/astera-oms`;
+  - audience `https://vercel.com/astera-oms`;
+  - project `astera-oms`, team `astera-oms`.
+
+### Root cause and correction applied
+
+- The original GCP Provider was incorrectly global issuer mode and allowed the
+  Google provider resource name rather than Vercel's Team audience. The app
+  also passed the Google resource audience to `getVercelOidcToken`.
+- GCP Provider `vercel` was updated in `astera-oms-prod` to:
+  - issuer URI `https://oidc.vercel.com/astera-oms`;
+  - allowed audience `https://vercel.com/astera-oms`.
+- The pending source change in `src/lib/firebase/admin.ts` calls
+  `getVercelOidcToken()` with no custom audience, matching Vercel's official
+  GCP example. `tests/unit/nextRuntimeConfig.test.ts` first failed against the
+  old call and then passed after this change.
+
+### Exact next step
+
+1. Commit and push the current source revision (never stage `AGENTS.md`).
+2. Wait for its `codex/mvp-completion` Preview deployment.
+3. Repeat member profile save; a successful save redirects to `/`.
+4. Use the same signed-in member to verify cart persistence, then an Owner
+   account to verify Product save and its `productsPublic` projection.
+5. If the first post-deploy save still fails, obtain the Vercel Function error
+   before changing credentials again.

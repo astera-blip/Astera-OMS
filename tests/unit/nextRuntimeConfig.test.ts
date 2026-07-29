@@ -27,6 +27,8 @@ describe("Next server runtime config", () => {
     expect(adminSource).toContain("GCP_WORKLOAD_IDENTITY_PROVIDER_ID");
     expect(adminSource).toContain("GCP_SERVICE_ACCOUNT_EMAIL");
     expect(adminSource).toContain("getVercelOidcToken");
+    expect(adminSource).toContain("getSubjectToken: () => getVercelOidcToken()");
+    expect(adminSource).not.toContain("getVercelOidcToken({");
     expect(adminSource).not.toContain("GCP_SERVICE_ACCOUNT_PRIVATE_KEY");
   });
 });

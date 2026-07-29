@@ -71,4 +71,31 @@ describe("production data-source boundary", () => {
       expect(sources, visibleText).not.toContain(visibleText);
     }
   });
+
+  it("gives member payment and order readers a retryable loading boundary", () => {
+    const sources = [
+      "src/components/storefront/PaymentRequestsBoard.tsx",
+      "src/components/storefront/OrderHistoryBoard.tsx",
+      "src/components/storefront/OrderDetailBoard.tsx",
+    ]
+      .map((file) => readFileSync(resolve(file), "utf8"))
+      .join("\n");
+
+    expect(sources).toContain("重新載入");
+    expect(sources).toContain('role="alert"');
+    expect(sources).toContain("訂單載入中。");
+    expect(sources).toContain("付款請求載入中。");
+  });
+
+  it("defers member reader loads started by React effects", () => {
+    for (const file of [
+      "src/components/storefront/PaymentRequestsBoard.tsx",
+      "src/components/storefront/OrderHistoryBoard.tsx",
+      "src/components/storefront/OrderDetailBoard.tsx",
+    ]) {
+      const source = readFileSync(resolve(file), "utf8");
+
+      expect(source, file).toContain("queueMicrotask(() => {");
+    }
+  });
 });

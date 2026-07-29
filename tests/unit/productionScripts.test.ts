@@ -35,6 +35,14 @@ describe("production environment checker", () => {
     expect(source).toContain("GCP_WORKLOAD_IDENTITY_PROVIDER_ID");
     expect(source).toContain("GCP_SERVICE_ACCOUNT_EMAIL");
   });
+
+  it("allows absent OIDC resources to fall through to their create commands on Windows", () => {
+    const source = readFileSync("scripts/setup-vercel-gcp-oidc.ps1", "utf8");
+
+    expect(source).toContain("function Test-GcloudResource");
+    expect(source).toContain("return $false");
+    expect(source).toContain("if (-not (Test-GcloudResource" );
+  });
 });
 
 describe("product projection audit", () => {
