@@ -8,4 +8,12 @@ describe("Next server runtime config", () => {
     expect(configSource).toContain("serverExternalPackages");
     expect(configSource).toMatch(/serverExternalPackages:\s*\[[\s\S]*"firebase-admin"/);
   });
+
+  test("does not load firebase-admin auth from the shared Admin SDK module", () => {
+    const adminSource = readFileSync("src/lib/firebase/admin.ts", "utf8");
+    const serverAuthSource = readFileSync("src/lib/firebase/serverAuth.ts", "utf8");
+
+    expect(adminSource).not.toContain("firebase-admin/auth");
+    expect(serverAuthSource).not.toContain("firebase-admin/auth");
+  });
 });

@@ -2,7 +2,6 @@ import "server-only";
 
 import { readFileSync } from "node:fs";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
@@ -73,10 +72,6 @@ export function getAdminApp() {
   );
 
   return adminApp;
-}
-
-export function getAdminAuth() {
-  return getAuth(getAdminApp());
 }
 
 export function getAdminFirestore() {

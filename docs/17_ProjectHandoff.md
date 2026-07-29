@@ -327,3 +327,25 @@ Product detail, and Pixel 7 acceptance explicitly opens Classification managemen
   - `npm.cmd run lint`: passed.
   - `npm.cmd run build`: passed, 31 routes.
 - If the next deployment still shows an unauthorized-domain message, add the exact tested Vercel host or canonical domain to Firebase Authentication authorized domains.
+
+## 2026-07-29 Product Publishing Runtime Follow-up
+
+- User confirmed Preview Google sign-in works, then asked whether the site cannot publish new Products.
+- Investigation found the likely blocker is server runtime, not ProductWorkspace UI:
+  - latest Preview logs still showed `firebase-admin/auth ERR_REQUIRE_ESM`;
+  - the failure occurred while loading shared server modules, before route business logic;
+  - affected examples included `/brand`, `/api/cart`, and Product detail routes, and owner-only Product APIs import the same auth boundary.
+- Code changes:
+  - `src/lib/firebase/admin.ts`: removed static `firebase-admin/auth` import and removed `getAdminAuth()`.
+  - `src/lib/firebase/serverAuth.ts`: replaced Admin Auth token verification with Firebase Identity Toolkit `accounts:lookup`, including Auth Emulator support through `FIREBASE_AUTH_EMULATOR_HOST`.
+  - `tests/unit/nextRuntimeConfig.test.ts`: added a regression test that fails if `firebase-admin/auth` is reintroduced into shared server Admin/Auth code.
+  - `docs/11_Changelog.md` and `docs/16_MVPCompletionPlan.md`: updated runtime-fix and next-step records.
+- Verification:
+  - `npm.cmd run test:unit -- tests/unit/nextRuntimeConfig.test.ts`: red before fix, green after fix; current result 23 files / 109 tests passed.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+
+### Next exact handoff step
+
+Commit and push the runtime fix. After Vercel Preview redeploys, verify `/brand` first. If `/brand` is fixed but Product publishing still fails, inspect Vercel function logs for Admin Firestore credential errors. That would indicate the remaining blocker is external Vercel OIDC / GCP Workload Identity or approved production Firebase credential setup, not a ProductWorkspace form bug.

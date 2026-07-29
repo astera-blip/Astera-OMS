@@ -345,3 +345,26 @@ If external Firebase/Resend/Vercel gates are still not ready:
 1. Do not invent external state.
 2. Prepare production deployment scripts/checklists only.
 3. Keep updating `docs/16_MVPCompletionPlan.md` and `docs/17_ProjectHandoff.md`.
+
+## 2026-07-29 Product Publishing Runtime Follow-up
+
+- Latest manual Preview state: Google sign-in works.
+- User asked whether new Product publishing is unavailable.
+- Preview logs showed `firebase-admin/auth ERR_REQUIRE_ESM` in shared server runtime paths. This likely blocks owner-only Product APIs before business logic.
+- Fix implemented:
+  - remove static `firebase-admin/auth` from `src/lib/firebase/admin.ts`;
+  - verify server Firebase ID tokens with Firebase Identity Toolkit `accounts:lookup` in `src/lib/firebase/serverAuth.ts`;
+  - keep custom claim `role === "owner"` checks;
+  - support Auth Emulator via `FIREBASE_AUTH_EMULATOR_HOST`;
+  - add regression coverage in `tests/unit/nextRuntimeConfig.test.ts`.
+- Validation passed:
+  - `npm.cmd run test:unit -- tests/unit/nextRuntimeConfig.test.ts`: 23 files / 109 tests;
+  - `npm.cmd run typecheck`;
+  - `npm.cmd run lint`;
+  - `npm.cmd run build`, 31 routes.
+- Next exact verification after push/deploy:
+  1. verify Preview `/brand` no longer 500;
+  2. sign in as Owner;
+  3. create/publish a Product;
+  4. confirm public projection appears in storefront.
+- If Product publishing still fails after `/brand` is fixed, check Vercel logs for Admin Firestore credential/OIDC errors. That is external environment setup, not ProductWorkspace UI.

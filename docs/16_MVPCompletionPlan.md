@@ -505,3 +505,30 @@ Deploy or merge `codex/mvp-completion` so production receives the Vercel runtime
   - `npm.cmd run build`: passed, 31 routes.
 
 If sign-in still fails after this deployment, the next exact check is Firebase Console → Authentication → Settings → Authorized domains. The tested Preview/Production host must be listed there.
+
+## 2026-07-29 Product Publishing Runtime Follow-up
+
+- Manual Preview testing confirmed Google sign-in now works, then raised the next concern: whether the site can publish new Products.
+- Root-cause check against latest Preview logs showed multiple server routes still failing before business logic with `firebase-admin/auth ERR_REQUIRE_ESM`, including `/brand`, `/api/cart`, and Product detail routes. Owner-only Product APIs would be affected by the same shared server Auth import.
+- Implemented a focused runtime fix:
+  - removed the static `firebase-admin/auth` import and `getAdminAuth()` export from `src/lib/firebase/admin.ts`;
+  - changed `src/lib/firebase/serverAuth.ts` to verify Firebase ID tokens through Firebase Identity Toolkit `accounts:lookup`;
+  - kept custom-claim owner checks using the verified token's `customAttributes.role`;
+  - preserved Auth Emulator support by using `FIREBASE_AUTH_EMULATOR_HOST` when present.
+- Added regression coverage in `tests/unit/nextRuntimeConfig.test.ts` so shared server Admin SDK code cannot reintroduce `firebase-admin/auth`.
+- Fresh validation for this runtime fix:
+  - `npm.cmd run test:unit -- tests/unit/nextRuntimeConfig.test.ts`: first failed as expected, then passed after the fix; current result 23 files / 109 tests passed.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+
+### Next exact Preview verification
+
+Deploy/push this fix, wait for the `codex/mvp-completion` Preview to become Ready, then test:
+
+1. open `/brand` and confirm it no longer returns 500;
+2. sign in as Owner;
+3. create a Product and verify the Product save API returns success;
+4. confirm the Product appears in `productsPublic`-backed storefront pages.
+
+If `/brand` is fixed but Product save still fails, the next exact check is Vercel runtime credentials for Admin Firestore: Vercel OIDC / GCP Workload Identity or another approved non-long-lived credential path must allow `getAdminFirestore()` to write `productsInternal`, `productVariants`, `saleCampaigns`, classifications, and `productsPublic`.

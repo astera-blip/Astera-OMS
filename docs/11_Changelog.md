@@ -2,6 +2,7 @@
 
 ## 2026-07-29
 
+- Removed `firebase-admin/auth` from shared server Admin SDK imports and moved server ID-token verification to Firebase Identity Toolkit REST so Vercel API routes no longer fail while loading Admin Auth.
 - Fixed Vercel runtime bundling for `firebase-admin` by explicitly keeping it external in server bundles.
 - Added Google sign-in redirect fallback and clearer Firebase Auth error messages for popup-blocked, closed-popup, unsupported-environment, and unauthorized-domain cases.
 - Improved buyer-facing storefront UX: Product listing loading/empty states no longer conflict, empty cart disables order creation, checkout fields have stable form attributes, homepage/brand/product/cart labels use consumer Chinese copy, and unset footer/contact values no longer display as low-trust placeholders.
