@@ -796,3 +796,33 @@ After it propagates:
 2. Decide whether the existing Preview test order can be created and later
    cancelled, or seed a dedicated disposable test product/member, before
    submitting Checkout. Do not create an accidental real operational order.
+
+## 2026-07-30 Cart cloud-hydration overwrite: fix pending Preview validation
+
+### Evidence
+
+- Although cart persistence first passed after a same-deployment reload, the
+  next deployment's first `/cart` visit showed an empty cart. This is a real
+  server-data-loss risk, not a display-only issue.
+- The browser sequence identified the race: initial React state is empty;
+  signed-in sync PUT runs before member-cart GET resolves; the empty PUT
+  overwrites the Firestore cart.
+
+### Pending source change
+
+- `src/lib/cart/clientCart.ts` adds pure
+  `shouldSyncCloudCart(memberUid, loadedMemberUid)`.
+- `CartBoard` tracks the member UID whose cloud cart has successfully loaded
+  and skips all signed-in writes until it matches the active Firebase user.
+  Anonymous local-cart saving remains unchanged; a user switch also remains
+  blocked until the new member hydrates.
+- `tests/unit/clientCart.test.ts` has red-green coverage for all three cases.
+  Cart unit tests (4), TypeScript, and ESLint passed.
+
+### Resume sequence
+
+1. Push hydration fix and wait for Preview.
+2. Re-add `92帽子`, reload `/cart` twice, and confirm it persists and renders
+   `92帽子` / `一般款` without internal IDs.
+3. Do not use this cart to create a non-disposable operational order until a
+   specific test-order cleanup approach is chosen.

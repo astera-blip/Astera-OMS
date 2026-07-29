@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
+import { mergeClientAndCloudCart, shouldSyncCloudCart } from "@/lib/cart/clientCart";
 import {
   currentLegalVersionIds,
   legalDocumentVersions,
@@ -35,9 +35,14 @@ export function CartBoard() {
   const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
   const [placingOrder, setPlacingOrder] = useState(false);
+  const [loadedMemberUid, setLoadedMemberUid] = useState<string | null>(null);
 
   useEffect(() => {
     async function syncCart() {
+      if (!shouldSyncCloudCart(user?.uid, loadedMemberUid)) {
+        return;
+      }
+
       if (!user) {
         saveAnonymousCart(cart);
         return;
@@ -57,11 +62,14 @@ export function CartBoard() {
     void syncCart().catch(() => {
       setMessage("購物車同步失敗，請確認網路後再試一次。");
     });
-  }, [cart, user]);
+  }, [cart, loadedMemberUid, user]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadFirestoreCart() {
       if (!user) {
+        setLoadedMemberUid(null);
         return;
       }
 
@@ -74,11 +82,19 @@ export function CartBoard() {
       }
       const payload = (await response.json()) as { items?: CartLineItem[] };
       const merged = mergeClientAndCloudCart(payload.items ?? [], loadAnonymousCart());
+      if (cancelled) {
+        return;
+      }
       setCart(merged);
       clearAnonymousCart();
+      setLoadedMemberUid(user.uid);
     }
 
     void loadFirestoreCart().catch(() => setMessage("無法載入購物車，請確認網路後再試一次。"));
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   useEffect(() => {

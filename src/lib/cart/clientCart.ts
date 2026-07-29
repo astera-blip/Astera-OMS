@@ -1,5 +1,12 @@
 import type { CartLineItem } from "@/lib/order/checkout";
 
+export function shouldSyncCloudCart(
+  memberUid: string | null | undefined,
+  loadedMemberUid: string | null,
+) {
+  return !memberUid || memberUid === loadedMemberUid;
+}
+
 export function mergeClientAndCloudCart(
   cloudItems: CartLineItem[],
   localItems: CartLineItem[],

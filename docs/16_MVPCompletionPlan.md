@@ -820,6 +820,34 @@ and verify profile, cart, and Owner Product writes.
    `一般款`, not document IDs.
 3. Then perform a separate validated Checkout smoke test without submitting a
    real order unless the test-data handling decision permits it.
+
+## 2026-07-30 Cart hydration overwrite defect
+
+### Reproduced runtime failure
+
+- The first full reload within the prior Preview retained the signed-in cart.
+  After the next Preview deployment, opening `/cart` rendered an empty cart.
+- Root cause: `CartBoard` initialized with an empty local cart and its sync
+  effect immediately issued `PUT /api/cart` before its member-cart `GET` had
+  completed. The empty write overwrote the valid Firestore cart.
+
+### Corrective change ready for Preview
+
+- Added `shouldSyncCloudCart(memberUid, loadedMemberUid)` and a
+  `loadedMemberUid` hydration guard. A signed-in cart cannot be written until
+  that same member's cloud cart GET completes successfully.
+- The guard also prevents the previous member's cart from being sent while a
+  different signed-in member is still loading.
+- Regression tests were written red first for pre-hydration, cross-member, and
+  anonymous behavior, then passed. Fresh checks passed: cart unit tests (4),
+  TypeScript, and ESLint.
+
+### Next exact step
+
+1. Push this change and wait for Preview.
+2. Add `92帽子` again (the accidental empty overwrite already happened), reload
+   `/cart` twice, and confirm it remains with public Product / Variant names.
+3. Only then resume Checkout testing with deliberate test-data handling.
 ## 2026-07-30 OIDC Runtime Verification Root Cause and Correction
 
 - Authenticated Preview verification reached the signed-in member profile form.
