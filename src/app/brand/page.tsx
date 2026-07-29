@@ -16,10 +16,12 @@ export default async function BrandPage() {
   const siteSettings = content.siteSettings;
   const visibleAnnouncements = content.announcements.filter((item) => item.status === "published");
   const visibleFaqs = sortBrandFaqs(content.faqs.filter((item) => item.status === "published"));
-  const visibleChannels = content.channels.filter((item) => item.status !== "disabled");
+  const visibleChannels = content.channels.filter(
+    (item) => item.status === "active" && item.url.trim().length > 0,
+  );
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#0f172a_0%,_#111827_48%,_#f8fafc_48%,_#f8fafc_100%)] text-slate-900">
+    <main className="min-h-dvh bg-[linear-gradient(180deg,_#0f172a_0%,_#111827_48%,_#f8fafc_48%,_#f8fafc_100%)] text-slate-900">
       <section className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 lg:px-10">
         <div className="rounded-[2rem] border border-slate-800 bg-slate-950 p-8 text-slate-50 shadow-[0_24px_80px_rgba(15,23,42,0.35)]">
           <p className="text-sm font-semibold text-amber-300">品牌中心</p>
@@ -48,29 +50,23 @@ export default async function BrandPage() {
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
           <section className="grid gap-4">
             {visibleChannels.map((channel) => (
-              channel.status === "active" && channel.url ? (
-                <a
-                  key={channel.key}
-                  href={channel.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
-                >
-                  <p className="text-sm font-medium text-slate-500">{channel.title}</p>
-                  <h2 className="mt-2 text-xl font-semibold">{channel.description}</h2>
-                  <p className="mt-3 text-sm text-slate-500">前往社群</p>
-                </a>
-              ) : (
-                <div key={channel.key} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="text-sm font-medium text-slate-500">{channel.title}</p>
-                  <h2 className="mt-2 text-xl font-semibold">{channel.description}</h2>
-                  <p className="mt-3 text-sm text-slate-500">目前暫不提供此社群入口。</p>
-                </div>
-              )
+              <a
+                key={channel.key}
+                href={channel.url}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
+              >
+                <p className="text-sm font-medium text-slate-500">{channel.title}</p>
+                <h2 className="mt-2 text-xl font-semibold">{channel.description}</h2>
+                <p className="mt-3 text-sm text-slate-500">前往社群</p>
+              </a>
             ))}
             {visibleChannels.length === 0 ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                目前暫不提供社群入口，請透過訂單頁或客服資訊聯繫。
+                {siteSettings?.contactEmail
+                  ? "如需協助，請查看品牌公告、登入後的訂單頁，或使用客服信箱聯繫我們。"
+                  : "如需協助，請查看品牌公告或登入後的訂單頁。"}
               </div>
             ) : null}
 
@@ -100,8 +96,8 @@ export default async function BrandPage() {
                 <p>{siteSettings?.shippingNote || "配送與付款說明會依商品與訂單狀態更新，若有問題請先查看訂單頁。"}</p>
               </div>
               <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                <Link className="underline underline-offset-4" href="/terms">服務條款</Link>
-                <Link className="underline underline-offset-4" href="/privacy">隱私權政策</Link>
+                <Link className="inline-flex min-h-11 items-center underline underline-offset-4" href="/terms">服務條款</Link>
+                <Link className="inline-flex min-h-11 items-center underline underline-offset-4" href="/privacy">隱私權政策</Link>
               </div>
             </div>
 

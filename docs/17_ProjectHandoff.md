@@ -407,3 +407,95 @@ are set, redeploy `codex/mvp-completion` and verify:
 1. member profile save succeeds;
 2. authenticated `/api/cart` read/write succeeds;
 3. Owner Product save succeeds and writes `productsPublic`.
+
+## 2026-07-29 GCloud Login Attempt
+
+- User approved direct computer assistance for Vercel OIDC / GCP Workload Identity.
+- Google Cloud SDK was found at:
+  `C:\Users\ting1\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`.
+- `gcloud --version` passed: Google Cloud SDK `578.0.0`.
+- No active gcloud account was found.
+- Started `gcloud auth login`; it opened Chrome to the Google OAuth consent flow.
+- Current blocker: `gcloud auth login` is still waiting for the browser OAuth callback. The user must complete Google account selection, 2FA if prompted, and consent approval. Codex must not enter passwords or verification codes.
+- Exact next step after the OAuth callback completes:
+
+```powershell
+& "C:\Users\ting1\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd" config set project astera-oms-prod
+.\scripts\setup-vercel-gcp-oidc.ps1 `
+  -ProjectId "astera-oms-prod" `
+  -ProjectNumber "1032606875618" `
+  -VercelProjectId "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"
+```
+
+- Then add the printed `GCP_*` and `GOOGLE_CLOUD_PROJECT` values to Vercel
+  Production and Preview, redeploy, and test member profile save, cart API, and
+  Owner Product save.
+
+## 2026-07-29 Manual UI/UX Follow-up
+
+### Files changed
+
+- `src/components/storefront/PublicProductsBoard.tsx`
+- `src/components/storefront/FeaturedProductsBoard.tsx`
+- `src/app/brand/page.tsx`
+- `src/components/storefront/StorefrontFooter.tsx`
+- `src/app/page.tsx`
+- `src/app/products/page.tsx`
+- `src/app/products/[id]/page.tsx`
+- `src/app/cart/page.tsx`
+- `src/app/payments/page.tsx`
+- `src/app/orders/page.tsx`
+- `src/app/orders/[id]/page.tsx`
+- `src/app/members/page.tsx`
+- `src/app/about/page.tsx`
+- `src/components/storefront/PaymentRequestsBoard.tsx`
+- `src/components/storefront/OrderDetailBoard.tsx`
+- `tests/e2e/public-smoke.spec.ts`
+
+### Completed behavior
+
+- Product-list and homepage-recommendation failures render an announced error
+  with a 44px `重新載入` control; loading, empty, and error states are mutually
+  exclusive.
+- Brand social cards render only active channels with non-empty URLs. The no-
+  channel fallback contains no `暫不提供` or Instagram placeholder.
+- Public route headings and visible transaction copy are buyer-facing Traditional
+  Chinese. Stored status, identifiers, and API payloads are unchanged.
+- Footer legal/navigation links, public product actions, product-detail links,
+  catalog filters, and reload controls have `min-h-11` touch targets.
+- Touched public route shells use `min-h-dvh`; empty-cart checkout remains
+  natively disabled and retains stable form attributes.
+
+### Test sequence and result
+
+1. New public UI regression tests failed as expected because `/brand` displayed
+   `目前暫不提供社群入口` and route shells displayed `Storefront`, `Checkout`,
+   `Cart`, and `Customer`.
+2. After the minimal UI changes, the focused customer-route suite passed:
+   **2 passed** (Desktop Chrome and Pixel 7).
+3. Focused empty-cart suite passed: **2 passed** (Desktop Chrome and Pixel 7).
+4. Full `tests/e2e/public-smoke.spec.ts` recorded `status: passed` with no
+   failed tests in `test-results/.last-run.json`.
+
+### Final validation
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run test:unit`: 24 files / 116 tests passed.
+- `npm.cmd run firebase:rules:test`: 2 files / 29 tests passed.
+- `npm.cmd run test:e2e -- tests/e2e/public-smoke.spec.ts --reporter=list`:
+  passed; `test-results/.last-run.json` reports no failed tests. The two
+  Emulator-only recommendation checks remain intentionally skipped in this
+  non-Emulator run.
+- `npm.cmd run build`: passed; Next.js 16 generated all 31 static/dynamic
+  application routes successfully.
+- `npm.cmd run test:e2e:emulated`: passed; Auth, Firestore, and Storage
+  Emulator run recorded no failed Playwright tests.
+- Independent code review after the final changes: no Critical or Important
+  issue remains.
+
+### Next exact step
+
+Commit/push only the Manual UI/UX Follow-up files. Do not stage the existing
+user modification in `AGENTS.md`. The preceding GCloud login/OIDC step remains
+independently pending.

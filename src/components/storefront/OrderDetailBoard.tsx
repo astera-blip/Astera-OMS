@@ -6,6 +6,12 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { createCancellationRequest, getPendingCancellationRequestId } from "@/lib/order/cancellation";
 import type { OrderBundle } from "@/lib/order/checkout";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
+import {
+  cancellationRequestStatusLabel,
+  orderItemStatusLabel,
+  orderStatusLabel,
+  shippingMethodLabel,
+} from "@/lib/storefront/customerLabels";
 
 type Props = {
   orderId: string;
@@ -143,7 +149,7 @@ export function OrderDetailBoard({ orderId }: Props) {
             : bundle,
         ),
       );
-      setMessage("已送出取消申請，等待 owner 審核。");
+      setMessage("已送出取消申請，等待客服審核。");
     } catch {
       setMessage("取消申請送出失敗，請稍後再試。");
     }
@@ -180,22 +186,22 @@ export function OrderDetailBoard({ orderId }: Props) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-              Order
+              訂單
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{order.order.id}</h2>
             <p className="mt-2 text-sm text-slate-600">
-              狀態：{order.order.status} · NT$ {order.order.totalTwd.toLocaleString()}
+              狀態：{orderStatusLabel(order.order.status)} · NT$ {order.order.totalTwd.toLocaleString()}
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-            {order.items.length} items
+            共 {order.items.length} 項商品
           </span>
         </div>
 
         <div className="mt-6 grid gap-3 rounded-3xl bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-2">
           <p>收件人：{order.order.recipientName}</p>
           <p>電話：{order.order.recipientPhone}</p>
-          <p>配送方式：{order.order.shippingMethod}</p>
+          <p>配送方式：{shippingMethodLabel(order.order.shippingMethod)}</p>
           {order.order.shippingAddress ? <p className="md:col-span-2">地址：{order.order.shippingAddress}</p> : null}
           {order.order.shippingStoreInfo ? <p className="md:col-span-2">門市資訊：{order.order.shippingStoreInfo}</p> : null}
         </div>
@@ -224,7 +230,7 @@ export function OrderDetailBoard({ orderId }: Props) {
                   <p className="mt-1 text-slate-600">
                     {item.snapshot.variantName} · {item.snapshot.sku} · 數量 {item.quantity}
                   </p>
-                  <p className="mt-1 text-slate-500">狀態：{item.status}</p>
+                  <p className="mt-1 text-slate-500">狀態：{orderItemStatusLabel(item.status)}</p>
                   {hasPendingRequest ? <p className="mt-1 text-xs text-amber-700">這個項目已有待審核取消申請。</p> : null}
                   {!canCancel ? <p className="mt-1 text-xs text-amber-700">此項目目前不可再次申請取消。</p> : null}
                 </div>
@@ -236,7 +242,7 @@ export function OrderDetailBoard({ orderId }: Props) {
 
       <aside className="grid gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Actions</p>
+          <p className="text-sm font-semibold text-slate-500">訂單操作</p>
           <h3 className="mt-2 text-2xl font-semibold">取消申請</h3>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             未付款項目可直接取消；已付款項目會送出取消申請，待客服審核退款資訊。
@@ -244,7 +250,7 @@ export function OrderDetailBoard({ orderId }: Props) {
           {existingRequest ? (
             <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
               <p className="font-medium">已送出取消申請</p>
-              <p className="mt-1">狀態：{existingRequest.status}</p>
+              <p className="mt-1">狀態：{cancellationRequestStatusLabel(existingRequest.status)}</p>
             </div>
           ) : user ? (
             <div className="mt-5 grid gap-3">

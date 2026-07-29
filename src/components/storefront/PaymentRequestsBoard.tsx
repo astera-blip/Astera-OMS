@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import { paymentRequestStatusLabel } from "@/lib/storefront/customerLabels";
 
 export function PaymentRequestsBoard() {
   const { user } = useAuth();
@@ -100,7 +101,7 @@ export function PaymentRequestsBoard() {
         throw new Error("report_failed");
       }
 
-      setMessage("已送出付款回報，等待 owner 對帳確認。");
+      setMessage("已送出付款回報，等待客服對帳確認。");
       setLast5("");
       setPayerName("");
       setMemberNote("");
@@ -198,11 +199,11 @@ export function PaymentRequestsBoard() {
               <div>
                 <h2 className="text-xl font-semibold">{request.id}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  訂單：{request.orderId} · 狀態：{request.status}
+                  訂單：{request.orderId} · 狀態：{paymentRequestStatusLabel(request.status)}
                 </p>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                bank transfer
+                銀行匯款
               </span>
             </div>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">

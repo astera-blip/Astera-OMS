@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { OrderBundle } from "@/lib/order/checkout";
+import { orderStatusLabel, shippingMethodLabel } from "@/lib/storefront/customerLabels";
 
 export function OrderHistoryBoard() {
   const { user } = useAuth();
@@ -71,10 +72,10 @@ export function OrderHistoryBoard() {
               <div>
                 <h2 className="text-xl font-semibold">{bundle.order.id}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  狀態：{bundle.order.status} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
+                  狀態：{orderStatusLabel(bundle.order.status)} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  收件人：{bundle.order.recipientName ?? "未填寫"} · {bundle.order.shippingMethod ?? "未選擇"}
+                  收件人：{bundle.order.recipientName ?? "未填寫"} · {shippingMethodLabel(bundle.order.shippingMethod)}
                 </p>
               </div>
               <div className="text-right">

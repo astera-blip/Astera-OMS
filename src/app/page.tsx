@@ -158,7 +158,7 @@ export default function Home() {
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold">下單前請確認</h2>
               <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
-                <li className="rounded-2xl bg-slate-50 p-4">商品、活動與結單資訊以後台發布資料為準</li>
+                <li className="rounded-2xl bg-slate-50 p-4">商品、活動與結單資訊以商品頁顯示為準</li>
                 <li className="rounded-2xl bg-slate-50 p-4">預購、代搶與候補商品可能因實際成本產生二補</li>
                 <li className="rounded-2xl bg-slate-50 p-4">未設定的社群入口不會顯示可點擊連結</li>
               </ul>

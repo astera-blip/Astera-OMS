@@ -582,3 +582,31 @@ Install or expose Google Cloud SDK `gcloud` on PATH, then run:
 Then add the printed `GCP_*` / `GOOGLE_CLOUD_PROJECT` values to Vercel Production
 and Preview, redeploy, and retest member profile save, cart API, and Owner
 Product save.
+
+## 2026-07-29 Manual UI/UX Follow-up
+
+- Completed buyer-facing manual-test fixes without changing Firestore
+  collections, product/cart data, prices, or checkout APIs:
+  - `/products` and homepage recommendations now separate loading, empty, and
+    error states; errors provide a 44px `重新載入` control.
+  - `/brand` renders social entries only when the channel is active and has a
+    URL. Unavailable-social and Instagram placeholder copy is not shown.
+  - Public route headings and transaction copy use buyer-facing Traditional
+    Chinese, replacing visible `Storefront`、`Checkout`、`Cart`、`Customer`、
+    `Owner`、`Order`、`Actions`、`items` and `bank transfer` wording.
+  - Footer/navigation/product controls use 44px touch targets, and touched
+    public route shells use `min-h-dvh` for mobile browser chrome stability.
+  - Empty-cart checkout stays natively disabled; browser coverage protects its
+    CTA and checkout form semantic attributes.
+- Regression evidence:
+  - `tests/e2e/public-smoke.spec.ts` failed before implementation because
+    `/brand` showed unavailable-social copy and public pages showed English
+    developer labels; it passed afterward for Desktop Chrome and Pixel 7.
+  - The focused empty-cart suite passed for Desktop Chrome and Pixel 7.
+- Final validation: `typecheck`, `lint`, and `build` passed; Unit Test passed
+  24 files / 116 tests; Firestore/Storage Rules passed 2 files / 29 tests;
+  full public Smoke and authenticated Emulator Playwright passed. The two
+  recommendation checks are intentionally skipped only outside Emulator mode.
+- Next local UI task: give authenticated payment, order-history, and order-detail
+  data boards the same retry/loading pattern, then validate through Emulator
+  Playwright. Preview testing of those writes remains gated by OIDC credentials.

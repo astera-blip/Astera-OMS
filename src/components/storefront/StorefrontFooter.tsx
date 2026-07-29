@@ -26,7 +26,7 @@ export async function StorefrontFooter() {
             {siteSettings?.brandName || "Astera"}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {siteSettings?.shippingNote || "配送與付款資訊整理中。"}
+            {siteSettings?.shippingNote || "配送與付款資訊會隨商品活動公告更新。"}
           </p>
         </div>
 
@@ -36,7 +36,7 @@ export async function StorefrontFooter() {
             {siteSettings?.contactEmail ? <p>客服信箱：{siteSettings.contactEmail}</p> : null}
             {siteSettings?.supportHours ? <p>回覆時間：{siteSettings.supportHours}</p> : null}
             {!siteSettings?.contactEmail && !siteSettings?.supportHours ? (
-              <p>如需協助，請先透過訂單頁或品牌中心查看最新聯繫方式。</p>
+              <p>如需協助，請查看品牌中心，或登入後從訂單頁聯繫我們。</p>
             ) : null}
           </div>
         </div>
@@ -51,7 +51,7 @@ export async function StorefrontFooter() {
                   href={channel.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-slate-700 underline decoration-slate-300 underline-offset-4"
+                  className="inline-flex min-h-11 items-center text-slate-700 underline decoration-slate-300 underline-offset-4"
                 >
                   {channel.title}
                 </a>
@@ -60,12 +60,12 @@ export async function StorefrontFooter() {
           </div>
         ) : null}
       </div>
-      <div className="mx-auto mt-6 flex max-w-7xl flex-wrap gap-4 text-xs text-slate-500">
-        <Link href="/brand">品牌中心</Link>
-        <Link href="/products">商品列表</Link>
-        <Link href="/cart">購物車</Link>
-        <Link href="/terms">服務條款</Link>
-        <Link href="/privacy">隱私權政策</Link>
+      <div className="mx-auto mt-6 flex max-w-7xl flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+        <Link className="inline-flex min-h-11 items-center underline decoration-slate-300 underline-offset-4" href="/brand">品牌中心</Link>
+        <Link className="inline-flex min-h-11 items-center underline decoration-slate-300 underline-offset-4" href="/products">商品列表</Link>
+        <Link className="inline-flex min-h-11 items-center underline decoration-slate-300 underline-offset-4" href="/cart">購物車</Link>
+        <Link className="inline-flex min-h-11 items-center underline decoration-slate-300 underline-offset-4" href="/terms">服務條款</Link>
+        <Link className="inline-flex min-h-11 items-center underline decoration-slate-300 underline-offset-4" href="/privacy">隱私權政策</Link>
       </div>
     </footer>
   );

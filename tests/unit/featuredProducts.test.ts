@@ -56,6 +56,13 @@ describe("featured products", () => {
     expect(rankFeaturedProducts(entries).some((entry) => entry.product.id === "0")).toBe(false);
   });
 
+  it("returns no recommendations when every published product only has archived campaigns", () => {
+    const archivedOnly = item("archived-campaign", "inStock", "2026-09-01T00:00:00.000Z", "2026-07-01");
+    archivedOnly.campaigns[0]!.status = "archived";
+
+    expect(rankFeaturedProducts([archivedOnly])).toEqual([]);
+  });
+
   it("uses customer-facing sale type labels", () => {
     expect(saleTypeCustomerLabels).toEqual({
       inStock: "現貨",
