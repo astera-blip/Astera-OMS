@@ -18,9 +18,30 @@ describe("shared UI accessibility contract", () => {
   it("announces checkout status and prevents duplicate order submission", () => {
     const cart = read("src/components/storefront/CartBoard.tsx");
     expect(cart).toContain("placingOrder");
-    expect(cart).toContain("disabled={placingOrder}");
+    expect(cart).toContain("isOrderDisabled");
+    expect(cart).toContain("disabled={isOrderDisabled}");
     expect(cart).toContain('aria-live="polite"');
     expect(cart).toContain("建立中…");
+    expect(cart).toContain("請先加入商品");
+  });
+
+  it("gives checkout fields stable form attributes", () => {
+    const cart = read("src/components/storefront/CartBoard.tsx");
+    for (const field of [
+      "recipientName",
+      "recipientPhone",
+      "shippingMethod",
+      "shippingAddress",
+      "shippingStoreInfo",
+      "acceptedLegalTerms",
+      "acceptedSupplementRule",
+    ]) {
+      expect(cart, field).toContain(`id="${field}"`);
+      expect(cart, field).toContain(`name="${field}"`);
+    }
+    expect(cart).toContain('autoComplete="name"');
+    expect(cart).toContain('autoComplete="tel"');
+    expect(cart).toContain('autoComplete="street-address"');
   });
 
   it("keeps compact workspace actions touch friendly", () => {

@@ -467,3 +467,24 @@ Last updated: 2026-07-29 Asia/Taipei
    phone acceptance.
 
 No remaining locally executable MVP implementation task is known.
+
+## 2026-07-29 Storefront Manual-Test Fixes
+
+- Verified the production `/brand` 500 is real on `https://astera-oms.vercel.app`; Vercel logs show the same `firebase-admin/auth ERR_REQUIRE_ESM` runtime issue. The code fix is on `codex/mvp-completion` but production remains old until the branch is deployed/merged.
+- Added `serverExternalPackages: ["firebase-admin"]` to `next.config.ts` and regression coverage in `tests/unit/nextRuntimeConfig.test.ts`.
+- Fixed storefront UX issues found during manual review:
+  - `/products` only shows product counts after catalog data is ready;
+  - empty catalog copy is consumer-facing and no longer mentions owner setup;
+  - `/cart` disables order creation when the cart is empty and shows `請先加入商品`;
+  - Cart recipient/shipping/consent fields now include stable `id`, `name`, and useful autocomplete attributes;
+  - homepage, brand page, Product listing/detail sidebars, and footer no longer expose buyer-visible system English labels such as `Shopping guide`, `Cart summary`, `Rules`, `Recipient`, or `Checkout`;
+  - Footer and Brand contact areas avoid `尚未設定` placeholders and show actionable fallback copy.
+- Fresh validation for this batch:
+  - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts tests/unit/productionDataSource.test.ts`: passed, 23 files / 107 tests.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+
+### Next exact production step
+
+Deploy or merge `codex/mvp-completion` so production receives the Vercel runtime fix. After deployment, rerun route smoke for `/`, `/products`, `/brand`, `/cart`, `/account/profile`, and `/workspace`.

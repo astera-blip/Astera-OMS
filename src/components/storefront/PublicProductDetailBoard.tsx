@@ -156,7 +156,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
         </div>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Public product</p>
+            <p className="text-sm font-semibold text-amber-700">商品詳情</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">{catalogItem.product.name}</h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{catalogItem.product.publicDescription}</p>
           </div>
@@ -215,7 +215,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
           <p>售價：NT$ {effectivePrice.toLocaleString()}</p>
           <p>
             販售類型：
-            {availableCampaign ? saleTypeCustomerLabels[availableCampaign.saleType] : "尚未設定"}
+            {availableCampaign ? saleTypeCustomerLabels[availableCampaign.saleType] : "暫無可購買活動"}
           </p>
           <p>二補提示：{availableCampaign?.requiresSupplement ? "需要" : "不需要"}</p>
           <p>狀態：{availableCampaign?.status ?? "未設定"}</p>
@@ -283,7 +283,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
 
       <aside className="grid gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Cart summary</p>
+          <p className="text-sm font-semibold text-slate-500">購物車摘要</p>
           <h2 className="mt-2 text-2xl font-semibold">購物車</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
           <div className="mt-4 grid gap-2 text-sm">

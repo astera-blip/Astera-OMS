@@ -45,7 +45,7 @@ export function PublicProductsBoard() {
   const [catalogState, setCatalogState] = useState<LoadState>("loading");
   const [filterKey, setFilterKey] = useState<FilterKey>("all");
   const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
-  const [message, setMessage] = useState("等待公開商品載入。");
+  const [message, setMessage] = useState("購物車會顯示你加入的商品。");
 
   useEffect(() => {
     async function syncCart() {
@@ -197,14 +197,14 @@ export function PublicProductsBoard() {
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">
-                Catalog
-              </p>
+              <p className="text-sm font-semibold text-amber-700">商品目錄</p>
               <h2 className="mt-1 text-xl font-semibold">商品分類</h2>
             </div>
-            <p className="text-sm text-slate-500">
-              {filteredCatalog.length} / {catalog.length} 筆
-            </p>
+            {catalogState === "ready" ? (
+              <p className="text-sm text-slate-500">
+                {filteredCatalog.length} / {catalog.length} 筆
+              </p>
+            ) : null}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {filterOptions.map((option) => (
@@ -235,7 +235,7 @@ export function PublicProductsBoard() {
           </div>
         ) : catalogState === "empty" ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-            目前沒有已發布的商品。請先由 owner 在後台建立真實商品。
+            目前沒有開放販售的商品，請稍後再回來看看。
           </div>
         ) : (
           featuredCatalog.map((item) => {
@@ -330,7 +330,7 @@ export function PublicProductsBoard() {
 
       <aside className="grid gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Cart summary</p>
+          <p className="text-sm font-semibold text-slate-500">購物車摘要</p>
           <h3 className="mt-2 text-2xl font-semibold">購物車</h3>
           <p className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
           <div className="mt-4 grid gap-2 text-sm">
@@ -349,7 +349,7 @@ export function PublicProductsBoard() {
           </Link>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-slate-50 shadow-sm">
-          <p className="text-sm font-medium text-slate-400">Rules</p>
+          <p className="text-sm font-medium text-slate-400">購買規則</p>
           <p className="mt-3 text-sm leading-6 text-slate-200">
             可將不同活動商品加入購物車；結帳時系統會依販售活動自動拆分訂單，並保留下單時的商品、規格與售價。
           </p>

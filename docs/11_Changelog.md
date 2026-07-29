@@ -2,6 +2,8 @@
 
 ## 2026-07-29
 
+- Fixed Vercel runtime bundling for `firebase-admin` by explicitly keeping it external in server bundles.
+- Improved buyer-facing storefront UX: Product listing loading/empty states no longer conflict, empty cart disables order creation, checkout fields have stable form attributes, homepage/brand/product/cart labels use consumer Chinese copy, and unset footer/contact values no longer display as low-trust placeholders.
 - Fixed ProductWorkspace product creation when optional classifications are unselected.
 - Defaulted new products to `published` and new Variant original currency to `THB`.
 - Prevented an empty authenticated cloud cart from clearing newly added local cart lines.

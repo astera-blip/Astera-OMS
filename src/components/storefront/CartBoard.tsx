@@ -97,6 +97,8 @@ export function CartBoard() {
   const legalDocuments = legalDocumentVersions.filter(
     (document) => document.documentType === "terms" || document.documentType === "privacy",
   );
+  const isCartEmpty = cart.length === 0;
+  const isOrderDisabled = placingOrder || isCartEmpty;
 
   function updateQuantity(index: number, quantity: number) {
     setCart((current) =>
@@ -207,9 +209,13 @@ export function CartBoard() {
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid gap-4">
-        {cart.length === 0 ? (
+        {isCartEmpty ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            購物車目前沒有商品。
+            <p className="font-medium text-slate-900">購物車目前沒有商品。</p>
+            <p className="mt-2 text-sm text-slate-600">請先加入商品，再回到這裡確認收件資料與建立訂單。</p>
+            <Link href="/products" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-slate-950 px-4 text-sm font-medium text-white">
+              前往商品列表
+            </Link>
           </div>
         ) : (
           cart.map((item, index) => (
@@ -226,6 +232,8 @@ export function CartBoard() {
               <div className="mt-4 flex items-center gap-3">
                 <label className="text-sm font-medium">數量</label>
                 <input
+                  id={`cartQuantity-${index}`}
+                  name={`cartQuantity-${index}`}
                   type="number"
                   min="1"
                   value={item.quantity}
@@ -240,28 +248,38 @@ export function CartBoard() {
 
       <aside className="grid gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Recipient</p>
+          <p className="text-sm font-semibold text-slate-500">收件資訊</p>
           <h3 className="mt-2 text-2xl font-semibold">收件資料</h3>
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-2 text-sm">
+            <label htmlFor="recipientName" className="grid gap-2 text-sm">
               <span className="font-medium">收件人姓名</span>
               <input
+                id="recipientName"
+                name="recipientName"
+                autoComplete="name"
                 value={recipientName}
                 onChange={(event) => setRecipientName(event.target.value)}
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               />
             </label>
-            <label className="grid gap-2 text-sm">
+            <label htmlFor="recipientPhone" className="grid gap-2 text-sm">
               <span className="font-medium">收件電話</span>
               <input
+                id="recipientPhone"
+                name="recipientPhone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={recipientPhone}
                 onChange={(event) => setRecipientPhone(event.target.value)}
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               />
             </label>
-            <label className="grid gap-2 text-sm">
+            <label htmlFor="shippingMethod" className="grid gap-2 text-sm">
               <span className="font-medium">配送方式</span>
               <select
+                id="shippingMethod"
+                name="shippingMethod"
                 value={shippingMethod}
                 onChange={(event) => setShippingMethod(event.target.value as typeof shippingMethod)}
                 className="rounded-2xl border border-slate-300 px-4 py-3"
@@ -272,18 +290,23 @@ export function CartBoard() {
               </select>
             </label>
             {shippingMethod === "address" ? (
-              <label className="grid gap-2 text-sm">
+              <label htmlFor="shippingAddress" className="grid gap-2 text-sm">
                 <span className="font-medium">收件地址</span>
                 <textarea
+                  id="shippingAddress"
+                  name="shippingAddress"
+                  autoComplete="street-address"
                   value={shippingAddress}
                   onChange={(event) => setShippingAddress(event.target.value)}
                   className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
                 />
               </label>
             ) : (
-              <label className="grid gap-2 text-sm">
+              <label htmlFor="shippingStoreInfo" className="grid gap-2 text-sm">
                 <span className="font-medium">超商門市資訊</span>
                 <textarea
+                  id="shippingStoreInfo"
+                  name="shippingStoreInfo"
                   value={shippingStoreInfo}
                   onChange={(event) => setShippingStoreInfo(event.target.value)}
                   className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
@@ -294,7 +317,7 @@ export function CartBoard() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Checkout</p>
+          <p className="text-sm font-semibold text-slate-500">購物車摘要</p>
           <h3 className="mt-2 text-2xl font-semibold">建立訂單</h3>
           <div className="mt-4 grid gap-2 text-sm">
             <p>項目數：{summary.itemCount}</p>
@@ -305,8 +328,10 @@ export function CartBoard() {
             </p>
           </div>
           <div className="mt-4 grid gap-3 text-sm text-slate-700">
-            <label className="flex items-start gap-3">
+            <label htmlFor="acceptedLegalTerms" className="flex items-start gap-3">
               <input
+                id="acceptedLegalTerms"
+                name="acceptedLegalTerms"
                 type="checkbox"
                 checked={acceptedLegalTerms}
                 onChange={(event) => setAcceptedLegalTerms(event.target.checked)}
@@ -330,8 +355,10 @@ export function CartBoard() {
                 </div>
               ))}
             </div>
-            <label className="flex items-start gap-3">
+            <label htmlFor="acceptedSupplementRule" className="flex items-start gap-3">
               <input
+                id="acceptedSupplementRule"
+                name="acceptedSupplementRule"
                 type="checkbox"
                 checked={acceptedSupplementRule}
                 onChange={(event) => setAcceptedSupplementRule(event.target.checked)}
@@ -352,10 +379,10 @@ export function CartBoard() {
           <button
             type="button"
             onClick={() => void placeOrder()}
-            disabled={placingOrder}
-            className="mt-5 min-h-11 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-wait disabled:opacity-60"
+            disabled={isOrderDisabled}
+            className="mt-5 min-h-11 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {placingOrder ? "建立中…" : "建立訂單"}
+            {placingOrder ? "建立中…" : isCartEmpty ? "請先加入商品" : "建立訂單"}
           </button>
           <p aria-live="polite" className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
         </div>

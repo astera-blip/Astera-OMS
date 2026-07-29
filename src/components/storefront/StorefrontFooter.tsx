@@ -34,8 +34,11 @@ export async function StorefrontFooter() {
         <div>
           <p className="text-sm font-semibold text-slate-950">客服資訊</p>
           <div className="mt-2 grid gap-1 text-sm leading-6 text-slate-600">
-            <p>客服信箱：{siteSettings?.contactEmail || "尚未設定"}</p>
-            <p>回覆時間：{siteSettings?.supportHours || "尚未設定"}</p>
+            {siteSettings?.contactEmail ? <p>客服信箱：{siteSettings.contactEmail}</p> : null}
+            {siteSettings?.supportHours ? <p>回覆時間：{siteSettings.supportHours}</p> : null}
+            {!siteSettings?.contactEmail && !siteSettings?.supportHours ? (
+              <p>如需協助，請先透過訂單頁或品牌中心查看最新聯繫方式。</p>
+            ) : null}
           </div>
         </div>
 
@@ -58,7 +61,7 @@ export async function StorefrontFooter() {
                 </a>
               ) : (
                 <span key={key} className="text-slate-500">
-                  {channel?.title || getChannelTitle(key)}：尚未開放
+                  {channel?.title || getChannelTitle(key)}：暫不提供
                 </span>
               );
             })}

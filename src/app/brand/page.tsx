@@ -22,7 +22,7 @@ export default async function BrandPage() {
     <main className="min-h-screen bg-[linear-gradient(180deg,_#0f172a_0%,_#111827_48%,_#f8fafc_48%,_#f8fafc_100%)] text-slate-900">
       <section className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 lg:px-10">
         <div className="rounded-[2rem] border border-slate-800 bg-slate-950 p-8 text-slate-50 shadow-[0_24px_80px_rgba(15,23,42,0.35)]">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-300">Brand center</p>
+          <p className="text-sm font-semibold text-amber-300">品牌中心</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
             {siteSettings?.heroTitle || "品牌中心"}
           </h1>
@@ -64,13 +64,13 @@ export default async function BrandPage() {
                 <div key={channel.key} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                   <p className="text-sm font-medium text-slate-500">{channel.title}</p>
                   <h2 className="mt-2 text-xl font-semibold">{channel.description}</h2>
-                  <p className="mt-3 text-sm text-slate-500">尚未開放</p>
+                  <p className="mt-3 text-sm text-slate-500">目前暫不提供此社群入口。</p>
                 </div>
               )
             ))}
             {visibleChannels.length === 0 ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                社群入口尚未開放。
+                目前暫不提供社群入口，請透過訂單頁或客服資訊聯繫。
               </div>
             ) : null}
 
@@ -95,9 +95,9 @@ export default async function BrandPage() {
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold">客服資訊</h2>
               <div className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
-                <p>客服信箱：{siteSettings?.contactEmail || "尚未設定"}</p>
-                <p>回覆時間：{siteSettings?.supportHours || "尚未設定"}</p>
-                <p>配送提示：{siteSettings?.shippingNote || "尚未設定"}</p>
+                {siteSettings?.contactEmail ? <p>客服信箱：{siteSettings.contactEmail}</p> : null}
+                {siteSettings?.supportHours ? <p>回覆時間：{siteSettings.supportHours}</p> : null}
+                <p>{siteSettings?.shippingNote || "配送與付款說明會依商品與訂單狀態更新，若有問題請先查看訂單頁。"}</p>
               </div>
               <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 <Link className="underline underline-offset-4" href="/terms">服務條款</Link>

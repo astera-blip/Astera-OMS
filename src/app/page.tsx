@@ -45,6 +45,21 @@ const quickLinks = [
   },
 ];
 
+const shoppingSteps = [
+  {
+    title: "查看開團商品",
+    detail: "商品頁會列出規格、售價、結單時間與二補提醒。",
+  },
+  {
+    title: "加入購物車並下單",
+    detail: "可先加入不同活動商品；結帳時系統會依活動拆分訂單。",
+  },
+  {
+    title: "完成銀行匯款",
+    detail: "付款後請回報日期、金額、帳號末五碼與匯款人，方便對帳。",
+  },
+];
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.24),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(15,23,42,0.12),_transparent_24%),linear-gradient(180deg,_#fffaf0_0%,_#f8fafc_45%,_#eef2ff_100%)] text-slate-900">
@@ -64,7 +79,7 @@ export default function Home() {
         <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[1.35fr_0.85fr]">
           <section className="flex flex-col gap-6">
             <div className="rounded-[2rem] border border-amber-200 bg-white/90 p-7 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-              <p className="text-sm font-medium text-amber-700">Astera Goods</p>
+              <p className="text-sm font-medium text-amber-700">Astera 代購</p>
               <p className="mt-4 max-w-3xl text-2xl font-semibold leading-10 sm:text-4xl">
                 泰國 GL / 藝人周邊代購，從商品資訊、下單到匯款回報都集中整理。
               </p>
@@ -72,6 +87,11 @@ export default function Home() {
                 你可以先查看已開放商品與活動，確認規格、價格、結單時間與二補提醒後加入購物車。
                 下單後請依付款請求完成銀行匯款，並在付款頁回報匯款資訊。
               </p>
+              <div className="mt-5 grid gap-3 text-sm leading-6 text-slate-700 sm:grid-cols-3">
+                <p className="rounded-2xl bg-amber-50 p-4">付款方式：銀行匯款</p>
+                <p className="rounded-2xl bg-amber-50 p-4">結單與到貨：依商品活動公告</p>
+                <p className="rounded-2xl bg-amber-50 p-4">客服入口：品牌中心與訂單頁</p>
+              </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/products"
@@ -120,32 +140,18 @@ export default function Home() {
 
           <aside className="flex flex-col gap-6">
             <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
-              <p className="text-sm font-medium text-slate-400">Shopping guide</p>
+              <p className="text-sm font-medium text-slate-400">購買流程</p>
               <div className="mt-5 grid gap-4">
-                <div className="rounded-2xl bg-white/6 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Products
+                {shoppingSteps.map((step) => (
+                <div key={step.title} className="rounded-2xl bg-white/6 p-4">
+                  <p className="text-xs font-semibold text-amber-300">
+                    {step.title}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-200">
-                    商品列表只顯示已開放的商品與活動；已封存或未發布商品不會出現在前台。
+                    {step.detail}
                   </p>
                 </div>
-                <div className="rounded-2xl bg-white/6 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Checkout
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
-                    購物車可加入不同活動商品；系統會依活動拆分訂單與付款請求。
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white/6 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Payment
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
-                    目前採銀行匯款。付款後請回報日期、金額、帳號末五碼與匯款人。
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
 

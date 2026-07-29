@@ -296,3 +296,19 @@ must not be staged.
 Final code review findings were resolved before handoff: nested public records are
 checked for private fields, production smoke fails without a discoverable public
 Product detail, and Pixel 7 acceptance explicitly opens Classification management.
+
+## 2026-07-29 Storefront Manual-Test Follow-up
+
+- Confirmed production `/brand` currently returns 500 because production is still on an older deployment with `firebase-admin/auth ERR_REQUIRE_ESM`.
+- Pushed the runtime fix to `codex/mvp-completion` as commit `f82b032`: `next.config.ts` now explicitly sets `serverExternalPackages: ["firebase-admin"]`.
+- Completed the buyer-facing UI fixes requested after manual testing:
+  - Product list loading and empty states are separated.
+  - Empty cart disables `建立訂單` and displays `請先加入商品`.
+  - Cart checkout fields have stable `id`/`name` plus relevant autocomplete attributes.
+  - Storefront visible English labels and low-trust `尚未設定` fallbacks were replaced with consumer-facing Chinese copy.
+- Validation for the follow-up batch:
+  - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts tests/unit/productionDataSource.test.ts`: passed, 23 files / 107 tests.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+- Remaining action: production must be redeployed from `codex/mvp-completion` or after merging it to `main`; otherwise `https://astera-oms.vercel.app` will continue serving the older `/brand` 500 deployment.

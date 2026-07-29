@@ -43,4 +43,32 @@ describe("production data-source boundary", () => {
 
     expect(sources).not.toMatch(/Phase [24]|Firestore \/ API|不同 sale type/);
   });
+
+  it("keeps buyer storefront copy consumer-facing", () => {
+    const sources = [
+      "src/app/page.tsx",
+      "src/app/brand/page.tsx",
+      "src/components/storefront/PublicProductsBoard.tsx",
+      "src/components/storefront/PublicProductDetailBoard.tsx",
+      "src/components/storefront/CartBoard.tsx",
+      "src/components/storefront/StorefrontFooter.tsx",
+    ]
+      .map((file) => readFileSync(resolve(file), "utf8"))
+      .join("\n");
+
+    expect(sources).not.toMatch(/Small-circle MVP|Current status|custom claim|owner email|Owner 後台|尚未設定|請先由 owner/);
+    for (const visibleText of [
+      "Brand center",
+      "Shopping guide",
+      "Cart summary",
+      "Rules",
+      ">Recipient<",
+      ">Checkout<",
+      ">Catalog<",
+      ">Products<",
+      ">Payment<",
+    ]) {
+      expect(sources, visibleText).not.toContain(visibleText);
+    }
+  });
 });
