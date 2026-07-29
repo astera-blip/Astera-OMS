@@ -826,3 +826,16 @@ After it propagates:
    `92帽子` / `一般款` without internal IDs.
 3. Do not use this cart to create a non-disposable operational order until a
    specific test-order cleanup approach is chosen.
+
+### Preview validation completed
+
+- Deployment `dpl_4yxfij3Hc9csf2GaQsQhamvPxEgV` is Ready.
+- The signed-in test flow added `92帽子` after the hydration fix, navigated to
+  `/cart`, and reloaded the page twice. The server-backed cart retained the
+  item each time and rendered buyer labels `92帽子` / `一般款`, NT$520,
+  Preorder. No internal document IDs were visible.
+- Member profile save, Owner Product save/projection, and cart write/read
+  persistence are now verified on the stable Vercel OIDC Preview.
+- Next operational test remains Checkout. It requires an explicit disposable
+  test-order / cancellation-cleanup decision; do not create a real order merely
+  for smoke testing.

@@ -848,6 +848,14 @@ and verify profile, cart, and Owner Product writes.
 2. Add `92帽子` again (the accidental empty overwrite already happened), reload
    `/cart` twice, and confirm it remains with public Product / Variant names.
 3. Only then resume Checkout testing with deliberate test-data handling.
+
+### Preview validation completed
+
+- Preview deployment `dpl_4yxfij3Hc9csf2GaQsQhamvPxEgV` reached Ready.
+- The member added `92帽子` again, then `/cart` was reloaded twice. The cart
+  retained one item and displayed `92帽子` / `一般款`, total NT$520, Preorder.
+- The hydration guard therefore prevents the empty initial state from
+  overwriting Firestore, and the buyer-facing cart label fix is verified.
 ## 2026-07-30 OIDC Runtime Verification Root Cause and Correction
 
 - Authenticated Preview verification reached the signed-in member profile form.
