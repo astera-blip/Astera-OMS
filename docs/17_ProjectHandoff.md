@@ -694,3 +694,41 @@ After it propagates:
 - Exact resume: deploy this diagnostic revision, submit the same non-personal
   test profile once, run `vercel logs <new-deployment> --since 15m --expand`,
   then fix only the reported error.
+
+## 2026-07-30 Active work: Firebase Admin OIDC runtime compatibility
+
+### Evidence recorded
+
+- Stable Preview member-profile submission reproduced after the GCP issuer and
+  audience correction. The precise Function diagnostic is:
+  `Failed to initialize Google Cloud Firestore client with the available
+  credentials. Must initialize the SDK with a certificate credential or
+  application default credentials to use Cloud Firestore API.`
+- The exception occurs inside Firebase Admin Firestore initialization, before a
+  Firestore data request or IAM role check. It is not caused by profile fields,
+  including the optional blank birthday.
+
+### Pending deployment change
+
+- Replaced the unsupported custom `IdentityPoolClient` Firebase credential in
+  `src/lib/firebase/admin.ts` with Firebase Admin `applicationDefault()` backed
+  by an ephemeral Vercel OIDC external-account configuration and subject-token
+  file in the Function temp directory.
+- The implementation continues to use the existing GCP Workload Identity Pool,
+  provider, and service account. It does not create, store, or require a
+  service-account private key.
+- Regression source assertion changed in
+  `tests/unit/nextRuntimeConfig.test.ts`; it was red before the implementation
+  and green afterwards. Fresh local checks passed: Unit 24 files / 120 tests,
+  TypeScript, ESLint.
+
+### Resume sequence
+
+1. Push this change on `codex/mvp-completion` (keep user-owned `AGENTS.md`
+   unstaged).
+2. Wait for the new branch Preview to be Ready and use the existing
+   Firebase-authorized stable alias.
+3. Save the same non-personal member profile; success must redirect to `/`.
+4. Continue with cart create/reload persistence, then Owner Product save and
+   `productsPublic` projection verification. Capture Function logs before any
+   further external/IAM change if a route fails.

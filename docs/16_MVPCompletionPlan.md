@@ -717,6 +717,43 @@ and verify profile, cart, and Owner Product writes.
   profile save, cart update, and Owner Product save. This is the first runtime
   proof that Vercel can exchange its OIDC token and call Firestore. Do not
   promote to Production before these three tests pass.
+
+## 2026-07-30 Runtime verification: Firebase Admin OIDC compatibility correction
+
+### Reproduced failure and root cause
+
+- On Preview deployment `dpl_5LiQ4kpw5HbEwVTLX4qJP7151cXW`, the signed-in
+  member profile form again failed using the non-personal verification values
+  `測試`, `preview-oidc-test`, and `0900000000` (birthday blank).
+- The safe diagnostic log recorded:
+  `Failed to initialize Google Cloud Firestore client with the available
+  credentials. Must initialize the SDK with a certificate credential or
+  application default credentials to use Cloud Firestore API.`
+- This proves the provider issuer/audience correction is not the failing layer.
+  Firebase Admin 14 rejects the custom `IdentityPoolClient` wrapper before any
+  Firestore request or IAM data-permission check occurs.
+
+### Corrective change ready for Preview
+
+- `src/lib/firebase/admin.ts` now writes the short-lived Vercel OIDC subject
+  token and external-account configuration only to the isolated runtime temp
+  directory, then initializes Firebase Admin via `applicationDefault()`.
+- No long-lived service-account key is introduced. The subject-token file is
+  refreshed before later Firestore/Storage calls so a warm Function can use a
+  newly issued Vercel OIDC token.
+- `tests/unit/nextRuntimeConfig.test.ts` was updated red first to require this
+  Firebase-Admin-compatible credential path, then passed after implementation.
+- Fresh local verification passed: Unit tests **24 files / 120 tests**,
+  TypeScript, and ESLint.
+
+### Next exact step
+
+1. Commit and push this source/docs change, then wait for the branch-stable
+   Preview alias to point to its Ready deployment.
+2. Repeat the same profile save. Expected result: a redirect to `/`.
+3. If it succeeds, continue directly with cart persistence, then Owner Product
+   API/projection verification. If it fails, read only the new Vercel Function
+   log before changing any IAM configuration.
 ## 2026-07-30 OIDC Runtime Verification Root Cause and Correction
 
 - Authenticated Preview verification reached the signed-in member profile form.

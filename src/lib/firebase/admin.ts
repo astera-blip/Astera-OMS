@@ -1,13 +1,26 @@
 import "server-only";
 
-import { readFileSync } from "node:fs";
-import { getVercelOidcToken } from "@vercel/oidc";
-import { cert, getApps, initializeApp, type App, type Credential } from "firebase-admin/app";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getVercelOidcTokenSync } from "@vercel/oidc";
+import {
+  applicationDefault,
+  cert,
+  getApps,
+  initializeApp,
+  type App,
+  type Credential,
+} from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { IdentityPoolClient } from "google-auth-library";
 
 let adminApp: App | null = null;
+let usingVercelOidc = false;
+
+const vercelOidcDirectory = join(tmpdir(), "astera-oms-vercel-oidc");
+const vercelOidcSubjectTokenPath = join(vercelOidcDirectory, "subject-token.jwt");
+const vercelOidcCredentialPath = join(vercelOidcDirectory, "external-account.json");
 
 function loadServiceAccount() {
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -45,40 +58,44 @@ function getVercelOidcCredential(): Credential | null {
 
   const audience = process.env.GCP_WORKLOAD_IDENTITY_AUDIENCE
     ?? `//iam.googleapis.com/projects/${projectNumber}/locations/global/workloadIdentityPools/${poolId}/providers/${providerId}`;
-  const client = new IdentityPoolClient({
+  mkdirSync(vercelOidcDirectory, { recursive: true });
+  chmodSync(vercelOidcDirectory, 0o700);
+  writeFileSync(vercelOidcSubjectTokenPath, getVercelOidcTokenSync(), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  writeFileSync(vercelOidcCredentialPath, JSON.stringify({
     type: "external_account",
     audience,
     subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
     token_url: "https://sts.googleapis.com/v1/token",
     service_account_impersonation_url:
       `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${serviceAccountEmail}:generateAccessToken`,
-    service_account_impersonation: {
-      token_lifetime_seconds: 3600,
+    credential_source: {
+      file: vercelOidcSubjectTokenPath,
+      format: {
+        type: "text",
+      },
     },
-    scopes: [
-      "https://www.googleapis.com/auth/cloud-platform",
-      "https://www.googleapis.com/auth/datastore",
-      "https://www.googleapis.com/auth/devstorage.read_write",
-    ],
-    subject_token_supplier: {
-      getSubjectToken: () => getVercelOidcToken(),
-    },
+  }), { encoding: "utf8", mode: 0o600 });
+
+  // Firestore only accepts Firebase Admin's official credential classes. The
+  // generated external-account file lets applicationDefault() use Vercel's
+  // short-lived OIDC token without storing a service-account private key.
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = vercelOidcCredentialPath;
+  usingVercelOidc = true;
+  return applicationDefault();
+}
+
+function refreshVercelOidcSubjectToken() {
+  if (!usingVercelOidc) {
+    return;
+  }
+
+  writeFileSync(vercelOidcSubjectTokenPath, getVercelOidcTokenSync(), {
+    encoding: "utf8",
+    mode: 0o600,
   });
-
-  return {
-    async getAccessToken() {
-      const response = await client.getAccessToken();
-
-      if (!response.token) {
-        throw new Error("vercel_oidc_access_token_missing");
-      }
-
-      return {
-        access_token: response.token,
-        expires_in: 3600,
-      };
-    },
-  };
 }
 
 function getProjectId() {
@@ -97,6 +114,7 @@ function getStorageBucket() {
 
 export function getAdminApp() {
   if (adminApp) {
+    refreshVercelOidcSubjectToken();
     return adminApp;
   }
 
@@ -126,10 +144,12 @@ export function getAdminApp() {
 }
 
 export function getAdminFirestore() {
+  refreshVercelOidcSubjectToken();
   return getFirestore(getAdminApp());
 }
 
 export function getAdminStorage() {
+  refreshVercelOidcSubjectToken();
   return getStorage(getAdminApp());
 }
 
