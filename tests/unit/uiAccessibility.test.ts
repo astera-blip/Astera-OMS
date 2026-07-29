@@ -25,6 +25,16 @@ describe("shared UI accessibility contract", () => {
     expect(cart).toContain("請先加入商品");
   });
 
+  it("shows buyer-facing product and variant names in cart lines", () => {
+    const cart = read("src/components/storefront/CartBoard.tsx");
+
+    expect(cart).toContain("findCatalogItem");
+    expect(cart).toContain("product?.product.name");
+    expect(cart).toContain("variant?.name");
+    expect(cart).not.toContain("{item.productId}</h2>");
+    expect(cart).not.toContain("Variant {item.variantId}");
+  });
+
   it("gives checkout fields stable form attributes", () => {
     const cart = read("src/components/storefront/CartBoard.tsx");
     for (const field of [

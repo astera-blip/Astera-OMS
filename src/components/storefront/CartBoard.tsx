@@ -14,7 +14,7 @@ import {
   type CartLineItem,
   validateShippingDetails,
 } from "@/lib/order/checkout";
-import type { PublicCatalogItem } from "@/lib/catalog/publicCatalog";
+import { findCatalogItem, type PublicCatalogItem } from "@/lib/catalog/publicCatalog";
 import {
   clearAnonymousCart,
   loadAnonymousCart,
@@ -218,31 +218,36 @@ export function CartBoard() {
             </Link>
           </div>
         ) : (
-          cart.map((item, index) => (
-            <article key={`${item.productId}-${item.variantId}-${item.saleCampaignId}`} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold">{item.productId}</h2>
-                  <p className="text-sm text-slate-600">Variant {item.variantId}</p>
+          cart.map((item, index) => {
+            const product = findCatalogItem(catalog, item.productId);
+            const variant = product?.variants.find((entry) => entry.id === item.variantId);
+
+            return (
+              <article key={`${item.productId}-${item.variantId}-${item.saleCampaignId}`} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">{product?.product.name ?? "商品資訊載入中"}</h2>
+                    <p className="text-sm text-slate-600">{variant?.name ?? "商品規格資訊載入中"}</p>
+                  </div>
+                  <button type="button" onClick={() => removeItem(index)} className="text-sm font-medium text-red-700">
+                    移除
+                  </button>
                 </div>
-                <button type="button" onClick={() => removeItem(index)} className="text-sm font-medium text-red-700">
-                  移除
-                </button>
-              </div>
-              <div className="mt-4 flex items-center gap-3">
-                <label className="text-sm font-medium">數量</label>
-                <input
-                  id={`cartQuantity-${index}`}
-                  name={`cartQuantity-${index}`}
-                  type="number"
-                  min="1"
-                  value={item.quantity}
-                  onChange={(event) => updateQuantity(index, Number(event.target.value))}
-                  className="w-24 rounded-2xl border border-slate-300 px-3 py-2"
-                />
-              </div>
-            </article>
-          ))
+                <div className="mt-4 flex items-center gap-3">
+                  <label className="text-sm font-medium">數量</label>
+                  <input
+                    id={`cartQuantity-${index}`}
+                    name={`cartQuantity-${index}`}
+                    type="number"
+                    min="1"
+                    value={item.quantity}
+                    onChange={(event) => updateQuantity(index, Number(event.target.value))}
+                    className="w-24 rounded-2xl border border-slate-300 px-3 py-2"
+                  />
+                </div>
+              </article>
+            );
+          })
         )}
       </div>
 

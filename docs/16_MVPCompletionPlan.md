@@ -790,6 +790,36 @@ and verify profile, cart, and Owner Product writes.
    and price in `/products`.
 3. Add it to the signed-in cart, reload, and confirm the saved cart item
    remains. Do not proceed to Checkout until this persistence test passes.
+
+## 2026-07-30 Manual Preview cart persistence verification
+
+### Passed runtime checks
+
+- The signed-in member added `92帽子` to cart; the storefront summary showed one
+  item, NT$520, and Preorder.
+- After navigating to `/cart` and performing a full reload, the server-backed
+  cart still contained the item. This is direct evidence that the protected
+  `/api/cart` write/read path works with Vercel OIDC and Firestore.
+
+### Defect found and source fix ready for Preview
+
+- The saved cart row displayed internal IDs (`prod_002`, `var_002`) instead of
+  the public Product and Variant names. This exposes implementation details and
+  prevents a member from confidently checking the item.
+- `CartBoard` now resolves each cart line against the already loaded public
+  catalog and displays the Product / Variant names. During initial catalog load
+  it uses a buyer-facing loading label rather than an internal ID.
+- A red-green UI regression test requires those public names and rejects the
+  former internal-ID markup. Fresh checks passed: focused UI unit tests (9),
+  TypeScript, and ESLint.
+
+### Next exact step
+
+1. Push this cart display fix and wait for Preview.
+2. Reload `/cart` with the persisted item; it must display `92帽子` and
+   `一般款`, not document IDs.
+3. Then perform a separate validated Checkout smoke test without submitting a
+   real order unless the test-data handling decision permits it.
 ## 2026-07-30 OIDC Runtime Verification Root Cause and Correction
 
 - Authenticated Preview verification reached the signed-in member profile form.

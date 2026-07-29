@@ -768,3 +768,31 @@ After it propagates:
 3. Confirm `/products` shows Campaign `92帽子預購`, price NT$520 and permits
    adding the item to the signed-in cart; reload `/cart` to verify persistence.
 4. Record the result before testing Checkout, payment, or cancellation.
+
+## 2026-07-30 Cart persistence passed; buyer-facing item label defect
+
+### Runtime result
+
+- Preview cart write and reload persistence passed for signed-in member
+  `astera.0920@gmail.com`: one `92帽子` Preorder item, total NT$520, remains
+  after navigating to `/cart` and reloading.
+- This is the first verified member profile + cart + Owner Product protected
+  Firestore runtime path on the Vercel OIDC Preview.
+
+### Pending source change
+
+- Cart row UI exposed `prod_002` and `var_002`, rather than buyer-facing
+  names. `src/components/storefront/CartBoard.tsx` now resolves the saved line
+  against `productsPublic` catalog data and renders Product / Variant names,
+  with a safe loading label while catalog data is unavailable.
+- `tests/unit/uiAccessibility.test.ts` gained a red-green regression assertion
+  that rejects the former internal-ID markup. Focused UI tests (9), TypeScript,
+  and ESLint passed.
+
+### Resume sequence
+
+1. Push cart label fix, wait for Preview, reload `/cart` and verify `92帽子` /
+   `一般款` are rendered.
+2. Decide whether the existing Preview test order can be created and later
+   cancelled, or seed a dedicated disposable test product/member, before
+   submitting Checkout. Do not create an accidental real operational order.
