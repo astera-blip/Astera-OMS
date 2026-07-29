@@ -396,3 +396,74 @@ Last updated: 2026-07-29 Asia/Taipei
 - Implementation plan: `docs/superpowers/plans/2026-07-29-mvp-local-completion.md`
 - The plan consolidates the twelve remaining locally executable areas into thirteen independently verifiable tasks.
 - Ordering prevents duplicate edits by establishing CI/environment guards first, combining fallback cleanup with transaction-boundary work, combining ProductWorkspace with Classification, and completing the Product image contract before storefront/homepage rendering.
+
+## 2026-07-29 06:49 Execution Update
+
+- Tasks 1–10 are implemented, verified, and committed on `codex/mvp-completion`.
+- Task 8 evidence: Unit 89/89, Rules 29/29, member desktop/Pixel 7 E2E 4/4, TypeScript, ESLint, and build passed.
+- Task 9 evidence: legal Unit 3/3, public desktop/Pixel 7 E2E 8 passed with 2 emulator-only skips, TypeScript, ESLint, and build passed.
+- Task 10 evidence: full Unit 93/93, TypeScript, ESLint, and build passed. Real Resend delivery remains externally gated by DNS/API key.
+- Task 11 is in progress: workspace navigation/status copy is bilingual/Chinese and `tests/e2e/workspace-mobile-acceptance.spec.ts` has been added; TypeScript and ESLint pass. The new acceptance test and full suite still need execution before Task 11 can be committed.
+- Tasks 12–13 remain pending.
+
+### Next exact steps
+
+1. Start Auth/Firestore/Storage Emulators, run `node scripts/run-playwright-emulated.mjs tests/e2e/workspace-mobile-acceptance.spec.ts`, fix any overflow, then run the full regular and emulated Playwright suites.
+2. Run Unit, Rules, TypeScript, ESLint, and build; commit Task 11 as `fix: complete desktop and mobile acceptance`.
+3. Implement Task 12 read-only production readiness scripts/SOP with tests.
+4. Run Task 13 full verification, update all handoff documents, commit, and push.
+
+### 2026-07-29 07:14 Task 11 update
+
+- UI/UX high-priority shared foundation is implemented and locally checked: focus-visible, skip link, route focus target, reduced motion, Checkout submission lock/live status, 44px Product/Image actions, and root `min-h-dvh`.
+- `tests/unit/uiAccessibility.test.ts` passes 3/3; TypeScript and ESLint pass.
+- Task 11 remains in progress until all async operations receive the same treatment and the complete desktop/Pixel 7 suites pass.
+
+### 2026-07-29 07:17 Task 12/13 status
+
+- Task 12 has started with backup-path isolation (`.local-backups/` ignored), but its scripts, tests, and SOP are still pending.
+- Task 13 remains blocked by incomplete Task 11/12 verification; do not report the local MVP as complete.
+
+### 2026-07-29 07:21 verification evidence
+
+- Task 11 TypeScript, ESLint, and Unit (21 files / 96 tests) pass.
+- Production build must be rerun because only compilation and the start of its TypeScript phase were captured.
+- Rules, regular Playwright, emulated Playwright, Task 12 implementation, and Task 13 finalization remain pending.
+
+## 2026-07-29 07:49 Final Local Completion
+
+- Tasks 1–13 in
+  `docs/superpowers/plans/2026-07-29-mvp-local-completion.md` are complete locally.
+- Task 11 committed as `9c9104f`; stateful Emulator E2E now uses one worker
+  because it shares seeded Firebase state.
+- Task 12 committed as `ae32900`; added three read-only production commands,
+  6 contract tests, Deployment/Test Plan updates, and the backup/sync SOP.
+- Final review fixes committed as `e84047f`; production tool coverage is now
+  8 contract tests and Pixel 7 explicitly covers Classification management.
+- Final verification:
+  - secret scan: passed, no obvious secrets;
+  - production dependency audit: 0 vulnerabilities;
+  - TypeScript and ESLint: passed;
+  - Unit: 22 files / 104 tests passed;
+  - Firestore + Storage Rules: 2 files / 29 tests passed;
+  - Next.js build: passed, 31 application routes;
+  - regular desktop/Pixel 7 Playwright: 10 passed, 18 emulator-only skips;
+  - authenticated Emulator desktop/Pixel 7 Playwright: 25 passed, 3
+    mode-specific skips.
+- Non-blocking local warnings: Firebase Admin attempted metadata discovery without
+  a cloud metadata server, and Playwright reported `NO_COLOR` overridden by
+  `FORCE_COLOR`. Neither affected exit status or assertions.
+
+### Remaining external production gates
+
+1. Enable Firebase Blaze and create development/production Storage buckets.
+2. Configure Vercel OIDC → GCP Workload Identity and production environment values.
+3. Deploy tested Firestore/Storage Rules to development, then production.
+4. Back up production and run the read-only Product audit; re-save formal Products
+   through the Owner API and verify `productsInternal → productsPublic`.
+5. Verify `updates.asteratw.com`, set Resend production credentials, and prove
+   actual delivery.
+6. Confirm final legal wording, domain/DNS, production smoke, Pixel 7, and physical
+   phone acceptance.
+
+No remaining locally executable MVP implementation task is known.

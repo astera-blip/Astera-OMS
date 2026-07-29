@@ -145,3 +145,29 @@
 **Currency Labels:** New Variants continue to default to THB and allow `THB（泰銖）`, `TWD（新台幣）`, `JPY（日圓）`, `KRW（韓元）`, and `USD（美元）`.
 
 **Impact:** Internal notes remain private and excluded from `productsPublic`. Currency storage remains unchanged.
+
+## 2026-07-29: Serialize stateful Firebase Emulator acceptance tests
+
+**Decision:** Playwright keeps normal anonymous smoke tests parallel, but runs
+Auth/Firestore/Storage Emulator acceptance with one worker.
+
+**Reason:** Emulator flows intentionally share seeded identities and service state.
+Full parallel execution produced API/navigation contention and intermittent false
+failures; each failed flow passed alone. One-worker execution made the complete
+25-test authenticated suite deterministic without changing production behavior.
+
+**Impact:** Emulator CI takes approximately two minutes but reliably verifies the
+same checkout, payment, cancellation, image, member, Product, and Pixel 7 flows.
+
+## 2026-07-29: Keep production preparation tools read-only
+
+**Decision:** Environment, Product projection, and production smoke tooling only
+read configuration/HTTP/Firestore state. A future migration writer requires a
+separate review and explicit approval.
+
+**Reason:** Production preparation must not create accidental data mutations.
+Project ID must be entered twice and match exactly before the audit can run.
+
+**Impact:** Operators receive actionable dry-run reports and SOP guidance while
+backup, Product re-save, Rules deployment, and rollback remain explicit human
+operations.

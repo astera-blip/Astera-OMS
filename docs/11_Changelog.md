@@ -48,3 +48,29 @@
 - Added recorded notification events for order creation and manual payment confirmation without connecting an external email provider.
 - Tightened Firestore rules for order items, payment requests, consent records, catalog classifications, and notification events.
 - Expanded the small-circle smoke test checklist and manual export backup SOP.
+
+## 2026-07-29: Local MVP Tasks 1–13 completed
+
+- Completed protected Server/API trust boundaries and removed production business
+  persistence fallbacks.
+- Completed idempotent Campaign-split Checkout, immutable order numbers, payment
+  report/confirm/reverse, unallocated overpayment, item cancellation/refund
+  adjustments, and audit history.
+- Completed bilingual ProductWorkspace, Classification Master, immutable/copyable
+  IDs and SKUs, multi-Variant/Campaign editing, and server sequence allocation.
+- Completed Storage Emulator image upload, metadata registration, max-eight
+  references, cover ordering, alt text, public projection, and storefront images.
+- Completed featured storefront, member duplicate-phone/risk operations, public
+  Terms/Privacy, and idempotent post-transaction notification delivery.
+- Completed accessibility/mobile acceptance: global focus-visible, skip link,
+  route focus, live async status, duplicate-submit locks, 44px controls,
+  reduced-motion support, and Pixel 7 overflow coverage.
+- Added read-only production environment, Product projection audit, and anonymous
+  HTTPS smoke tools plus backup/sync/rollback SOP.
+- Final validation: secret scan passed; production audit found 0 vulnerabilities;
+  TypeScript and ESLint passed; Unit 22 files / 104 tests; Rules 2 files / 29
+  tests; Build 31 routes; regular Playwright 10 passed / 18 mode skips;
+  Emulator Playwright 25 passed / 3 mode skips.
+- Final review hardened nested private-field detection, made public Product-detail
+  discovery mandatory in production smoke, and added Classification-tab Pixel 7
+  overflow acceptance.

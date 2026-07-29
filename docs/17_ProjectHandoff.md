@@ -183,3 +183,116 @@ Current execution plan:
 ## Next Exact Step
 
 Implement actual product image upload UI/API after Firebase Blaze bucket creation is available. If external bucket access is still unavailable, the remaining work is mostly external-gated: production rules deploy, Resend DNS/API-key real send test, Vercel OIDC, and production/mobile acceptance.
+
+## 2026-07-29 06:49 Continuation Record
+
+- Branch: `codex/mvp-completion`.
+- Completed commits through Task 10:
+  - `e63c543 feat: harden member risk operations`
+  - `8752919 feat: publish legal information pages`
+  - `e62cffc feat: deliver transactional email notifications`
+- Task 11 uncommitted files:
+  - `src/components/workspace/WorkspaceShell.tsx`
+  - `src/components/workspace/PaymentOperationsBoard.tsx`
+  - `src/components/workspace/ContentOperationsBoard.tsx`
+  - `src/app/orders/page.tsx`
+  - `tests/e2e/workspace-mobile-acceptance.spec.ts`
+- Task 11 current validation: `npm.cmd run typecheck` passed; `npm.cmd run lint` passed. Playwright, Unit, Rules, and build are not yet rerun for this uncommitted batch.
+- Preserve the user-owned uncommitted `AGENTS.md`; do not stage it.
+- External gates after local Tasks 11–13: Firebase Blaze/production bucket, production Firebase/Vercel OIDC access, Resend DNS/API key and real inbox test, legal professional review, and physical-device acceptance.
+
+## 2026-07-29 07:14 UI/UX Priority Remediation
+
+- Applied `ui-ux-pro-max` high-priority rules:
+  - global `:focus-visible` and reduced-motion fallback in `src/app/globals.css`;
+  - skip link plus route-change focus target through `src/components/accessibility/RouteFocusManager.tsx`;
+  - root mobile viewport container changed to `min-h-dvh`;
+  - Checkout now prevents duplicate submission, displays `建立中…`, and announces status through `aria-live`;
+  - Product Variant/Campaign add buttons and Product image reorder/unreference controls now meet the 44px minimum target;
+  - Product image operation messages now use `aria-live`.
+- Added `tests/unit/uiAccessibility.test.ts`; RED was observed before implementation, then 3/3 passed.
+- Fresh `npm.cmd run typecheck` and `npm.cmd run lint` passed.
+- Still required before committing Task 11:
+  1. extend async submit locks and live regions to Product save, Payment confirm/reverse, Cancellation review, Classification, and Content;
+  2. add skeleton/progress states, consumer-only empty/error copy, retry actions, and remaining `min-h-dvh` conversions;
+  3. run the new Pixel 7 overflow suite plus full regular/emulated Playwright, Unit, Rules, and build;
+  4. fix findings and commit `fix: complete desktop and mobile acceptance`.
+
+## 2026-07-29 07:17 Task 12/13 Start
+
+- Task 12 context and current deployment/test documents were inspected.
+- Added `.local-backups/` to `.gitignore` so future production backups cannot be committed accidentally.
+- No Task 12 script is being marked complete: `check-production-env.mjs`, `audit-product-projection.mjs`, `smoke-production.mjs`, their Unit tests, and backup/sync SOP remain to be implemented.
+- Task 13 has not started because Task 11 and Task 12 are not yet verified or committed.
+- Exact continuation order:
+  1. finish and verify Task 11;
+  2. write failing `tests/unit/productionScripts.test.ts`;
+  3. implement the three read-only production scripts and package commands;
+  4. update Deployment/Test Plan/SOP;
+  5. run the full Task 13 command matrix, fix failures, update final handoff, commit, and push.
+
+## 2026-07-29 07:21 Task 11 Verification Update
+
+- Fresh checks after the UI/UX accessibility batch:
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run test:unit`: passed, 21 files / 96 tests.
+  - `npm.cmd run build`: compilation passed and TypeScript phase started, but the command result was not fully captured before the execution window ended; rerun before claiming build success.
+- Rules and Playwright suites still need fresh execution for Task 11.
+- Task 12 scripts/tests/SOP and Task 13 final verification/commit/push remain pending.
+
+## 2026-07-29 07:49 Final Task 11–13 Handoff
+
+### Completed
+
+- Task 11 UI/accessibility/mobile acceptance committed as `9c9104f`.
+- Task 12 read-only production tooling and SOP committed as `ae32900`.
+- Final readiness review fixes committed as `e84047f`.
+- Task 13 full local validation completed. Final documentation commit and remote
+  push are the only repository operations following this entry.
+
+### Production tools
+
+```powershell
+npm run production:env:check
+npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
+npm run production:smoke -- --base-url https://astera-oms.vercel.app
+```
+
+Related files:
+
+- `scripts/check-production-env.mjs`
+- `scripts/audit-product-projection.mjs`
+- `scripts/smoke-production.mjs`
+- `tests/unit/productionScripts.test.ts`
+- `docs/SOP/正式資料備份與商品同步SOP.md`
+
+All three commands are read-only. The product audit uses ADC/OIDC and contains no
+Firestore mutation calls. It requires an exact repeated Project ID.
+
+### Final verification evidence
+
+- `npm run check:secrets`: passed.
+- `npm run audit:production`: passed, 0 vulnerabilities.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `npm run test:unit`: 22 files, 104 passed.
+- `npm run firebase:rules:test`: 2 files, 29 passed.
+- `npm run build`: passed, 31 routes.
+- `npm run test:e2e`: 10 passed, 18 intentional emulator-only skips.
+- `npm run test:e2e:emulated`: 25 passed, 3 intentional mode skips.
+
+### External-only next step
+
+The next agent must first obtain Owner confirmation/access for Firebase Blaze and
+Storage bucket, Vercel OIDC/GCP identity, Firebase production deployment, Resend
+DNS/API key, and domain/legal/real-device acceptance. Follow
+`docs/SOP/正式資料備份與商品同步SOP.md`; do not invent external state or introduce a
+long-lived service-account key.
+
+The pre-existing user change in `AGENTS.md` remains intentionally uncommitted and
+must not be staged.
+
+Final code review findings were resolved before handoff: nested public records are
+checked for private fields, production smoke fails without a discoverable public
+Product detail, and Pixel 7 acceptance explicitly opens Classification management.

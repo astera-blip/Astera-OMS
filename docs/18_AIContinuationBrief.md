@@ -8,6 +8,42 @@ This file is the compact handoff for another AI agent. Treat it together with:
 - `docs/17_ProjectHandoff.md`
 - `AGENTS.md`
 
+## Final Status Override — 2026-07-29 07:49 Asia/Taipei
+
+This section supersedes the older “Current Remaining Gaps”, “Approved … Pending
+Implementation”, validation counts, and recommended Task 1–13 steps later in this
+file.
+
+- All locally executable Tasks 1–13 are implemented.
+- Product image upload/API/metadata validation works with Storage Emulator; only
+  the real Blaze bucket and production upload remain external.
+- ProductWorkspace/Classification decisions listed below are implemented, except
+  Variant Name intentionally remains free text because no replacement behavior was
+  approved.
+- Resend delivery orchestration is implemented and tested; only DNS/API key/real
+  delivery remains external.
+- Read-only production tools and the backup/sync SOP are complete.
+- Latest validation: Unit 22/104, Rules 2/29, Build 31 routes, regular E2E
+  10 passed/18 skips, Emulator E2E 25 passed/3 skips, typecheck/lint/secret scan
+  passed, production audit 0 vulnerabilities.
+- Commits immediately before this handoff:
+  - `9c9104f fix: complete desktop and mobile acceptance`
+  - `ae32900 chore: add production readiness tooling`
+  - `e84047f fix: address final readiness review`
+- Preserve the user-owned uncommitted `AGENTS.md`.
+
+Remaining work requires external state:
+
+1. Firebase Blaze and real development/production Storage buckets.
+2. Vercel OIDC/GCP Workload Identity and production environment values.
+3. Firestore/Storage Rules development then production deployment.
+4. Production backup, read-only audit, and Owner-API Product re-save/sync.
+5. `updates.asteratw.com` verification, Resend API key, and actual delivery proof.
+6. Final legal text, domain/DNS, production smoke, Pixel 7, and real-device signoff.
+
+Use `docs/SOP/正式資料備份與商品同步SOP.md` and never add a long-lived service
+account key.
+
 ## Project Goal
 
 Astera OMS is an MVP order management system for Thai GL / artist merchandise proxy buying.
