@@ -6,6 +6,7 @@ import {
   assignServerManagedSkus,
   getEffectiveVariantPriceTwd,
   normalizeProductDraft,
+  resolveServerManagedProductSku,
   resolveCampaignStatus,
 } from "../../src/lib/product/catalog";
 import {
@@ -200,6 +201,7 @@ describe("buildPublicProductProjection", () => {
       campaigns: [
         {
           id: "camp_001",
+          productId: "prod_001",
           title: "七夕檔期",
           saleType: "preorder",
           status: "upcoming",
@@ -480,5 +482,72 @@ describe("SKU and campaign pricing rules", () => {
       "AST-P000008-V003",
       "AST-P000008-V004",
     ]);
+  });
+
+  it("migrates a legacy product and unlocked variant to formal SKUs without trusting a client fallback", () => {
+    expect(resolveServerManagedProductSku({
+      productId: "prod_002",
+      existingSku: "",
+      nextProductSequence: 1,
+    })).toEqual({
+      sku: "AST-P000002",
+      nextProductSequence: 3,
+    });
+
+    const assigned = assignServerManagedSkus(
+      {
+        product: {
+          id: "prod_002",
+          sku: "AST-P000999",
+          name: "既有商品",
+          publicDescription: "既有商品說明",
+          publishState: "published",
+        },
+        variants: [{
+          id: "var_legacy",
+          sku: "HAT-92-DEFAULT",
+          name: "一般款",
+          isDefault: true,
+          priceTwd: 520,
+        }],
+        campaigns: [],
+      },
+      {
+        productSku: "AST-P000002",
+        existingVariantSkusById: new Map([["var_legacy", "HAT-92-DEFAULT"]]),
+        lockedVariantIds: new Set(),
+      },
+    );
+
+    expect(assigned.product.sku).toBe("AST-P000002");
+    expect(assigned.variants[0]?.sku).toBe("AST-P000002-V001");
+  });
+
+  it("keeps a legacy variant SKU when an order item already references it", () => {
+    const assigned = assignServerManagedSkus(
+      {
+        product: {
+          id: "prod_002",
+          name: "既有商品",
+          publicDescription: "既有商品說明",
+          publishState: "published",
+        },
+        variants: [{
+          id: "var_ordered",
+          sku: "",
+          name: "一般款",
+          isDefault: true,
+          priceTwd: 520,
+        }],
+        campaigns: [],
+      },
+      {
+        productSku: "AST-P000002",
+        existingVariantSkusById: new Map([["var_ordered", "HAT-92-DEFAULT"]]),
+        lockedVariantIds: new Set(["var_ordered"]),
+      },
+    );
+
+    expect(assigned.variants[0]?.sku).toBe("HAT-92-DEFAULT");
   });
 });

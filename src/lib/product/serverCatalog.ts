@@ -4,9 +4,9 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import {
   assignServerManagedSkus,
   buildPublicProductProjection,
-  createProductSku,
   createVariantSku,
   normalizeProductDraft,
+  resolveServerManagedProductSku,
   type ProductCatalogRecord,
   type ProductDraft,
 } from "@/lib/product/catalog";
@@ -31,7 +31,7 @@ export async function listWorkspaceProductsServer(db: Firestore): Promise<Produc
   const variants = variantSnapshot.docs.map((snapshot) => snapshot.data() as ProductCatalogRecord["variants"][number]);
   const campaigns = campaignSnapshot.docs.map((snapshot) => snapshot.data() as ProductCatalogRecord["campaigns"][number]);
 
-  return publicSnapshot.docs.map((snapshot, index) => {
+  return publicSnapshot.docs.map((snapshot) => {
     const data = snapshot.data() as {
       id: string;
       name: string;
@@ -41,7 +41,11 @@ export async function listWorkspaceProductsServer(db: Firestore): Promise<Produc
       images?: ProductCatalogRecord["product"]["images"];
     };
     const internal = internalById.get(snapshot.id) as { sku?: string; internalNote?: string } | undefined;
-    const productSku = internal?.sku ?? createProductSku(index + 1);
+    const productSku = resolveServerManagedProductSku({
+      productId: data.id,
+      existingSku: internal?.sku,
+      nextProductSequence: 1,
+    }).sku;
 
     return {
       product: {
@@ -100,11 +104,24 @@ export async function saveWorkspaceProductServer(
         String((snapshot.data() as { sku?: string }).sku ?? ""),
       ]),
     );
+    const existingOrderItemSnapshots = await Promise.all(
+      existingVariantsSnapshot.docs.map((snapshot) =>
+        transaction.get(db.collection("orderItems").where("variantId", "==", snapshot.id)),
+      ),
+    );
+    const lockedVariantIds = new Set(
+      existingVariantsSnapshot.docs.flatMap((snapshot, index) =>
+        existingOrderItemSnapshots[index]?.empty ? [] : [snapshot.id],
+      ),
+    );
 
-    const productSku = existingProduct.exists
-      ? String(existingProduct.data()?.sku ?? input.product.sku ?? createProductSku(1))
-      : createProductSku(sequenceData.nextProductSequence ?? 1);
     const productId = productRef.id;
+    const skuResolution = resolveServerManagedProductSku({
+      productId,
+      existingSku: existingProduct.exists ? String(existingProduct.data()?.sku ?? "") : undefined,
+      nextProductSequence: sequenceData.nextProductSequence ?? 1,
+    });
+    const productSku = skuResolution.sku;
     const now = new Date().toISOString();
     const serverManagedDraft = assignServerManagedSkus({
       ...input,
@@ -126,6 +143,7 @@ export async function saveWorkspaceProductServer(
     }, {
       productSku,
       existingVariantSkusById,
+      lockedVariantIds,
     });
     const normalized = normalizeProductDraft(serverManagedDraft);
 
@@ -208,9 +226,9 @@ export async function saveWorkspaceProductServer(
       });
     });
 
-    if (!existingProduct.exists) {
+    if (skuResolution.nextProductSequence !== (sequenceData.nextProductSequence ?? 1)) {
       transaction.set(sequenceRef, {
-        nextProductSequence: (sequenceData.nextProductSequence ?? 1) + 1,
+        nextProductSequence: skuResolution.nextProductSequence,
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: actorUid,
       }, { merge: true });

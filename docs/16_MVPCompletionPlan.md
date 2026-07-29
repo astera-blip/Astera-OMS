@@ -754,6 +754,42 @@ and verify profile, cart, and Owner Product writes.
 3. If it succeeds, continue directly with cart persistence, then Owner Product
    API/projection verification. If it fails, read only the new Vercel Function
    log before changing any IAM configuration.
+
+## 2026-07-30 Manual Preview product verification: SKU and campaign projection fixes
+
+### Reproduced defects
+
+- After a successful Owner no-content-change save of existing test product
+  `prod_002`, Product SKU changed from the UI fallback `AST-P000001` to
+  `AST-P000002`. The actual saved identifier must come from the Server, never
+  from a client-generated fallback or list position.
+- The same save correctly refreshed the front-end variant name and price, but
+  the front-end still rendered `活動：未設定` and rejected the cart action. The
+  public projection contained campaigns without `productId`; the public mapper
+  rejects such records as invalid, so it removed every Campaign client-side.
+
+### Corrective source changes ready for Preview
+
+- `resolveServerManagedProductSku()` now establishes a deterministic formal
+  SKU for legacy documents, advances `siteSettings/system-sequences` past it,
+  and ignores all client SKU values. Formal existing SKUs remain unchanged.
+- An existing legacy Variant SKU is migrated to the formal sequence only when
+  no `orderItems` document references that Variant. Referenced Variant SKUs
+  remain immutable, preserving order snapshots and the formal SKU rule.
+- `productsPublic.campaigns[]` now includes `productId`, matching its typed
+  public contract and allowing the storefront to retain an open Campaign.
+- Regression tests were added red first for legacy SKU migration, ordered
+  Variant preservation, and the public Campaign identifier; all are green.
+- Fresh checks passed: product unit test (15 tests), TypeScript, and ESLint.
+
+### Next exact step
+
+1. Push the changes and wait for Preview.
+2. Re-save `prod_002` once: it must remain `AST-P000002`, migrate its
+   unreferenced legacy Variant to `AST-P000002-V001`, and show its Campaign
+   and price in `/products`.
+3. Add it to the signed-in cart, reload, and confirm the saved cart item
+   remains. Do not proceed to Checkout until this persistence test passes.
 ## 2026-07-30 OIDC Runtime Verification Root Cause and Correction
 
 - Authenticated Preview verification reached the signed-in member profile form.

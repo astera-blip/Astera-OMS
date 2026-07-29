@@ -114,6 +114,7 @@ export type PublicProductProjection = {
   }>;
   campaigns: Array<{
     id: string;
+    productId: string;
     title: string;
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
     status: "upcoming" | "open" | "closed" | "archived";
@@ -292,6 +293,7 @@ export function buildPublicProductProjection(
     })),
     campaigns: record.campaigns.map((campaign) => ({
       id: campaign.id,
+      productId: campaign.productId,
       title: campaign.title.trim(),
       saleType: campaign.saleType,
       status: resolveCampaignStatus(campaign, new Date()),
@@ -324,11 +326,28 @@ export function createVariantSku(productSku: string, sequence: number) {
   return `${productSku}-V${String(sequence).padStart(3, "0")}`;
 }
 
+export function resolveServerManagedProductSku(input: {
+  productId: string;
+  existingSku?: string;
+  nextProductSequence: number;
+}) {
+  const existingSequence = getProductSkuSequence(input.existingSku ?? "");
+  const sequence = existingSequence
+    ?? getLegacyProductSequence(input.productId)
+    ?? input.nextProductSequence;
+
+  return {
+    sku: createProductSku(sequence),
+    nextProductSequence: Math.max(input.nextProductSequence, sequence + 1),
+  };
+}
+
 export function assignServerManagedSkus(
   draft: ProductDraft,
   input: {
     productSku: string;
     existingVariantSkusById: ReadonlyMap<string, string>;
+    lockedVariantIds?: ReadonlySet<string>;
   },
 ): ProductDraft {
   let nextVariantSequence = getHighestVariantSkuSequence(
@@ -344,9 +363,15 @@ export function assignServerManagedSkus(
     },
     variants: draft.variants.map((variant) => {
       const existingSku = input.existingVariantSkusById.get(variant.id);
-      const sku = existingSku ?? createVariantSku(input.productSku, nextVariantSequence);
+      const preserveExistingSku = !!existingSku && (
+        isFormalVariantSku(existingSku, input.productSku)
+        || input.lockedVariantIds?.has(variant.id)
+      );
+      const sku = preserveExistingSku
+        ? existingSku
+        : createVariantSku(input.productSku, nextVariantSequence);
 
-      if (!existingSku) {
+      if (!preserveExistingSku) {
         nextVariantSequence += 1;
       }
 
@@ -356,6 +381,24 @@ export function assignServerManagedSkus(
       };
     }),
   };
+}
+
+function getProductSkuSequence(value: string) {
+  const match = /^AST-P([0-9]{6})$/.exec(value.trim());
+  const sequence = match ? Number(match[1]) : NaN;
+
+  return Number.isInteger(sequence) && sequence > 0 ? sequence : null;
+}
+
+function getLegacyProductSequence(productId: string) {
+  const numericSuffix = productId.match(/([0-9]+)$/)?.[1];
+  const sequence = numericSuffix ? Number(numericSuffix) : NaN;
+
+  return Number.isInteger(sequence) && sequence > 0 ? sequence : null;
+}
+
+function isFormalVariantSku(sku: string, productSku: string) {
+  return new RegExp(`^${productSku}-V[0-9]{3}$`).test(sku.trim());
 }
 
 function getHighestVariantSkuSequence(productSku: string, skus: string[]) {
@@ -405,10 +448,7 @@ function isDateTimeLocalValue(value: string) {
 }
 
 function createProductSkuFromId(productId: string) {
-  const numericSuffix = productId.match(/([0-9]+)$/)?.[1];
-  const sequence = numericSuffix ? Number(numericSuffix) : 1;
-
-  return createProductSku(Number.isInteger(sequence) && sequence > 0 ? sequence : 1);
+  return createProductSku(getLegacyProductSequence(productId) ?? 1);
 }
 
 function normalizeClassifications(

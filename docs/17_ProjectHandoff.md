@@ -732,3 +732,39 @@ After it propagates:
 4. Continue with cart create/reload persistence, then Owner Product save and
    `productsPublic` projection verification. Capture Function logs before any
    further external/IAM change if a route fails.
+
+## 2026-07-30 Manual Preview verification: Product persistence defects found
+
+### Direct browser evidence
+
+- Signed-in Owner access to `/workspace/products` works and loads `prod_002`.
+- A no-content-change save succeeds, proving the protected Product API reaches
+  Firestore and regenerates `productsPublic`.
+- That save exposed two defects:
+  1. legacy Product SKU display used a public-list-position fallback while the
+     Server saved a different ID-derived SKU;
+  2. public Campaign records omitted `productId`, causing the strict client
+     mapper to discard them and the storefront to report no purchasable
+     Campaign despite the Owner workspace showing `Open（開放中）`.
+
+### Pending source fix
+
+- `src/lib/product/catalog.ts`: server-managed legacy Product SKU resolver,
+  immutable ordered-Variant exception, and public Campaign `productId`.
+- `src/lib/product/serverCatalog.ts`: Server ignores client SKU values,
+  reserves the sequence after legacy migration, and detects referenced Variants
+  via `orderItems.variantId` before any legacy SKU rewrite.
+- `tests/unit/productCatalog.test.ts`: red-green coverage for deterministic
+  legacy Product SKU, formal unlocked Variant migration, ordered legacy
+  Variant preservation, and the public Campaign shape.
+- Focused product test (15 tests), TypeScript, and ESLint passed.
+
+### Resume sequence
+
+1. Push this second runtime-fix commit and wait for branch Preview.
+2. Re-save `prod_002` exactly once; expected Product SKU is unchanged at
+   `AST-P000002`, while its unreferenced legacy Variant becomes
+   `AST-P000002-V001`.
+3. Confirm `/products` shows Campaign `92帽子預購`, price NT$520 and permits
+   adding the item to the signed-in cart; reload `/cart` to verify persistence.
+4. Record the result before testing Checkout, payment, or cancellation.
