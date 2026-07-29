@@ -29,4 +29,16 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
     );
     expect(hasOverflow, `${path} should fit the Pixel 7 viewport`).toBe(false);
   }
+
+  await page.goto("/workspace/products");
+  await page.getByRole("button", { name: "Classifications（分類管理）" }).click();
+  await expect(page.getByRole("heading", { name: "Classifications（分類管理）" }))
+    .toBeVisible();
+  const classificationHasOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  );
+  expect(
+    classificationHasOverflow,
+    "Classification management should fit the Pixel 7 viewport",
+  ).toBe(false);
 });

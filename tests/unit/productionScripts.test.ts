@@ -63,6 +63,26 @@ describe("product projection audit", () => {
     ]));
   });
 
+  it("detects private fields leaked inside public nested records", () => {
+    const report = auditProductProjection(
+      [{
+        id: "prod_1",
+        sku: "AST-P000001",
+        variants: [{ id: "var_1", sku: "AST-P000001-V001", priceTwd: 500 }],
+        campaigns: [],
+        images: [],
+      }],
+      [{
+        id: "prod_1",
+        variants: [{ id: "var_1", priceTwd: 500, sku: "AST-P000001-V001" }],
+        campaigns: [],
+        images: [],
+      }],
+    );
+
+    expect(report.issues).toContain("private_field_exposed:prod_1:variants.var_1.sku");
+  });
+
   it("contains no Firestore mutation calls", () => {
     const source = readFileSync("scripts/audit-product-projection.mjs", "utf8");
     expect(source).not.toMatch(/\.(set|update|delete|create|add)\s*\(/);
@@ -77,11 +97,16 @@ describe("anonymous production smoke", () => {
   });
 
   it("checks public pages without sending credentials", async () => {
-    const fetcher = vi.fn(async () => new Response("ok", { status: 200 }));
+    const fetcher = vi.fn(async (input: URL | RequestInfo) => new Response(
+      new URL(input instanceof Request ? input.url : input.toString()).pathname === "/products"
+        ? '<a href="/products/prod-public">Product</a>'
+        : "ok",
+      { status: 200 },
+    ));
     const report = await runAnonymousSmoke("https://example.com", fetcher);
 
     expect(report.ok).toBe(true);
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(5);
     const calls = fetcher.mock.calls as unknown as Array<[URL, RequestInit | undefined]>;
     for (const [, init] of calls) {
       expect(init).toEqual(expect.objectContaining({
@@ -90,5 +115,18 @@ describe("anonymous production smoke", () => {
       }));
       expect(init?.headers).toBeUndefined();
     }
+  });
+
+  it("fails when no public Product detail can be discovered", async () => {
+    const fetcher = vi.fn(async () => new Response("ok", { status: 200 }));
+    const report = await runAnonymousSmoke("https://example.com", fetcher);
+
+    expect(report.ok).toBe(false);
+    expect(report.checks).toContainEqual({
+      path: "/products/:id",
+      status: 0,
+      ok: false,
+      error: "public_product_not_found",
+    });
   });
 });

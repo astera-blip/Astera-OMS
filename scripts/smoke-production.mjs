@@ -36,6 +36,13 @@ export async function runAnonymousSmoke(baseUrl, fetcher = fetch) {
       redirect: "manual",
     });
     checks.push({ path: productPath, status: response.status, ok: response.ok });
+  } else {
+    checks.push({
+      path: "/products/:id",
+      status: 0,
+      ok: false,
+      error: "public_product_not_found",
+    });
   }
   return { ok: checks.every((check) => check.ok), checks };
 }

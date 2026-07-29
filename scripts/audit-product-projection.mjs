@@ -36,6 +36,19 @@ export function auditProductProjection(internalProducts, publicProducts) {
         issues.push(`private_field_exposed:${internal.id}:${field}`);
       }
     }
+    for (const field of ["variants", "campaigns", "images"]) {
+      const records = Array.isArray(projected[field]) ? projected[field] : [];
+      for (const record of records) {
+        const recordId = record.id ?? record.objectPath ?? "unknown";
+        for (const privateField of PRIVATE_FIELDS) {
+          if (Object.prototype.hasOwnProperty.call(record, privateField)) {
+            issues.push(
+              `private_field_exposed:${internal.id}:${field}.${recordId}.${privateField}`,
+            );
+          }
+        }
+      }
+    }
     compareCollection(internal, projected, "variants", issues, (source, target) => {
       if (!VARIANT_SKU.test(String(source.sku ?? ""))) {
         issues.push(`invalid_variant_sku:${internal.id}:${source.id}`);
