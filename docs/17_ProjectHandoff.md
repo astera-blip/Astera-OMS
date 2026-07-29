@@ -349,3 +349,22 @@ Product detail, and Pixel 7 acceptance explicitly opens Classification managemen
 ### Next exact handoff step
 
 Commit and push the runtime fix. After Vercel Preview redeploys, verify `/brand` first. If `/brand` is fixed but Product publishing still fails, inspect Vercel function logs for Admin Firestore credential errors. That would indicate the remaining blocker is external Vercel OIDC / GCP Workload Identity or approved production Firebase credential setup, not a ProductWorkspace form bug.
+
+## 2026-07-29 Storefront/Profile UI Follow-up
+
+- User requested four UI/behavior updates:
+  - swap the homepage header placement of `泰國 GL / 藝人周邊代購` and `ASTERA OMS / Aatera`;
+  - split member profile name entry into `姓` and `名`;
+  - redirect to `/` after successful member profile save;
+  - remove `Instagram：暫不提供` from public UI.
+- Code changes:
+  - `src/app/page.tsx`: small eyebrow now shows the buyer-facing category; main heading now shows `ASTERA OMS / Aatera`.
+  - `src/app/account/profile/page.tsx`: added separate last-name and first-name fields with `family-name` / `given-name` autocomplete; submission still combines them into existing `displayName`, so Firestore/API schema is unchanged.
+  - `src/app/account/profile/page.tsx`: successful save calls `router.replace("/")` after `refreshProfile()`.
+  - `src/components/storefront/StorefrontFooter.tsx`: footer now renders only active social channels with URLs; disabled placeholders are not shown.
+  - `tests/unit/uiAccessibility.test.ts`: added regression coverage for these UI behaviors.
+- Verification:
+  - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts`: red before fix, green after fix; current result 23 files / 112 tests passed.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.

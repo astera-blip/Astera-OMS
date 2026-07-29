@@ -67,10 +67,10 @@ export default function Home() {
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">
-              Astera OMS
+              泰國 GL / 藝人周邊代購
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
-              泰國 GL / 藝人周邊代購
+              ASTERA OMS / Aatera
             </h1>
           </div>
           <AccountActions />

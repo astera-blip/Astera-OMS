@@ -532,3 +532,17 @@ Deploy/push this fix, wait for the `codex/mvp-completion` Preview to become Read
 4. confirm the Product appears in `productsPublic`-backed storefront pages.
 
 If `/brand` is fixed but Product save still fails, the next exact check is Vercel runtime credentials for Admin Firestore: Vercel OIDC / GCP Workload Identity or another approved non-long-lived credential path must allow `getAdminFirestore()` to write `productsInternal`, `productVariants`, `saleCampaigns`, classifications, and `productsPublic`.
+
+## 2026-07-29 Storefront/Profile UI Follow-up
+
+- Completed requested UI/behavior updates:
+  - homepage header placement now uses `ASTERA OMS / Aatera` as the large brand heading and `泰國 GL / 藝人周邊代購` as the smaller category line;
+  - member profile form now displays separate `姓` and `名` fields;
+  - profile save still submits the existing combined `displayName`, preserving the current API and Firestore model;
+  - successful profile save redirects to `/`;
+  - public footer no longer renders disabled social placeholders such as `Instagram：暫不提供`.
+- Fresh validation:
+  - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts`: red before fix, green after fix; current result 23 files / 112 tests passed.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.

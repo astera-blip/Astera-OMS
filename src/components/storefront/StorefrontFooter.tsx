@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { getChannelTitle } from "@/lib/content/brandContent";
 import { loadBrandContentServer } from "@/lib/content/serverRepository";
 
 export async function StorefrontFooter() {
@@ -17,7 +16,7 @@ export async function StorefrontFooter() {
   }
 
   const siteSettings = content.siteSettings;
-  const channels = content.channels.filter((channel) => channel.status !== "disabled");
+  const channels = content.channels.filter((channel) => channel.status === "active" && !!channel.url);
 
   return (
     <footer className="border-t border-slate-200 bg-white px-6 py-8 text-slate-700 sm:px-8 lg:px-10">
@@ -42,16 +41,13 @@ export async function StorefrontFooter() {
           </div>
         </div>
 
-        <div>
-          <p className="text-sm font-semibold text-slate-950">社群入口</p>
-          <div className="mt-2 grid gap-2 text-sm">
-            {(["lineCommunity", "lineOfficial", "instagram"] as const).map((key) => {
-              const channel = channels.find((item) => item.key === key);
-              const enabled = channel?.status === "active" && !!channel.url;
-
-              return enabled ? (
+        {channels.length > 0 ? (
+          <div>
+            <p className="text-sm font-semibold text-slate-950">社群入口</p>
+            <div className="mt-2 grid gap-2 text-sm">
+              {channels.map((channel) => (
                 <a
-                  key={key}
+                  key={channel.key}
                   href={channel.url}
                   target="_blank"
                   rel="noreferrer"
@@ -59,14 +55,10 @@ export async function StorefrontFooter() {
                 >
                   {channel.title}
                 </a>
-              ) : (
-                <span key={key} className="text-slate-500">
-                  {channel?.title || getChannelTitle(key)}：暫不提供
-                </span>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
       <div className="mx-auto mt-6 flex max-w-7xl flex-wrap gap-4 text-xs text-slate-500">
         <Link href="/brand">品牌中心</Link>

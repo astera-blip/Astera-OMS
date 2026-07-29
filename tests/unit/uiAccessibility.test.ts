@@ -60,4 +60,30 @@ describe("shared UI accessibility contract", () => {
     expect(authProvider).toContain("getGoogleSignInErrorMessage");
     expect(authProvider).toContain("這個網址尚未允許 Google 登入");
   });
+
+  it("places storefront brand text before the large buyer title", () => {
+    const home = read("src/app/page.tsx");
+
+    expect(home).toContain('<p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">\n              泰國 GL / 藝人周邊代購');
+    expect(home).toContain('<h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">\n              ASTERA OMS / Aatera');
+  });
+
+  it("uses separated member last and first name fields and redirects home after save", () => {
+    const profile = read("src/app/account/profile/page.tsx");
+
+    expect(profile).toContain('id="lastName"');
+    expect(profile).toContain('label="姓"');
+    expect(profile).toContain('autoComplete="family-name"');
+    expect(profile).toContain('id="firstName"');
+    expect(profile).toContain('label="名"');
+    expect(profile).toContain('autoComplete="given-name"');
+    expect(profile).toContain('router.replace("/")');
+  });
+
+  it("does not show disabled Instagram placeholders in the public footer", () => {
+    const footer = read("src/components/storefront/StorefrontFooter.tsx");
+
+    expect(footer).not.toContain("：暫不提供");
+    expect(footer).not.toContain("instagram\"] as const");
+  });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
   validateMemberProfileDraft,
@@ -15,7 +16,40 @@ const emptyDraft: MemberProfileDraft = {
   birthday: "",
 };
 
+type NameDraft = {
+  lastName: string;
+  firstName: string;
+};
+
+function splitDisplayName(displayName: string): NameDraft {
+  const trimmed = displayName.trim();
+
+  if (!trimmed) {
+    return { lastName: "", firstName: "" };
+  }
+
+  const parts = trimmed.split(/\s+/);
+
+  if (parts.length >= 2) {
+    const [lastName, ...firstNameParts] = parts;
+    return {
+      lastName: lastName ?? "",
+      firstName: firstNameParts.join(" "),
+    };
+  }
+
+  return {
+    lastName: trimmed.slice(0, 1),
+    firstName: trimmed.slice(1),
+  };
+}
+
+function combineDisplayName(nameDraft: NameDraft) {
+  return `${nameDraft.lastName.trim()}${nameDraft.firstName.trim()}`.trim();
+}
+
 export default function MemberProfilePage() {
+  const router = useRouter();
   const {
     status,
     user,
@@ -37,6 +71,9 @@ export default function MemberProfilePage() {
           displayName: user?.displayName ?? "",
         },
   );
+  const [nameDraft, setNameDraft] = useState<NameDraft>(() =>
+    splitDisplayName(profile?.displayName ?? user?.displayName ?? ""),
+  );
   const [errors, setErrors] = useState<
     Partial<Record<MemberProfileField, string>>
   >({});
@@ -49,9 +86,23 @@ export default function MemberProfilePage() {
     setMessage(null);
   }
 
+  function updateNameField(field: keyof NameDraft, value: string) {
+    setNameDraft((current) => ({ ...current, [field]: value }));
+    setDraft((current) => ({
+      ...current,
+      displayName: combineDisplayName({ ...nameDraft, [field]: value }),
+    }));
+    setErrors((current) => ({ ...current, displayName: undefined }));
+    setMessage(null);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const validation = validateMemberProfileDraft(draft);
+    const nextDraft = {
+      ...draft,
+      displayName: combineDisplayName(nameDraft),
+    };
+    const validation = validateMemberProfileDraft(nextDraft);
 
     if (!validation.ok) {
       setErrors(validation.errors);
@@ -74,7 +125,7 @@ export default function MemberProfilePage() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(nextDraft),
       });
       const result = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -89,6 +140,7 @@ export default function MemberProfilePage() {
 
       await refreshProfile();
       setMessage("會員資料已儲存。");
+      router.replace("/");
     } catch {
       setMessage("儲存失敗，請檢查連線後再試一次。");
     } finally {
@@ -132,14 +184,24 @@ export default function MemberProfilePage() {
         </header>
 
         <form onSubmit={handleSubmit} className="mt-6 grid gap-5 border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <ProfileField
-            id="displayName"
-            label="姓名"
-            value={draft.displayName}
-            error={errors.displayName}
-            autoComplete="name"
-            onChange={(value) => updateField("displayName", value)}
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ProfileField
+              id="lastName"
+              label="姓"
+              value={nameDraft.lastName}
+              error={errors.displayName}
+              autoComplete="family-name"
+              onChange={(value) => updateNameField("lastName", value)}
+            />
+            <ProfileField
+              id="firstName"
+              label="名"
+              value={nameDraft.firstName}
+              error={undefined}
+              autoComplete="given-name"
+              onChange={(value) => updateNameField("firstName", value)}
+            />
+          </div>
           <ProfileField
             id="communityId"
             label="社群內 ID"
@@ -185,7 +247,7 @@ export default function MemberProfilePage() {
 }
 
 type ProfileFieldProps = {
-  id: MemberProfileField;
+  id: MemberProfileField | keyof NameDraft;
   label: string;
   value: string;
   error?: string;
