@@ -51,4 +51,13 @@ describe("shared UI accessibility contract", () => {
     expect(images).toContain("min-h-11");
     expect(images).toContain('aria-live="polite"');
   });
+
+  it("falls back to redirect-based Google sign-in when popup sign-in cannot complete", () => {
+    const authProvider = read("src/components/auth/AuthProvider.tsx");
+    expect(authProvider).toContain("getRedirectResult");
+    expect(authProvider).toContain("signInWithRedirect");
+    expect(authProvider).toContain("isPopupFallbackError");
+    expect(authProvider).toContain("getGoogleSignInErrorMessage");
+    expect(authProvider).toContain("這個網址尚未允許 Google 登入");
+  });
 });

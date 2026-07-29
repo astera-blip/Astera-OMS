@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribe = () => {};
 
     async function subscribe() {
-      const [{ auth }, { onAuthStateChanged }] = await Promise.all([
+      const [{ auth }, { getRedirectResult, onAuthStateChanged }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("firebase/auth"),
       ]);
@@ -68,6 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) {
         return;
       }
+
+      await getRedirectResult(auth).catch((error: unknown) => {
+        if (active) {
+          setError(getGoogleSignInErrorMessage(error));
+        }
+      });
 
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (!active) {
@@ -121,16 +127,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     setError(null);
-    const [{ auth }, { GoogleAuthProvider, signInWithPopup }] =
+    const [{ auth }, { GoogleAuthProvider, signInWithPopup, signInWithRedirect }] =
       await Promise.all([
         import("@/lib/firebase/client"),
         import("firebase/auth"),
       ]);
 
+    const provider = new GoogleAuthProvider();
+
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch {
-      setError("Google 登入未完成，請再試一次。");
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      if (isPopupFallbackError(error)) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+      setError(getGoogleSignInErrorMessage(error));
     }
   }, []);
 
@@ -199,4 +211,44 @@ export function useAuth() {
   }
 
   return context;
+}
+
+function isFirebaseError(error: unknown): error is { code: string } {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof (error as { code?: unknown }).code === "string";
+}
+
+function isPopupFallbackError(error: unknown) {
+  if (!isFirebaseError(error)) {
+    return false;
+  }
+
+  return [
+    "auth/cancelled-popup-request",
+    "auth/popup-blocked",
+    "auth/popup-closed-by-user",
+    "auth/operation-not-supported-in-this-environment",
+  ].includes(error.code);
+}
+
+function getGoogleSignInErrorMessage(error: unknown) {
+  if (!isFirebaseError(error)) {
+    return "Google 登入未完成，請再試一次。";
+  }
+
+  if (error.code === "auth/unauthorized-domain") {
+    return "這個網址尚未允許 Google 登入，請改用正式測試網址或請管理員加入 Firebase 授權網域。";
+  }
+
+  if (error.code === "auth/popup-blocked") {
+    return "瀏覽器封鎖了 Google 登入視窗，請允許彈出視窗或改用重新導向登入。";
+  }
+
+  if (error.code === "auth/popup-closed-by-user") {
+    return "Google 登入視窗已關閉，請重新點選登入。";
+  }
+
+  return `Google 登入未完成（${error.code}），請再試一次。`;
 }

@@ -312,3 +312,18 @@ Product detail, and Pixel 7 acceptance explicitly opens Classification managemen
   - `npm.cmd run lint`: passed.
   - `npm.cmd run build`: passed, 31 routes.
 - Remaining action: production must be redeployed from `codex/mvp-completion` or after merging it to `main`; otherwise `https://astera-oms.vercel.app` will continue serving the older `/brand` 500 deployment.
+
+## 2026-07-29 Google Sign-in Follow-up
+
+- Screenshot showed Google sign-in returning the generic front-end error: `Google 登入未完成，請再試一次。`
+- Investigation: latest Preview logs only showed page GETs and the known `/brand` server runtime issue, not a member profile API write failure from this click. The sign-in path was popup-only.
+- Implemented redirect fallback in `src/components/auth/AuthProvider.tsx`:
+  - `getRedirectResult` is handled during auth subscription startup.
+  - popup blocked/closed/cancelled/unsupported cases call `signInWithRedirect`.
+  - Firebase Auth codes now produce actionable Traditional Chinese messages, including unauthorized-domain guidance.
+- Validation:
+  - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts`: passed, 23 files / 108 tests.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+- If the next deployment still shows an unauthorized-domain message, add the exact tested Vercel host or canonical domain to Firebase Authentication authorized domains.

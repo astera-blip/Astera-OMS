@@ -488,3 +488,20 @@ No remaining locally executable MVP implementation task is known.
 ### Next exact production step
 
 Deploy or merge `codex/mvp-completion` so production receives the Vercel runtime fix. After deployment, rerun route smoke for `/`, `/products`, `/brand`, `/cart`, `/account/profile`, and `/workspace`.
+
+## 2026-07-29 Google Sign-in Follow-up
+
+- Manual preview testing showed the generic `Google 登入未完成，請再試一次。` message after clicking Google sign-in.
+- Root-cause investigation found no server-side auth route failure for the sign-in click; the current UI only used `signInWithPopup`, which is fragile on mobile, embedded browsers, and popup-restricted contexts.
+- Updated `src/components/auth/AuthProvider.tsx` to:
+  - call `getRedirectResult(auth)` during auth initialization;
+  - fall back to `signInWithRedirect` when popup sign-in is blocked, closed, cancelled, or unsupported;
+  - show clearer messages for `auth/unauthorized-domain`, `auth/popup-blocked`, `auth/popup-closed-by-user`, and other Firebase Auth codes.
+- Added regression coverage in `tests/unit/uiAccessibility.test.ts`.
+- Fresh validation:
+  - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts`: passed, 23 files / 108 tests.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+
+If sign-in still fails after this deployment, the next exact check is Firebase Console → Authentication → Settings → Authorized domains. The tested Preview/Production host must be listed there.
