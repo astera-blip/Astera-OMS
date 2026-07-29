@@ -744,3 +744,14 @@ and verify profile, cart, and Owner Product writes.
   Vercel audience.
 - The subsequent Preview must be rebuilt from this source revision before the
   profile, cart, and Owner Product runtime tests can be repeated.
+
+### Follow-up diagnostic deployment
+
+- The first rebuilt Preview still returned a generic member-profile failure.
+  Vercel request logs confirm `POST /api/member/profile` reached the Function,
+  but caught errors are not included in standard request logs.
+- Added a safe server-side diagnostic that records only the error message under
+  `member_profile_save_failed`; it does not record the Firebase token, email,
+  phone number, name, or request body. A dedicated unit test first failed and
+  then passed. Deploy this diagnostic revision, repeat the same test profile
+  save, and use the resulting Vercel Function log as the next root-cause input.

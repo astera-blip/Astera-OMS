@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { validateMemberProfileDraft } from "../../src/lib/member/profile";
 
@@ -56,5 +57,13 @@ describe("validateMemberProfileDraft", () => {
         birthday: "請輸入有效日期。",
       },
     });
+  });
+});
+
+describe("member profile persistence diagnostics", () => {
+  it("records a safe server diagnostic when profile persistence fails", () => {
+    const routeSource = readFileSync("src/app/api/member/profile/route.ts", "utf8");
+
+    expect(routeSource).toContain('console.error("member_profile_save_failed", { message })');
   });
 });

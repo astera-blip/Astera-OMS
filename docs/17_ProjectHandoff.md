@@ -680,3 +680,17 @@ After it propagates:
    account to verify Product save and its `productsPublic` projection.
 5. If the first post-deploy save still fails, obtain the Vercel Function error
    before changing credentials again.
+
+### Diagnostic follow-up after first corrected Preview
+
+- First corrected Preview deployment `dpl_4QdE1Tq9jaXBdvomgrXRzT2K4kUN`
+  accepted the request but the profile save still returned the generic error.
+  Vercel logs proved the route was invoked but omitted the caught exception.
+- Pending source adds `console.error("member_profile_save_failed", { message })`
+  in the profile API catch path. It deliberately logs only the error message,
+  not request data or credentials.
+- `tests/unit/memberProfile.test.ts` was red before the diagnostic and green
+  after it (**24 files / 120 tests**).
+- Exact resume: deploy this diagnostic revision, submit the same non-personal
+  test profile once, run `vercel logs <new-deployment> --since 15m --expand`,
+  then fix only the reported error.
