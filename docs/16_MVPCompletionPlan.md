@@ -547,3 +547,38 @@ If `/brand` is fixed but Product save still fails, the next exact check is Verce
   - `npm.cmd run typecheck`: passed.
   - `npm.cmd run lint`: passed.
   - `npm.cmd run build`: passed, 31 routes.
+
+## 2026-07-29 Vercel OIDC / GCP Workload Identity Preparation
+
+- Confirmed latest Preview profile/cart failures are Admin Firestore credential failures, not Firebase Auth or form validation failures.
+- Local shell cannot find `gcloud` on PATH, so GCP IAM resources could not be created from this environment. A `winget install Google.CloudSDK` attempt reached the installer/UAC stage but did not return a completion result inside this Codex session.
+- Firebase CLI read-only project list confirmed:
+  - production Project ID: `astera-oms-prod`;
+  - production Project Number: `1032606875618`.
+- Vercel local project file confirmed:
+  - Vercel Project ID: `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
+- Program-side OIDC support is implemented:
+  - `src/lib/firebase/admin.ts` now uses `@vercel/oidc` and `google-auth-library` `IdentityPoolClient` when Workload Identity env vars are present;
+  - no long-lived service-account private key is required for Vercel runtime;
+  - `scripts/check-production-env.mjs` reports OIDC env var presence without printing values;
+  - `scripts/setup-vercel-gcp-oidc.ps1` contains the exact `gcloud` setup commands.
+- Fresh validation:
+  - `npm.cmd run test:unit -- tests/unit/nextRuntimeConfig.test.ts tests/unit/productionScripts.test.ts`: passed, 23 files / 114 tests.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+
+### Next exact external step
+
+Install or expose Google Cloud SDK `gcloud` on PATH, then run:
+
+```powershell
+.\scripts\setup-vercel-gcp-oidc.ps1 `
+  -ProjectId "astera-oms-prod" `
+  -ProjectNumber "1032606875618" `
+  -VercelProjectId "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"
+```
+
+Then add the printed `GCP_*` / `GOOGLE_CLOUD_PROJECT` values to Vercel Production
+and Preview, redeploy, and retest member profile save, cart API, and Owner
+Product save.

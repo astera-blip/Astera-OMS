@@ -373,3 +373,37 @@ Commit and push the runtime fix. After Vercel Preview redeploys, verify `/brand`
   - `npm.cmd run typecheck`: passed.
   - `npm.cmd run lint`: passed.
   - `npm.cmd run build`: passed, 31 routes.
+
+## 2026-07-29 Vercel OIDC / GCP Workload Identity Preparation
+
+- User confirmed the target is production Firebase project `astera-oms-prod`.
+- Local checks:
+  - `gcloud` is not available on PATH in this PowerShell session.
+  - `winget install Google.CloudSDK` was attempted and reached the installer/UAC stage, but did not return a completion result inside this Codex session.
+  - Firebase CLI can list projects; `astera-oms-prod` project number is `1032606875618`.
+  - `.vercel/project.json` shows Vercel project ID `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
+  - Vercel env currently lacks GCP/OIDC variables.
+- Implemented code-side OIDC support:
+  - added dependencies `@vercel/oidc` and `google-auth-library`;
+  - `src/lib/firebase/admin.ts` creates a Firebase Admin `Credential` from Vercel OIDC + Google Workload Identity when `GCP_PROJECT_NUMBER`, `GCP_WORKLOAD_IDENTITY_POOL_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER_ID`, and `GCP_SERVICE_ACCOUNT_EMAIL` are configured;
+  - service-account JSON remains supported only through `GOOGLE_APPLICATION_CREDENTIALS` for approved local ADC-style work; no key is introduced for Vercel.
+- Added operational support:
+  - `scripts/setup-vercel-gcp-oidc.ps1` contains the exact `gcloud` commands to create/enable APIs, service account, Workload Identity Pool/Provider, IAM bindings, and output Vercel env values;
+  - `scripts/check-production-env.mjs` now reports OIDC env names without exposing values;
+  - `docs/14_Deployment.md` documents the env names, project number, Vercel project ID, and next verification flow.
+- Verification:
+  - `npm.cmd run test:unit -- tests/unit/nextRuntimeConfig.test.ts tests/unit/productionScripts.test.ts`: passed, 23 files / 114 tests.
+  - `npm.cmd run typecheck`: passed.
+  - `npm.cmd run lint`: passed.
+  - `npm.cmd run build`: passed, 31 routes.
+
+### Remaining blocker
+
+The actual GCP IAM resources are not yet confirmed created because `gcloud` is not
+available on PATH. Next operator must either install/expose Google Cloud SDK or
+run the documented commands in Google Cloud Shell. After IAM and Vercel env vars
+are set, redeploy `codex/mvp-completion` and verify:
+
+1. member profile save succeeds;
+2. authenticated `/api/cart` read/write succeeds;
+3. Owner Product save succeeds and writes `productsPublic`.

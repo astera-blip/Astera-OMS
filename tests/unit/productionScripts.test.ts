@@ -17,11 +17,23 @@ describe("production environment checker", () => {
     const report = formatEnvironmentReport({
       RESEND_API_KEY: "secret-value",
       FIREBASE_PROJECT_ID: "",
+      GCP_SERVICE_ACCOUNT_EMAIL: "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
     });
 
     expect(report).toContain("RESEND_API_KEY=configured");
     expect(report).toContain("FIREBASE_PROJECT_ID=missing");
+    expect(report).toContain("GCP_SERVICE_ACCOUNT_EMAIL=configured");
     expect(report).not.toContain("secret-value");
+    expect(report).not.toContain("astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com");
+  });
+
+  it("tracks required Vercel OIDC environment variable names", () => {
+    const source = readFileSync("scripts/check-production-env.mjs", "utf8");
+
+    expect(source).toContain("GCP_PROJECT_NUMBER");
+    expect(source).toContain("GCP_WORKLOAD_IDENTITY_POOL_ID");
+    expect(source).toContain("GCP_WORKLOAD_IDENTITY_PROVIDER_ID");
+    expect(source).toContain("GCP_SERVICE_ACCOUNT_EMAIL");
   });
 });
 

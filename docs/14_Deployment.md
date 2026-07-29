@@ -63,6 +63,45 @@ npm run production:smoke -- --base-url https://astera-oms.vercel.app
 Before deployment, verify both `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` and
 `NEXT_PUBLIC_ENABLE_E2E_TEST_AUTH` are absent or set to `false`.
 
+## Vercel OIDC / GCP Workload Identity
+
+The app is prepared to use Vercel OIDC instead of a long-lived service-account
+JSON key. Firebase Admin initialization reads these Vercel environment variable
+names:
+
+- `GOOGLE_CLOUD_PROJECT=astera-oms-prod`
+- `GCP_PROJECT_ID=astera-oms-prod`
+- `GCP_PROJECT_NUMBER=1032606875618`
+- `GCP_WORKLOAD_IDENTITY_POOL_ID=vercel-oidc`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER_ID=vercel`
+- `GCP_WORKLOAD_IDENTITY_AUDIENCE=//iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/providers/vercel`
+- `GCP_SERVICE_ACCOUNT_EMAIL=astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`
+
+Known Vercel project ID:
+
+- `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`
+
+Prepared setup script:
+
+```powershell
+.\scripts\setup-vercel-gcp-oidc.ps1 `
+  -ProjectId "astera-oms-prod" `
+  -ProjectNumber "1032606875618" `
+  -VercelProjectId "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"
+```
+
+The script requires `gcloud` on PATH and creates/updates:
+
+- required Google Cloud APIs;
+- service account `astera-vercel-admin`;
+- Workload Identity Pool `vercel-oidc`;
+- OIDC Provider `vercel`;
+- `roles/iam.workloadIdentityUser` binding restricted to the Vercel project ID.
+
+After the script prints the environment variable names/values, add those names
+to Vercel Production and Preview environments, redeploy, then test
+`POST /api/member/profile`, `/api/cart`, and Owner Product save.
+
 ## GitHub Actions
 
 The CI workflow runs on push and pull request to `main`:

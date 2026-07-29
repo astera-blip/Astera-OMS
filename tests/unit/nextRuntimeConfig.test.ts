@@ -16,4 +16,17 @@ describe("Next server runtime config", () => {
     expect(adminSource).not.toContain("firebase-admin/auth");
     expect(serverAuthSource).not.toContain("firebase-admin/auth");
   });
+
+  test("supports Vercel OIDC for Admin SDK credentials without service account keys", () => {
+    const adminSource = readFileSync("src/lib/firebase/admin.ts", "utf8");
+
+    expect(adminSource).toContain("@vercel/oidc");
+    expect(adminSource).toContain("IdentityPoolClient");
+    expect(adminSource).toContain("GCP_PROJECT_NUMBER");
+    expect(adminSource).toContain("GCP_WORKLOAD_IDENTITY_POOL_ID");
+    expect(adminSource).toContain("GCP_WORKLOAD_IDENTITY_PROVIDER_ID");
+    expect(adminSource).toContain("GCP_SERVICE_ACCOUNT_EMAIL");
+    expect(adminSource).toContain("getVercelOidcToken");
+    expect(adminSource).not.toContain("GCP_SERVICE_ACCOUNT_PRIVATE_KEY");
+  });
 });
