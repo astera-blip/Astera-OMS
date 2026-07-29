@@ -496,6 +496,8 @@ are set, redeploy `codex/mvp-completion` and verify:
 
 ### Next exact step
 
-Commit/push only the Manual UI/UX Follow-up files. Do not stage the existing
-user modification in `AGENTS.md`. The preceding GCloud login/OIDC step remains
-independently pending.
+Committed and pushed as `f954e2e` (`fix: polish storefront manual test ux`) to
+`origin/codex/mvp-completion`. Vercel Preview may now deploy this commit; manually
+check `/`, `/products`, `/brand`, `/cart`, `/payments`, `/orders`, `/members`, and
+`/about` after Preview is Ready. Do not stage the existing user modification in
+`AGENTS.md`. The preceding GCloud login/OIDC step remains independently pending.
