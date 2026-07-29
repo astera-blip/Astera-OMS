@@ -536,11 +536,12 @@ If `/brand` is fixed but Product save still fails, the next exact check is Verce
 ## 2026-07-29 Storefront/Profile UI Follow-up
 
 - Completed requested UI/behavior updates:
-  - homepage header placement now uses `ASTERA OMS / Aatera` as the large brand heading and `泰國 GL / 藝人周邊代購` as the smaller category line;
+  - homepage header placement now uses `ASTERA OMS` as the large brand heading and `泰國 GL / 藝人周邊代購` as the smaller category line;
   - member profile form now displays separate `姓` and `名` fields;
   - profile save still submits the existing combined `displayName`, preserving the current API and Firestore model;
   - successful profile save redirects to `/`;
   - public footer no longer renders disabled social placeholders such as `Instagram：暫不提供`.
+- Follow-up verification found the member profile save failure on Preview is caused by missing Vercel Admin Firestore credentials: Vercel logs for `POST /api/member/profile` show `Could not load the default credentials`. This is not caused by blank birthday; blank birthday is accepted and now omitted from the client payload.
 - Fresh validation:
   - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts`: red before fix, green after fix; current result 23 files / 112 tests passed.
   - `npm.cmd run typecheck`: passed.

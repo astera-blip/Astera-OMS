@@ -2,7 +2,8 @@
 
 ## 2026-07-29
 
-- Updated storefront and member profile UX: homepage header now shows `ASTERA OMS / Aatera` as the main brand heading, member profile splits name input into `姓` and `名`, successful profile save redirects home, and disabled Instagram placeholders are removed from the public footer.
+- Corrected the homepage brand heading to `ASTERA OMS` only, omitted blank `birthday` from member profile save payloads, and mapped missing Admin Firestore credentials to an explicit profile-save error.
+- Updated storefront and member profile UX: homepage header now shows `ASTERA OMS` as the main brand heading, member profile splits name input into `姓` and `名`, successful profile save redirects home, and disabled Instagram placeholders are removed from the public footer.
 - Removed `firebase-admin/auth` from shared server Admin SDK imports and moved server ID-token verification to Firebase Identity Toolkit REST so Vercel API routes no longer fail while loading Admin Auth.
 - Fixed Vercel runtime bundling for `firebase-admin` by explicitly keeping it external in server bundles.
 - Added Google sign-in redirect fallback and clearer Firebase Auth error messages for popup-blocked, closed-popup, unsupported-environment, and unauthorized-domain cases.

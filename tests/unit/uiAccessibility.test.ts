@@ -65,10 +65,11 @@ describe("shared UI accessibility contract", () => {
     const home = read("src/app/page.tsx");
 
     expect(home).toContain('<p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">\n              泰國 GL / 藝人周邊代購');
-    expect(home).toContain('<h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">\n              ASTERA OMS / Aatera');
+    expect(home).toContain('<h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">\n              ASTERA OMS');
+    expect(home).not.toContain("/ Aatera");
   });
 
-  it("uses separated member last and first name fields and redirects home after save", () => {
+  it("uses separated member last and first name fields, omits blank birthday, and redirects home after save", () => {
     const profile = read("src/app/account/profile/page.tsx");
 
     expect(profile).toContain('id="lastName"');
@@ -77,6 +78,8 @@ describe("shared UI accessibility contract", () => {
     expect(profile).toContain('id="firstName"');
     expect(profile).toContain('label="名"');
     expect(profile).toContain('autoComplete="given-name"');
+    expect(profile).toContain("sanitizeProfileDraft");
+    expect(profile).toContain("delete sanitized.birthday");
     expect(profile).toContain('router.replace("/")');
   });
 

@@ -353,16 +353,21 @@ Commit and push the runtime fix. After Vercel Preview redeploys, verify `/brand`
 ## 2026-07-29 Storefront/Profile UI Follow-up
 
 - User requested four UI/behavior updates:
-  - swap the homepage header placement of `泰國 GL / 藝人周邊代購` and `ASTERA OMS / Aatera`;
+  - swap the homepage header placement of `泰國 GL / 藝人周邊代購` and `ASTERA OMS`;
   - split member profile name entry into `姓` and `名`;
   - redirect to `/` after successful member profile save;
   - remove `Instagram：暫不提供` from public UI.
 - Code changes:
-  - `src/app/page.tsx`: small eyebrow now shows the buyer-facing category; main heading now shows `ASTERA OMS / Aatera`.
+  - `src/app/page.tsx`: small eyebrow now shows the buyer-facing category; main heading now shows `ASTERA OMS`.
   - `src/app/account/profile/page.tsx`: added separate last-name and first-name fields with `family-name` / `given-name` autocomplete; submission still combines them into existing `displayName`, so Firestore/API schema is unchanged.
   - `src/app/account/profile/page.tsx`: successful save calls `router.replace("/")` after `refreshProfile()`.
   - `src/components/storefront/StorefrontFooter.tsx`: footer now renders only active social channels with URLs; disabled placeholders are not shown.
   - `tests/unit/uiAccessibility.test.ts`: added regression coverage for these UI behaviors.
+- Follow-up correction:
+  - removed `/ Aatera` from the homepage title entirely;
+  - `src/app/account/profile/page.tsx` now omits blank `birthday` from the save payload;
+  - `src/app/api/member/profile/route.ts` maps missing Admin Firestore credentials to `admin_credentials_not_configured`;
+  - Vercel logs confirmed Preview profile save is failing at Admin Firestore credential loading with `Could not load the default credentials`, not because of blank birthday.
 - Verification:
   - `npm.cmd run test:unit -- tests/unit/uiAccessibility.test.ts`: red before fix, green after fix; current result 23 files / 112 tests passed.
   - `npm.cmd run typecheck`: passed.

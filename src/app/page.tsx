@@ -70,7 +70,7 @@ export default function Home() {
               泰國 GL / 藝人周邊代購
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
-              ASTERA OMS / Aatera
+              ASTERA OMS
             </h1>
           </div>
           <AccountActions />

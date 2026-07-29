@@ -48,6 +48,24 @@ function combineDisplayName(nameDraft: NameDraft) {
   return `${nameDraft.lastName.trim()}${nameDraft.firstName.trim()}`.trim();
 }
 
+function sanitizeProfileDraft(draft: MemberProfileDraft): Partial<MemberProfileDraft> {
+  const sanitized: Partial<MemberProfileDraft> = { ...draft };
+
+  if (!sanitized.birthday?.trim()) {
+    delete sanitized.birthday;
+  }
+
+  return sanitized;
+}
+
+function getProfileSaveErrorMessage(error: string | undefined) {
+  if (error === "admin_credentials_not_configured") {
+    return "會員資料暫時無法儲存：伺服器資料庫權限尚未設定，請稍後再試。";
+  }
+
+  return "儲存失敗，請檢查資料後再試一次。";
+}
+
 export default function MemberProfilePage() {
   const router = useRouter();
   const {
@@ -125,16 +143,17 @@ export default function MemberProfilePage() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(nextDraft),
+        body: JSON.stringify(sanitizeProfileDraft(nextDraft)),
       });
       const result = (await response.json().catch(() => null)) as {
         ok?: boolean;
+        error?: string;
         errors?: Partial<Record<MemberProfileField, string>>;
       } | null;
 
       if (!response.ok || !result?.ok) {
         setErrors(result?.errors ?? {});
-        setMessage("儲存失敗，請檢查資料後再試一次。");
+        setMessage(getProfileSaveErrorMessage(result?.error));
         return;
       }
 

@@ -55,6 +55,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
+    if (message.includes("Could not load the default credentials")) {
+      return NextResponse.json({ error: "admin_credentials_not_configured" }, { status: 503 });
+    }
+
     return NextResponse.json({ error: message }, { status: message === "missing_token" ? 401 : 500 });
   }
 }
