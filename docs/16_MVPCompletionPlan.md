@@ -894,3 +894,40 @@ and verify profile, cart, and Owner Product writes.
   phone number, name, or request body. A dedicated unit test first failed and
   then passed. Deploy this diagnostic revision, repeat the same test profile
   save, and use the resulting Vercel Function log as the next root-cause input.
+
+## 2026-07-30 Reversible Checkout Preview test — baseline
+
+- Approved test design: `docs/superpowers/specs/2026-07-30-reversible-checkout-test-design.md`.
+- Execution plan: `docs/superpowers/plans/2026-07-30-reversible-checkout-preview-test.md`.
+- Environment: branch-stable Preview `https://astera-oms-git-codex-mvp-completion-astera-oms.vercel.app/`; Production was not opened or modified.
+- Authenticated account: `astera.0920@gmail.com` (Owner custom claim). This Checkout run verifies member data paths but not non-Owner Workspace denial.
+- Browser baseline at `2026-07-30 07:48:40 +08:00`: `/cart` loaded successfully with zero items and its CTA disabled; no pre-existing cart item was removed.
+- Approved safety boundary: create only clearly labelled `TEST-ONLY` data, use NT$1, do not report/confirm/reverse payment or issue a refund, cancel the unpaid item through the member UI, and archive rather than delete the test catalog data.
+
+## 2026-07-30 Reversible Checkout Preview test — ProductWorkspace load-race incident
+
+### Reproduction and impact
+
+- During the approved test-data setup, `/workspace/products` visibly displayed `商品資料載入中。` while its Product form remained editable and its `儲存商品` action remained enabled.
+- Entering the dedicated test values before the product GET completed caused the later asynchronous selection of the first list row, `prod_002`, to supply that document ID to the save request. The first save therefore changed `prod_002` rather than creating a new Product.
+- The test run stopped immediately before cart, Checkout, payment, cancellation, notification, or archival testing. No Order, PaymentRequest, ConsentRecord, Audit Log, Payment, Adjustment, or CancellationRequest was created.
+
+### Safe data correction
+
+- The known pre-test values verified in prior Preview evidence were restored through the protected Owner API: Product `92帽子`, Variant `一般款`, Campaign `92帽子預購`, Variant default price NT$520, Campaign price NT$520, `Published` Product state and `Open` Campaign state.
+- Product ID remains `prod_002`; formal Product SKU remains `AST-P000002`; formal Variant SKU remains `AST-P000002-V001`. No SKU was manually changed.
+- The existing public description, internal note, artist classification and supplement flag were preserved from the loaded record. Start/end date fields are currently blank after restoration; this matches the final returned Preview record but the earlier handoff did not record their original values, so date precision cannot be asserted retroactively.
+
+### Root cause and source correction pending Preview verification
+
+- Root cause is client-side state ownership, not Firestore rules or Server SKU allocation: `ProductWorkspace` auto-selected the first product after `GET /api/workspace/products` while allowing a blank initial form to be edited and submitted.
+- `src/components/workspace/ProductWorkspace.tsx` now has an explicit `isProductsLoading` guard. Until the first product load settles, it disables the New Product action, product selection, save action, Product form fieldset, Variant/Campaign fieldsets and archive action; the submit handler independently rejects a request during loading.
+- `tests/unit/uiAccessibility.test.ts` contains the red-green regression contract for the loading gate. The test first failed against the old source, then passed after the guard was added.
+- Fresh local evidence: Unit tests **24 files / 126 tests**, TypeScript and ESLint all pass. Preview deployment and live browser confirmation remain required before resuming Task 2.
+
+### Exact resume sequence
+
+1. Commit and push only the ProductWorkspace guard, its test, and these execution documents; keep user-owned `AGENTS.md` unstaged.
+2. Wait for the `codex/mvp-completion` Preview deployment, reload `/workspace/products`, and verify no Product mutation control is enabled while `商品資料載入中。` appears.
+3. Wait for `商品資料已載入。`, click `新增` deliberately, then create a new clearly labelled test Product. Confirm its server-generated ID is not `prod_002` before entering a Campaign or opening `/products`.
+4. Resume the existing reversible Checkout test plan only after that public projection check passes.

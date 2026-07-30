@@ -839,3 +839,20 @@ After it propagates:
 - Next operational test remains Checkout. It requires an explicit disposable
   test-order / cancellation-cleanup decision; do not create a real order merely
   for smoke testing.
+
+## 2026-07-30 Reversible Checkout Preview test — baseline
+
+- User approved the dedicated Preview-only Checkout test design and use of `astera.0920@gmail.com`.
+- Source design: `docs/superpowers/specs/2026-07-30-reversible-checkout-test-design.md`; execution plan: `docs/superpowers/plans/2026-07-30-reversible-checkout-preview-test.md`.
+- Browser verified the branch-stable Preview, never Production. At `2026-07-30 07:48:40 +08:00`, the signed-in cart was empty, loaded successfully, and no pre-existing item was changed.
+- The account has Owner custom claim; record member-flow behavior separately from future non-Owner authorization testing.
+- Test stop condition: the first product projection, cart, Checkout, cancellation, or archive failure stops the next mutation. Record only safe identifiers and error evidence, repair, redeploy, then start a newly named isolated test run.
+
+## 2026-07-30 Reversible Checkout Preview test — ProductWorkspace load-race incident
+
+- Task 2 exposed a real Owner Workspace defect before any Checkout mutation. The UI displayed `商品資料載入中。` yet allowed Product form editing and saving. When the protected product GET resolved, it selected existing `prod_002`; the pending form values then saved against that selected document instead of creating a new Product.
+- Immediate scope stop: no cart item was added and no Checkout, Order, PaymentRequest, ConsentRecord, payment report, cancellation request, adjustment, audit record, refund, or notification event was created by this run.
+- The protected Owner API restored the known existing test record values: `92帽子`, `一般款`, `92帽子預購`, default / campaign price NT$520, Product `Published`, Campaign `Open`. Identifiers remain `prod_002`, `AST-P000002`, `AST-P000002-V001`; no SKU was edited. Existing public description, internal note, classification and supplement setting were retained. Start/end campaign times are currently blank and had not been recorded before the attempted test setup.
+- Source fix is in `src/components/workspace/ProductWorkspace.tsx`: an explicit initial product-load state disables all Product mutation routes and the submit handler rejects loading-time submits. `tests/unit/uiAccessibility.test.ts` first failed and then passed for this contract.
+- Fresh local verification: Unit **24 files / 126 tests**, TypeScript, ESLint passed. Do not restart browser test-data creation until the new branch Preview is Ready and its loading gate is manually confirmed.
+- Exact next action: push the source/docs fix excluding user-owned `AGENTS.md`; on Preview, wait for `商品資料已載入。`, click `新增`, ensure the Product ID field remains `儲存時自動建立`, then save a new explicitly named test Product and verify the generated ID is not `prod_002`.

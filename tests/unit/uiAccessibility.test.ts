@@ -62,6 +62,14 @@ describe("shared UI accessibility contract", () => {
     expect(images).toContain('aria-live="polite"');
   });
 
+  it("blocks Product workspace mutations until the initial catalog load completes", () => {
+    const product = read("src/components/workspace/ProductWorkspace.tsx");
+
+    expect(product).toContain('const [isProductsLoading, setIsProductsLoading] = useState(true)');
+    expect(product).toContain('if (isProductsLoading)');
+    expect(product).toContain('disabled={isProductsLoading}');
+  });
+
   it("falls back to redirect-based Google sign-in when popup sign-in cannot complete", () => {
     const authProvider = read("src/components/auth/AuthProvider.tsx");
     expect(authProvider).toContain("getRedirectResult");

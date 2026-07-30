@@ -91,19 +91,27 @@ export function ProductWorkspace() {
   const [classifications, setClassifications] =
     useState<ClassificationMasters>(emptyClassifications);
   const [selectedId, setSelectedId] = useState("");
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
   const [message, setMessage] = useState("商品資料載入中。");
   const [activeTab, setActiveTab] = useState<"products" | "classifications">("products");
   const [activeClassificationKey, setActiveClassificationKey] =
     useState<ProductClassificationKey>("company");
 
   useEffect(() => {
-    async function loadFirestoreProducts() {
-      if (role !== "owner" || !user || productsLoadedForUid.current === user.uid) {
-        return;
-      }
-      productsLoadedForUid.current = user.uid;
+    const ownerUser = user;
+    if (role !== "owner" || !ownerUser) {
+      queueMicrotask(() => setIsProductsLoading(false));
+      return;
+    }
+    if (productsLoadedForUid.current === ownerUser.uid) {
+      queueMicrotask(() => setIsProductsLoading(false));
+      return;
+    }
 
-      const token = await user.getIdToken();
+    async function loadFirestoreProducts(authenticatedUser: NonNullable<typeof user>) {
+      productsLoadedForUid.current = authenticatedUser.uid;
+
+      const token = await authenticatedUser.getIdToken();
       if (!token) {
         return;
       }
@@ -123,10 +131,12 @@ export function ProductWorkspace() {
       setMessage(workspaceProducts.length > 0 ? "商品資料已載入。" : "目前沒有商品。");
     }
 
-    void loadFirestoreProducts().catch(() => {
-      productsLoadedForUid.current = "";
-      setMessage("無法載入商品資料，請確認網路後再試一次。");
-    });
+    void loadFirestoreProducts(ownerUser)
+      .catch(() => {
+        productsLoadedForUid.current = "";
+        setMessage("無法載入商品資料，請確認網路後再試一次。");
+      })
+      .finally(() => setIsProductsLoading(false));
   }, [role, user]);
 
   useEffect(() => {
@@ -194,6 +204,11 @@ export function ProductWorkspace() {
   }
 
   async function upsertCurrentProduct() {
+    if (isProductsLoading) {
+      setMessage("商品資料仍在載入中，請稍候。");
+      return;
+    }
+
     const result = normalizeProductDraft({
       product: {
         id: productForm.id.trim(),
@@ -489,6 +504,7 @@ export function ProductWorkspace() {
           <button
             type="button"
             onClick={createBlankProduct}
+            disabled={isProductsLoading}
             className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
           >
             新增
@@ -503,6 +519,7 @@ export function ProductWorkspace() {
                 key={product.product.id}
                 type="button"
                 onClick={() => selectProduct(product)}
+                disabled={isProductsLoading}
                 className={[
                   "rounded-2xl border p-4 text-left transition-colors",
                   active
@@ -558,11 +575,15 @@ export function ProductWorkspace() {
           >
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">商品資料</h3>
-              <button type="submit" className="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950">
+              <button
+                type="submit"
+                disabled={isProductsLoading}
+                className="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 儲存商品
               </button>
             </div>
-            <div className="mt-4 grid gap-4">
+            <fieldset disabled={isProductsLoading} className="mt-4 grid gap-4">
               <div className="grid gap-2 text-sm">
                 <span className="font-medium">Product ID（商品識別碼）</span>
                 <div className="flex gap-2">
@@ -684,7 +705,7 @@ export function ProductWorkspace() {
                   ),
                 )}
               </div>
-            </div>
+            </fieldset>
           </form>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -693,6 +714,7 @@ export function ProductWorkspace() {
               <button
                 type="button"
                 onClick={archiveSelectedProduct}
+                disabled={isProductsLoading || !selectedProduct}
                 className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
               >
                 封存商品
@@ -700,7 +722,7 @@ export function ProductWorkspace() {
             </div>
 
             <div className="mt-4 grid gap-4">
-              <fieldset className="grid gap-3 rounded-2xl border border-slate-200 p-4">
+              <fieldset disabled={isProductsLoading} className="grid gap-3 rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <legend className="px-1 text-sm font-semibold">Variants（商品規格）</legend>
                   <button
@@ -793,7 +815,7 @@ export function ProductWorkspace() {
                 ))}
               </fieldset>
 
-              <fieldset className="grid gap-3 rounded-2xl border border-slate-200 p-4">
+              <fieldset disabled={isProductsLoading} className="grid gap-3 rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <legend className="px-1 text-sm font-semibold">Sale Campaigns（販售活動）</legend>
                   <button
