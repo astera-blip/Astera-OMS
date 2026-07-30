@@ -436,6 +436,7 @@ npm run production:smoke -- --base-url https://astera-oms.vercel.app
 | `docs/18_AIContinuationBrief.md` | 舊版精簡交接；部分狀態已被本文件覆蓋 |
 | `docs/19_Astera_UIUX_Design_Handoff_v1.1.md` | 完整 UI/UX 設計需求 |
 | `docs/20_CompleteAIHandoff_2026-07-30.md` | 本文件；最新完整 AI 交接入口 |
+| `docs/21_Astera_OMS_MVP_PRD.md` | MVP Product Requirements Document |
 | `docs/99_PendingOwnerReview.md` | 營運／法律／外部帳號待確認事項 |
 | `docs/SOP/正式資料備份與商品同步SOP.md` | 正式資料 backup / sync / rollback SOP |
 
