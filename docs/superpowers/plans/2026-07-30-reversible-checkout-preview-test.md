@@ -61,7 +61,7 @@ Expected: one current timestamped baseline entry appears in each document.
 
 ## Task 2: Create and expose dedicated test catalog data
 
-**Live status (2026-07-30):** Completed after the ProductWorkspace loading guard was deployed and verified. The original pre-load form/save race was repaired before the dedicated test Product was created.
+**Live status (2026-07-30):** Completed after the ProductWorkspace loading guard was deployed and verified. The original pre-load form/save race was repaired before the dedicated test Product was created. The Campaign explicit Open state and public availability passed; browser-driven datetime-local persistence remains a separate manual/E2E follow-up.
 
 **Files:**
 - Modify: `docs/16_MVPCompletionPlan.md`
@@ -109,7 +109,7 @@ Run in the browser at the test Product detail page: add quantity one of `Test Va
 
 Run in the browser at `/cart`: use recipient `Preview Test — 請勿出貨`, phone `0900000000`, address shipping with `Preview only — 不出貨、不付款`, select the required shipping option, accept the legal and supplementary rules, then click `建立訂單` once. Do not retry the button while it is processing.
 
-- [ ] **Step 3: Capture authoritative result**
+- [x] **Step 3: Capture authoritative result**
 
 Run in the browser: open the resulting member order detail page and record its order number, item status, total, and payment-request state. The expected initial states are `awaitingPayment` for Order and OrderItem and `open` for PaymentRequest.
 
@@ -117,7 +117,7 @@ Run in the browser: open the resulting member order detail page and record its o
 
 Verify the UI shows only one newly created test Order and the cart has been cleared. Do not create a second Checkout to probe idempotency; the existing API and automated tests cover identical-request behavior without creating extra Preview business data.
 
-- [ ] **Step 5: Record Checkout evidence**
+- [x] **Step 5: Record Checkout evidence**
 
 Append order number, order ID if safely visible, payment request ID if safely visible, creation time, displayed statuses, and notification status (if visible) to both handoff documents. State explicitly that no payment report or payment confirmation was created.
 
@@ -131,23 +131,23 @@ Append order number, order ID if safely visible, payment request ID if safely vi
 - Consumes: the Task 3 Order in `awaitingPayment` with its single unpaid OrderItem.
 - Produces: a cancelled Order, OrderItem, and PaymentRequest, with the test catalog data archived.
 
-- [ ] **Step 1: Cancel the sole unpaid OrderItem from the member order page**
+- [x] **Step 1: Cancel the sole unpaid OrderItem from the member order page**
 
 Run in the browser: select only the test OrderItem, enter `Preview Checkout reversible test — no payment, do not fulfil`, and submit the cancellation once.
 
-- [ ] **Step 2: Verify direct-cancellation terminal state**
+- [x] **Step 2: Verify direct-cancellation terminal state**
 
 Run in the browser: reload the order detail and confirm Order, selected OrderItem, and PaymentRequest each show `cancelled`; confirm total and payment request amount show NT$0; confirm there is no cancellation request awaiting Owner review.
 
-- [ ] **Step 3: Verify forbidden payment paths were not used**
+- [x] **Step 3: Verify forbidden payment paths were not used**
 
 Run in the browser: confirm no payment report is listed and no payment confirmation, reversal, adjustment, or refund action was performed. Do not manufacture a payment to test these unrelated paths.
 
-- [ ] **Step 4: Archive, never delete, the test Product and Campaign**
+- [x] **Step 4: Archive, never delete, the test Product and Campaign**
 
 Run in Owner Workspace: set the test Campaign and Product to Archived. Then reload `/products` and confirm the exact test Product is no longer publicly listed.
 
-- [ ] **Step 5: Record retained audit evidence**
+- [x] **Step 5: Record retained audit evidence**
 
 Append cancellation timestamp, terminal statuses, archived catalog IDs, and the explicitly retained ConsentRecord / Audit Log / notification-event policy to both handoff documents.
 
@@ -161,25 +161,25 @@ Append cancellation timestamp, terminal statuses, archived catalog IDs, and the 
 - Consumes: browser evidence from Tasks 1–4.
 - Produces: an exact pass/fail handoff record and a list of any code defect with reproduction steps.
 
-- [ ] **Step 1: Compare observed outcomes to acceptance criteria**
+- [x] **Step 1: Compare observed outcomes to acceptance criteria**
 
 Run: `Get-Content 'docs/superpowers/specs/2026-07-30-reversible-checkout-test-design.md'`
 
 Expected: each acceptance criterion has a corresponding documented observation or a documented failure.
 
-- [ ] **Step 2: Run documentation integrity checks**
+- [x] **Step 2: Run documentation integrity checks**
 
 Run: `git diff --check`
 
 Expected: exit code `0` and no whitespace errors.
 
-- [ ] **Step 3: Preserve unrelated worktree state**
+- [x] **Step 3: Preserve unrelated worktree state**
 
 Run: `git status --short`
 
 Expected: `AGENTS.md` remains unstaged; only deliberately modified documentation is staged for a follow-up commit.
 
-- [ ] **Step 4: Commit the completed evidence only after all observations are recorded**
+- [x] **Step 4: Commit the completed evidence only after all observations are recorded**
 
 Run:
 
