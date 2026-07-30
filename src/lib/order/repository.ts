@@ -131,7 +131,9 @@ export async function saveCancellationRequest(
 export async function listCancellationRequests(db: Firestore): Promise<CancellationRequestRecord[]> {
   const snapshot = await getDocs(collection(db, "cancellationRequests"));
 
-  return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
+  return snapshot.docs.map((document) =>
+    normalizeCancellationRequestRecord(document.data() as CancellationRequestRecord),
+  );
 }
 
 export async function listMemberCancellationRequests(
@@ -142,7 +144,9 @@ export async function listMemberCancellationRequests(
     query(collection(db, "cancellationRequests"), where("memberUid", "==", memberUid)),
   );
 
-  return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
+  return snapshot.docs.map((document) =>
+    normalizeCancellationRequestRecord(document.data() as CancellationRequestRecord),
+  );
 }
 
 export async function reviewCancellationRequest(
@@ -168,6 +172,19 @@ function normalizeOrderItemRecord(record: OrderItemRecord): OrderItemRecord {
     ...record,
     createdAt: normalizeFirestoreTimestamp(record.createdAt),
     ...(record.updatedAt ? { updatedAt: normalizeFirestoreTimestamp(record.updatedAt) } : {}),
+  };
+}
+
+function normalizeCancellationRequestRecord(
+  record: CancellationRequestRecord,
+): CancellationRequestRecord {
+  return {
+    ...record,
+    createdAt: normalizeFirestoreTimestamp(record.createdAt),
+    ...(record.reviewedAt ? { reviewedAt: normalizeFirestoreTimestamp(record.reviewedAt) } : {}),
+    ...(record.refundCompletedAt
+      ? { refundCompletedAt: normalizeFirestoreTimestamp(record.refundCompletedAt) }
+      : {}),
   };
 }
 

@@ -61,7 +61,7 @@ Expected: one current timestamped baseline entry appears in each document.
 
 ## Task 2: Create and expose dedicated test catalog data
 
-**Live status (2026-07-30):** Stopped before a dedicated Product was created. The pre-load form/save race modified and then restored existing `prod_002`; source repair is committed next and must be Preview-verified before retrying this task.
+**Live status (2026-07-30):** Completed after the ProductWorkspace loading guard was deployed and verified. The original pre-load form/save race was repaired before the dedicated test Product was created.
 
 **Files:**
 - Modify: `docs/16_MVPCompletionPlan.md`
@@ -71,19 +71,19 @@ Expected: one current timestamped baseline entry appears in each document.
 - Consumes: Owner Workspace Product API; automatic Product/Variant SKU allocation.
 - Produces: one published Preview Product, one open Campaign, and a visible `productsPublic` listing with price NT$1.
 
-- [ ] **Step 1: Create the Product through Owner Workspace**
+- [x] **Step 1: Create the Product through Owner Workspace**
 
 Run in the browser at `/workspace/products`: create a new Product named `【測試專用】Preview Checkout — 請勿付款`, use one default Variant named `Test Variant（測試規格）`, set currency to `TWD`, default price to `1`, and leave internal-only fields empty unless required by the form.
 
-- [ ] **Step 2: Create its Campaign through Owner Workspace**
+- [x] **Step 2: Create its Campaign through Owner Workspace**
 
 Run in the browser on the same Product: create `TEST-ONLY Preview Checkout — 請勿付款`, set sale type to `preorder`, sale price to `1`, and choose a start time already passed plus an end time at least one hour in the future. Publish the Product and leave the Campaign open.
 
-- [ ] **Step 3: Verify public projection and SKU ownership**
+- [x] **Step 3: Verify public projection and SKU ownership**
 
 Run in the browser at `/products`: confirm exactly the test Product's public name, Test Variant, Campaign, and NT$1 price appear; confirm no SKU, cost, or internal note is shown.
 
-- [ ] **Step 4: Record generated identifiers**
+- [x] **Step 4: Record generated identifiers**
 
 Append the browser-visible Product ID/SKU, Variant ID/SKU, Campaign ID, published time, and public listing result to both handoff documents. Do not infer identifiers from a list position.
 
@@ -101,11 +101,11 @@ If the product is absent, price is not NT$1, Campaign is not open, or an interna
 - Consumes: publicly listed test Product and `/api/cart` hydration guard.
 - Produces: exactly one Checkout result containing `orderId`, formal `orderNumber`, and `paymentRequestId`.
 
-- [ ] **Step 1: Add only the test item and verify cart hydration**
+- [x] **Step 1: Add only the test item and verify cart hydration**
 
 Run in the browser at the test Product detail page: add quantity one of `Test Variant（測試規格）` to cart. Visit `/cart`, reload once, and verify the line name, Variant name, Campaign, and total are all visible and the total is NT$1.
 
-- [ ] **Step 2: Submit the Checkout once**
+- [x] **Step 2: Submit the Checkout once**
 
 Run in the browser at `/cart`: use recipient `Preview Test — 請勿出貨`, phone `0900000000`, address shipping with `Preview only — 不出貨、不付款`, select the required shipping option, accept the legal and supplementary rules, then click `建立訂單` once. Do not retry the button while it is processing.
 
@@ -113,7 +113,7 @@ Run in the browser at `/cart`: use recipient `Preview Test — 請勿出貨`, ph
 
 Run in the browser: open the resulting member order detail page and record its order number, item status, total, and payment-request state. The expected initial states are `awaitingPayment` for Order and OrderItem and `open` for PaymentRequest.
 
-- [ ] **Step 4: Verify idempotency by observation, not a second order**
+- [x] **Step 4: Verify idempotency by observation, not a second order**
 
 Verify the UI shows only one newly created test Order and the cart has been cleared. Do not create a second Checkout to probe idempotency; the existing API and automated tests cover identical-request behavior without creating extra Preview business data.
 

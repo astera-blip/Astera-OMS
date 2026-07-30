@@ -955,3 +955,12 @@ and verify profile, cart, and Owner Product writes.
 2. Reload `/orders` in the stable Preview; it must show `AST-20260730-0001` without a React error and show a textual created date.
 3. Open its detail page, verify its single item is awaiting payment and select it for the normal direct-cancellation path.
 4. Submit exactly one cancellation with `Preview Checkout reversible test — no payment, do not fulfil`, verify all terminal statuses, then archive the Product and Campaign.
+
+## 2026-07-30 Reversible Checkout Preview test — cancellation-record timestamp correction
+
+- After the order-history correction deployed, `/orders` correctly displayed the isolated order `AST-20260730-0001`; the test Product and cart were already verified. Direct navigation to that order's detail route then still showed the member-safe read failure.
+- Firestore Rules are not the cause: `cancellationRequests` grants a signed-in member `get` / `list` access when `resource.data.memberUid == request.auth.uid`.
+- The remaining repository path, `listMemberCancellationRequests()`, returned raw Firestore Timestamp-shaped `createdAt`, `reviewedAt`, and `refundCompletedAt` values. Such an object must never cross the repository boundary into React.
+- Red-green test added in `tests/unit/orderRepository.test.ts`: the raw structural Timestamp test initially failed with `{ seconds, nanoseconds }`; it now passes after `src/lib/order/repository.ts` normalizes all cancellation request time fields using the same ISO conversion as orders.
+- Local verification after this correction: Unit **25 files / 128 tests**, TypeScript, ESLint, and `next build` pass. No Rules, schema, payment, cancellation transaction, production data, or production deployment was changed.
+- Next exact action: deploy this Preview-only reader correction, reload the existing `order_h6rg9HE7zrVrnNqzOaF6CLCVERB2_20260730000428083_1` detail page, and only if its sole item is visibly awaiting payment submit exactly one approved direct cancellation. Do not perform any payment action.

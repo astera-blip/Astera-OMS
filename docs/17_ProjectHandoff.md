@@ -866,3 +866,11 @@ After it propagates:
 - Root cause is `listMemberOrders()` raw Firestore casting. The pending source fix in `src/lib/order/repository.ts` normalizes order/item timestamps to ISO strings before returning to React. Test `tests/unit/orderRepository.test.ts` failed red against the raw Timestamp then passed green; fresh local results are Unit **25 files / 127 tests**, TypeScript, ESLint.
 - Campaign datetime inputs displayed during browser automation but did not persist in the returned record. The Campaign explicit Open state and public availability passed; record this separately for manual datetime/E2E follow-up.
 - Exact next action: deploy Timestamp normalization, reload `/orders`, use the same `AST-20260730-0001` detail page to directly cancel its only unpaid item, verify cancelled terminal states, then archive the isolated test catalog data. Do not submit any payment action.
+
+## 2026-07-30 Reversible Checkout Preview test — cancellation-record timestamp correction
+
+- `/orders` subsequently loaded `AST-20260730-0001` correctly after order / order-item timestamp normalization, but the member detail route still reported a safe read error before any cancellation mutation.
+- Rules inspection confirms a member may read only its own `cancellationRequests`; the defect is not an authorization broadening request.
+- `listMemberCancellationRequests()` and the Owner counterpart `listCancellationRequests()` are now defensive repository boundaries: they convert `createdAt`, `reviewedAt`, and `refundCompletedAt` Firestore Timestamp values to ISO strings before React receives them.
+- `tests/unit/orderRepository.test.ts` added a red-green regression covering both structural `{ seconds, nanoseconds }` and Firebase-style `toDate()` Timestamp forms. It initially failed; all **25 files / 128 tests**, TypeScript, ESLint, and `next build` subsequently passed.
+- Exact resume instruction: wait for the branch Preview generated from this correction, open only `order_h6rg9HE7zrVrnNqzOaF6CLCVERB2_20260730000428083_1`, confirm the test item remains unpaid, submit the single pre-approved cancellation reason, reload to capture terminal order/item/payment-request states, and archive Product `ZdW58A6aZqJLVHvioU6W` with its Campaign. Never delete the retained consent/audit/notification records and never touch Production.

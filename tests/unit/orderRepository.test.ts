@@ -15,7 +15,7 @@ vi.mock("firebase/firestore", () => ({
   writeBatch: vi.fn(),
 }));
 
-import { listMemberOrders } from "@/lib/order/repository";
+import { listMemberCancellationRequests, listMemberOrders } from "@/lib/order/repository";
 
 describe("listMemberOrders", () => {
   it("normalizes Firestore timestamps before exposing order records to React", async () => {
@@ -65,5 +65,36 @@ describe("listMemberOrders", () => {
     expect(bundles).toHaveLength(1);
     expect(bundles[0]?.order.createdAt).toBe("2026-07-30T00:00:00.000Z");
     expect(bundles[0]?.items[0]?.createdAt).toBe("2026-07-30T00:00:00.000Z");
+  });
+});
+
+describe("listMemberCancellationRequests", () => {
+  it("normalizes Firestore timestamps before exposing cancellation records to React", async () => {
+    firestore.getDocs.mockReset();
+    firestore.getDocs.mockResolvedValueOnce({
+      docs: [{
+        data: () => ({
+          id: "cancel_timestamp",
+          orderId: "order_timestamp",
+          orderItemIds: ["order_timestamp-item-1"],
+          memberUid: "member-a",
+          reason: "Preview test cancellation",
+          status: "approved",
+          createdAt: { seconds: 1785369600, nanoseconds: 0 },
+          createdBy: "member-a",
+          reviewedAt: {
+            toDate: () => new Date("2026-07-30T00:01:00.000Z"),
+          },
+          refundCompletedAt: { seconds: 1785369720, nanoseconds: 0 },
+        }),
+      }],
+    });
+
+    const requests = await listMemberCancellationRequests({} as never, "member-a");
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.createdAt).toBe("2026-07-30T00:00:00.000Z");
+    expect(requests[0]?.reviewedAt).toBe("2026-07-30T00:01:00.000Z");
+    expect(requests[0]?.refundCompletedAt).toBe("2026-07-30T00:02:00.000Z");
   });
 });
