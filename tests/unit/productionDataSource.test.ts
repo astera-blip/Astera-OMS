@@ -87,6 +87,17 @@ describe("production data-source boundary", () => {
     expect(sources).toContain("付款請求載入中。");
   });
 
+  it("keeps order-detail read diagnostics safe for buyers while retaining a console error code", () => {
+    const source = readFileSync(
+      resolve("src/components/storefront/OrderDetailBoard.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain('console.warn("member_order_detail_load_failed"');
+    expect(source).toContain("error instanceof Error ? error.message : \"unknown\"");
+    expect(source).not.toContain("setMessage(error.message)");
+  });
+
   it("defers member reader loads started by React effects", () => {
     for (const file of [
       "src/components/storefront/PaymentRequestsBoard.tsx",

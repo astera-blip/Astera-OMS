@@ -49,7 +49,8 @@ export function OrderDetailBoard({ orderId }: Props) {
       setBundles(nextBundles);
       setCancellationRequests(nextCancellationRequests);
       setStatus("ready");
-    } catch {
+    } catch (error) {
+      console.warn("member_order_detail_load_failed", error instanceof Error ? error.message : "unknown");
       setBundles([]);
       setCancellationRequests([]);
       setStatus("error");
