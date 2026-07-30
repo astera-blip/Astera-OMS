@@ -81,7 +81,7 @@ export function OrderHistoryBoard() {
           <article key={bundle.order.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold">{bundle.order.id}</h2>
+                <h2 className="text-xl font-semibold">{bundle.order.orderNumber ?? bundle.order.id}</h2>
                 <p className="mt-1 text-sm text-slate-600">
                   狀態：{orderStatusLabel(bundle.order.status)} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
                 </p>

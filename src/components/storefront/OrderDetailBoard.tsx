@@ -6,10 +6,12 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { createCancellationRequest, getPendingCancellationRequestId } from "@/lib/order/cancellation";
 import type { OrderBundle } from "@/lib/order/checkout";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
+import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 import {
   cancellationRequestStatusLabel,
   orderItemStatusLabel,
   orderStatusLabel,
+  paymentRequestStatusLabel,
   shippingMethodLabel,
 } from "@/lib/storefront/customerLabels";
 
@@ -17,11 +19,17 @@ type Props = {
   orderId: string;
 };
 
+type MemberOrderDetailResponse = OrderBundle & {
+  paymentRequest: LocalPaymentRequest | null;
+  cancellationRequests: CancellationRequestRecord[];
+};
+
 export function OrderDetailBoard({ orderId }: Props) {
   const { user } = useAuth();
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
-  const [bundles, setBundles] = useState<OrderBundle[]>([]);
+  const [bundle, setBundle] = useState<OrderBundle | null>(null);
+  const [paymentRequest, setPaymentRequest] = useState<LocalPaymentRequest | null>(null);
   const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -29,7 +37,8 @@ export function OrderDetailBoard({ orderId }: Props) {
 
   const loadOrder = useCallback(async () => {
     if (!user) {
-      setBundles([]);
+      setBundle(null);
+      setPaymentRequest(null);
       setCancellationRequests([]);
       setStatus("idle");
       return;
@@ -37,26 +46,31 @@ export function OrderDetailBoard({ orderId }: Props) {
 
     setStatus("loading");
     try {
-      const [{ db }, { listMemberOrders, listMemberCancellationRequests }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/order/repository"),
-      ]);
-
-      const [nextBundles, nextCancellationRequests] = await Promise.all([
-        listMemberOrders(db, user.uid),
-        listMemberCancellationRequests(db, user.uid),
-      ]);
-      setBundles(nextBundles);
-      setCancellationRequests(nextCancellationRequests);
+      const { auth } = await import("@/lib/firebase/client");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error("missing_token");
+      }
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("order_detail_fetch_failed");
+      }
+      const detail = await response.json() as MemberOrderDetailResponse;
+      setBundle({ order: detail.order, items: detail.items });
+      setPaymentRequest(detail.paymentRequest);
+      setCancellationRequests(detail.cancellationRequests);
       setStatus("ready");
     } catch (error) {
       console.warn("member_order_detail_load_failed", error instanceof Error ? error.message : "unknown");
-      setBundles([]);
+      setBundle(null);
+      setPaymentRequest(null);
       setCancellationRequests([]);
       setStatus("error");
       setMessage("無法讀取雲端訂單，請稍後再試。");
     }
-  }, [user]);
+  }, [orderId, user]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -64,7 +78,7 @@ export function OrderDetailBoard({ orderId }: Props) {
     });
   }, [loadOrder]);
 
-  const order = useMemo(() => bundles.find((bundle) => bundle.order.id === orderId) ?? null, [bundles, orderId]);
+  const order = bundle;
   const existingRequest = useMemo(
     () => cancellationRequests.find((request) => request.orderId === orderId && request.status === "pending") ?? null,
     [cancellationRequests, orderId],
@@ -148,19 +162,8 @@ export function OrderDetailBoard({ orderId }: Props) {
       }
 
       setCancellationRequests((current) => [request, ...current.filter((item) => item.id !== request.id)]);
-      setBundles((current) =>
-        current.map((bundle) =>
-          bundle.order.id === orderId
-            ? {
-                ...bundle,
-                items: bundle.items.map((item) =>
-                  itemIds.includes(item.id) ? { ...item, status: "cancelRequested" } : item,
-                ),
-              }
-            : bundle,
-        ),
-      );
-      setMessage("已送出取消申請，等待客服審核。");
+      await loadOrder();
+      setMessage("取消申請已處理，訂單狀態已更新。");
     } catch {
       setMessage("取消申請送出失敗，請稍後再試。");
     } finally {
@@ -216,7 +219,7 @@ export function OrderDetailBoard({ orderId }: Props) {
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
               訂單
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">{order.order.id}</h2>
+            <h2 className="mt-2 text-2xl font-semibold">{order.order.orderNumber ?? order.order.id}</h2>
             <p className="mt-2 text-sm text-slate-600">
               狀態：{orderStatusLabel(order.order.status)} · NT$ {order.order.totalTwd.toLocaleString()}
             </p>
@@ -233,6 +236,15 @@ export function OrderDetailBoard({ orderId }: Props) {
           {order.order.shippingAddress ? <p className="md:col-span-2">地址：{order.order.shippingAddress}</p> : null}
           {order.order.shippingStoreInfo ? <p className="md:col-span-2">門市資訊：{order.order.shippingStoreInfo}</p> : null}
         </div>
+
+        {paymentRequest ? (
+          <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+            <p className="font-medium">付款請求</p>
+            <p className="mt-1">
+              狀態：{paymentRequestStatusLabel(paymentRequest.status)} · 應付 NT$ {paymentRequest.amountTwd.toLocaleString()}
+            </p>
+          </div>
+        ) : null}
 
         <div className="mt-6 grid gap-3">
           {order.items.map((item) => {

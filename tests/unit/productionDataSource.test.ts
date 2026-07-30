@@ -98,6 +98,27 @@ describe("production data-source boundary", () => {
     expect(source).not.toContain("setMessage(error.message)");
   });
 
+  it("loads member order detail through the protected server endpoint", () => {
+    const source = readFileSync(
+      resolve("src/components/storefront/OrderDetailBoard.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("/api/orders/${encodeURIComponent(orderId)}");
+    expect(source).not.toContain("listMemberCancellationRequests");
+  });
+
+  it("shows the formal order number to members instead of the internal document id", () => {
+    for (const file of [
+      "src/components/storefront/OrderHistoryBoard.tsx",
+      "src/components/storefront/OrderDetailBoard.tsx",
+    ]) {
+      const source = readFileSync(resolve(file), "utf8");
+
+      expect(source, file).toContain("orderNumber ??");
+    }
+  });
+
   it("defers member reader loads started by React effects", () => {
     for (const file of [
       "src/components/storefront/PaymentRequestsBoard.tsx",
