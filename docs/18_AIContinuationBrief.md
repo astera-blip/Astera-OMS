@@ -8,6 +8,11 @@ This file is the compact handoff for another AI agent. Treat it together with:
 - `docs/17_ProjectHandoff.md`
 - `AGENTS.md`
 
+> **2026-07-30 status override:** This is now a historical compact brief.
+> Start from `docs/20_CompleteAIHandoff_2026-07-30.md` for the current complete
+> requirement, implementation, verification, external-gate, and continuation
+> record. This file remains for historical detail only.
+
 ## Final Status Override — 2026-07-29 07:49 Asia/Taipei
 
 This section supersedes the older “Current Remaining Gaps”, “Approved … Pending

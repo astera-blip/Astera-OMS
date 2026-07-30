@@ -1,6 +1,6 @@
 # Astera OMS Project Handoff
 
-Last updated: 2026-07-29 Asia/Taipei
+Last updated: 2026-07-30 Asia/Taipei
 
 ## Active Objective
 
@@ -17,7 +17,7 @@ Current execution plan:
 - Working branch: `codex/mvp-completion`.
 - Preserve existing user change: `AGENTS.md`.
 - Existing product authority remains `productsInternal`; public storefront reads only `productsPublic`.
-- Compact continuation brief for another AI: `docs/18_AIContinuationBrief.md`.
+- Complete continuation entrypoint for another AI: `docs/20_CompleteAIHandoff_2026-07-30.md`.
 
 ## Decisions Confirmed
 

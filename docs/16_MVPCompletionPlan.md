@@ -1,11 +1,11 @@
 # Astera OMS MVP Completion Plan
 
-Last updated: 2026-07-29 Asia/Taipei
+Last updated: 2026-07-30 Asia/Taipei
 
 ## Execution Rules
 
 - Source of truth: the project handoff in this task plus the existing repository docs.
-- AI continuation entrypoint: `docs/18_AIContinuationBrief.md`.
+- AI continuation entrypoint: `docs/20_CompleteAIHandoff_2026-07-30.md`.
 - Scope: MVP only. Do not add Helper, Warehouse, CRM, Finance, Analytics, or ERP features.
 - Architecture: keep Next.js 16, Firebase, Vercel, `productsInternal` private master data, and `productsPublic` public storefront projection.
 - Safety: preserve the pre-existing `AGENTS.md` change and avoid staging unrelated files.
