@@ -856,3 +856,13 @@ After it propagates:
 - Source fix is in `src/components/workspace/ProductWorkspace.tsx`: an explicit initial product-load state disables all Product mutation routes and the submit handler rejects loading-time submits. `tests/unit/uiAccessibility.test.ts` first failed and then passed for this contract.
 - Fresh local verification: Unit **24 files / 126 tests**, TypeScript, ESLint passed. Do not restart browser test-data creation until the new branch Preview is Ready and its loading gate is manually confirmed.
 - Exact next action: push the source/docs fix excluding user-owned `AGENTS.md`; on Preview, wait for `商品資料已載入。`, click `新增`, ensure the Product ID field remains `儲存時自動建立`, then save a new explicitly named test Product and verify the generated ID is not `prod_002`.
+
+## 2026-07-30 Reversible Checkout Preview test — live order and order-history blocker
+
+- After the ProductWorkspace guard deployed, the test intentionally clicked `新增` only after `商品資料已載入。`. The protected Owner Product API created isolated Product `ZdW58A6aZqJLVHvioU6W` / `AST-P000003`, Variant `AST-P000003-V001`, name `【測試專用】Preview Checkout — 請勿付款`, Variant `Test Variant（測試規格）`, and an Open preorder NT$1 Campaign.
+- The public storefront verified the product projection contains correct public data only; its single cart line remained after full reload.
+- Exactly one Checkout was then submitted using the approved Preview-only non-real recipient data and both consent checkboxes. The UI confirmed `AST-20260730-0001` and one PaymentRequest; cart cleared. No Payment, payment report, confirmation, reversal, refund, adjustment, cancellation request, or duplicate Checkout has been created.
+- Blocker before cancellation: `/orders` crashes with React error #31 because `OrderHistoryBoard` renders the Firestore Timestamp `createdAt` object. Console evidence explicitly identifies object keys `{seconds, nanoseconds}`.
+- Root cause is `listMemberOrders()` raw Firestore casting. The pending source fix in `src/lib/order/repository.ts` normalizes order/item timestamps to ISO strings before returning to React. Test `tests/unit/orderRepository.test.ts` failed red against the raw Timestamp then passed green; fresh local results are Unit **25 files / 127 tests**, TypeScript, ESLint.
+- Campaign datetime inputs displayed during browser automation but did not persist in the returned record. The Campaign explicit Open state and public availability passed; record this separately for manual datetime/E2E follow-up.
+- Exact next action: deploy Timestamp normalization, reload `/orders`, use the same `AST-20260730-0001` detail page to directly cancel its only unpaid item, verify cancelled terminal states, then archive the isolated test catalog data. Do not submit any payment action.

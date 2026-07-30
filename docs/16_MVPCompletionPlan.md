@@ -931,3 +931,27 @@ and verify profile, cart, and Owner Product writes.
 2. Wait for the `codex/mvp-completion` Preview deployment, reload `/workspace/products`, and verify no Product mutation control is enabled while `商品資料載入中。` appears.
 3. Wait for `商品資料已載入。`, click `新增` deliberately, then create a new clearly labelled test Product. Confirm its server-generated ID is not `prod_002` before entering a Campaign or opening `/products`.
 4. Resume the existing reversible Checkout test plan only after that public projection check passes.
+
+## 2026-07-30 Reversible Checkout Preview test — live data creation and order-reader incident
+
+### Completed Preview evidence before the reader failure
+
+- The deployed loading guard was exercised by waiting for `商品資料已載入。`, clicking `新增`, and confirming the blank Product ID displayed `儲存時自動建立` before any test value was entered.
+- The protected Owner Product API created a distinct test Product with browser-visible ID `ZdW58A6aZqJLVHvioU6W`, Product SKU `AST-P000003`, Variant SKU `AST-P000003-V001`, name `【測試專用】Preview Checkout — 請勿付款`, Variant `Test Variant（測試規格）`, published state, Open preorder Campaign, and NT$1 default/Campaign price.
+- `/products` verified the `productsPublic` projection: the test Product, Variant, Campaign and NT$1 price are public; SKU, cost and internal note are not visible. `/cart` retained the single test line after a full reload.
+- One and only one Checkout was submitted with the approved non-real recipient data and both legal consents. The buyer UI returned order number `AST-20260730-0001`, cleared the cart, and reported that its payment request was created. No payment report, confirmation, reversal, refund, adjustment or second Checkout was submitted.
+- Browser automation could display Campaign start/end datetime values before save but the returned record did not preserve them. The Open Campaign remains purchasable because its explicit saved state is Open; record this as an unresolved datetime-input verification item, not as a Checkout blocker.
+
+### New blocker: order history rendered Firestore Timestamp directly
+
+- Opening `/orders` for the newly created test order produced the Next error page. The captured browser console error was React error #31 for an object with keys `{seconds, nanoseconds}`.
+- Root cause: `src/lib/order/repository.ts:listMemberOrders()` cast Firestore document data directly to `OrderRecord` / `OrderItemRecord`; `OrderHistoryBoard` then rendered `order.createdAt` directly. Firestore client Timestamp objects crossed the repository boundary into React.
+- `tests/unit/orderRepository.test.ts` was written first with real `listMemberOrders()` behavior and controlled Firestore Timestamp-shaped documents. It failed because `createdAt` remained an object.
+- Source correction pending Preview deployment: normalize order and order-item `createdAt` / `updatedAt` values to ISO strings at the repository boundary, supporting both Firebase `toDate()` and `{ seconds, nanoseconds }` representations. Focused suite now passes **25 files / 127 tests**, plus TypeScript and ESLint.
+
+### Exact resume sequence
+
+1. Commit/push the Timestamp normalization and handoff update, keeping `AGENTS.md` unstaged.
+2. Reload `/orders` in the stable Preview; it must show `AST-20260730-0001` without a React error and show a textual created date.
+3. Open its detail page, verify its single item is awaiting payment and select it for the normal direct-cancellation path.
+4. Submit exactly one cancellation with `Preview Checkout reversible test — no payment, do not fulfil`, verify all terminal statuses, then archive the Product and Campaign.
