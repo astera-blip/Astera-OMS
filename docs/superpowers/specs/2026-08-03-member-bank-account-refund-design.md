@@ -45,6 +45,9 @@
 - `memberId`
 - `bankCode`
 - `accountNumberLast5`
+- `accountFingerprint`
+- `fingerprintAlgorithm`（`HMAC-SHA-256`）
+- `fingerprintKeyVersion`
 - `status`（沿用 active／pendingDeletion／archived 等既有狀態）
 - `createdAt`、`updatedAt`、相關審核欄位
 
@@ -54,16 +57,15 @@
 
 沿用既有取消申請文件，不新增 Collection；只增加受 Server 保護的暫存欄位：
 
-- `refundAccountCiphertext`
-- `refundAccountNonce`
-- `refundAccountKeyVersion`
+- `refundAccountCiphertext`（Cloud KMS 對稱加密密文）
+- `refundEncryptionKeyVersion`
 - `refundAccountExpiresAt`（申請時間＋14 天）
 
 這些欄位不是永久退款紀錄的一部分，不得由 Client SDK 讀取。只有 Owner 專用 API 在 14 天有效期間內解密回傳完整帳號；回應不得寫入前端持久化儲存或一般日誌。
 
 ### 會員帳戶 API
 
-- `POST /api/member/payment-accounts`：只接受 3 位銀行代碼與 5 位末碼；Server 驗證格式、會員身分與最多 5 筆限制。
+- `POST /api/member/payment-accounts`：接受 3 位銀行代碼與完整銀行帳號；Server 正規化完整帳號、取末五碼、產生最新 HMAC 指紋，並驗證會員身分與最多 5 筆限制。
 - 同一會員或不同會員若已有相同銀行代碼＋末五碼，仍允許建立；系統建立 Owner 通知／「可能重複帳戶」事件，不以末碼相同直接判定為同一完整帳戶。
 - `GET /api/member/payment-accounts`：只回傳遮罩後的銀行代碼與末五碼資訊，不回傳完整帳號。
 - 刪除／封存仍依既有申請與 Owner 審核流程，不提供會員直接硬刪除。
@@ -75,6 +77,8 @@
 - `memberPaymentAccountId`
 - `bankCode`
 - `accountNumberLast5`
+- `accountFingerprint`
+- `fingerprintKeyVersion`
 
 前端不得自行決定帳戶、付款狀態或金額分配。
 
@@ -83,9 +87,9 @@
 退款申請／Owner 審核流程新增輸入 `refundAccountNumberFull`，只允許在受保護 API 請求內使用；驗證成功後才加密寫入既有取消申請的限時暫存欄位：
 
 1. Server 驗證完整帳號格式。
-2. Server 取末五碼，與指定原付款紀錄的 `bankCode`、`accountNumberLast5` 比對。
+2. Server 取末五碼，使用指定原付款紀錄的 `fingerprintKeyVersion` 重新計算 HMAC，並與原付款紀錄的 `bankCode`、`accountNumberLast5`、`accountFingerprint` 比對。
 3. 不符合時拒絕退款並回傳不洩漏帳戶細節的中文錯誤。
-4. 符合時，永久退款資料只寫入 `refundBankCode`、`refundAccountLast5`、退款金額／日期／參考資訊；完整帳號另以加密暫存欄位保存，設定 14 天到期時間。
+4. 符合時，永久退款資料只寫入 `refundBankCode`、`refundAccountLast5`、退款金額／日期／參考資訊；完整帳號另以 Cloud KMS 加密暫存欄位保存，設定 14 天到期時間。
 5. Owner 可在 14 天內透過受保護 API 重複查看完整帳號；訂單狀態變更為 `refunded` 時立即刪除加密欄位，排程清理也必須刪除超過 `refundAccountExpiresAt` 的欄位。
 6. 完整帳號不得出現在 Audit Log、通知事件、錯誤訊息、伺服器一般日誌或前端持久化狀態；只有加密欄位與 Owner 查看事件的時間／操作者資訊可被稽核。
 
@@ -94,17 +98,20 @@ Payment reverse 與退款 adjustment 必須保留既有歷史紀錄，只追加�
 ## 4. 既有資料遷移
 
 1. 先將正式 `memberPaymentAccounts` 與相關付款快照備份至 Git 忽略的本機備份目錄。
-2. 對仍有完整帳號的會員帳戶舊資料，由受保護 migration runner 取末五碼，寫入正式欄位並移除完整帳號欄位。既有退款中的完整帳號若仍需 Owner 處理，必須依新規格加密暫存並設定 14 天期限。
-3. 已有末五碼的舊資料可直接沿用；沒有末五碼的資料標記為 `needsReverification`，不得直接用於退款比對，會員需重新登記。
-4. 遷移報告只列文件 ID、狀態與欄位稽核結果，不輸出完整帳號。
-5. 遷移完成後重新執行 Rules、API 與付款／退款稽核。
+2. 對仍有完整帳號的會員帳戶舊資料，由受保護 migration runner 取末五碼並產生 HMAC 指紋，寫入正式欄位後移除完整帳號欄位。既有退款中的完整帳號若仍需 Owner 處理，必須依新規格加密暫存並設定 14 天期限。
+3. 只有末五碼、沒有完整帳號或 HMAC 指紋的舊會員帳戶可保留作顯示，但標記為 `needsReverification`，不得直接用於精確退款比對；會員需重新輸入完整帳號。
+4. 沒有 HMAC 指紋的歷史付款快照不得宣稱完成精確帳號比對，退款改走人工審核並建立 Audit Log。
+5. 遷移報告只列文件 ID、狀態與欄位稽核結果，不輸出完整帳號。
+6. 遷移完成後重新執行 Rules、API 與付款／退款稽核。
 
 ## 5. 錯誤處理與安全要求
 
 - 銀行代碼不是 3 位數字、末五碼不是 5 位數字時，拒絕寫入並顯示欄位錯誤。
+- 完整帳號正規化只允許全形數字轉半形、移除空格與連字號；其他非數字字元直接拒絕，且保留前導零。
 - 超過 5 筆啟用中或待刪除帳戶時，拒絕新增並導向刪除申請流程。
 - 重複銀行代碼＋末五碼時，仍建立帳戶並通知 Owner；不因重複直接拒絕。
-- 退款帳戶不符合指定付款紀錄時，拒絕退款，不建立 adjustment 或 Audit Log。
+- HMAC 指紋產生與退款比對必須使用同一套版本化正規化函式。
+- 退款帳戶不符合指定付款紀錄時，拒絕退款，不建立 adjustment；只建立不含帳號內容的 mismatch Audit Log。
 - 所有權限以 Firebase custom claim／會員身分驗證；不以 Email 判斷 Owner。
 - Client SDK 不得直接寫入會員帳戶、付款、退款或 Audit Log。
 
@@ -140,6 +147,7 @@ Payment reverse 與退款 adjustment 必須保留既有歷史紀錄，只追加�
 - 最多 5 筆限制、封存後可新增。
 - 重複銀行代碼＋末五碼仍可建立並產生 Owner 通知。
 - 完整退款帳號取末五碼、加密暫存與 14 天到期清理。
+- 相同完整帳號／相同末五碼的 HMAC 判斷，以及不同 `fingerprintKeyVersion` 的逐版本驗證。
 - 退款帳戶與指定付款紀錄符合／不符合。
 - 多付款來源必須指定單一付款紀錄。
 
@@ -148,7 +156,8 @@ Payment reverse 與退款 adjustment 必須保留既有歷史紀錄，只追加�
 - Member 只能新增與讀取自己的帳戶。
 - 跨會員帳戶、付款、退款與私密資料皆拒絕。
 - Helper 不得執行付款確認、reverse、退款或 Audit Log 寫入。
-- 退款不符合時不產生任何 adjustment／Audit Log。
+- 退款不符合時不建立 adjustment；只建立不含帳號內容的 mismatch Audit Log。
+- 退款 HMAC 不符合時建立不含帳號內容的 mismatch Audit Log，並套用申請／會員／IP 節流。
 - 歷史付款與退款欄位不可被覆寫。
 
 ### Playwright
