@@ -638,6 +638,14 @@ describe("Day 1 Firestore rules", () => {
         actorUid: "owner-a",
         targetId: "pr-a",
       });
+      await setDoc(doc(context.firestore(), "paymentAccounts/account-a"), {
+        id: "account-a",
+        bankName: "測試銀行",
+        accountName: "Astera OMS",
+        accountNumberLast5: "12345",
+        currency: "TWD",
+        status: "active",
+      });
     });
 
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
@@ -657,6 +665,7 @@ describe("Day 1 Firestore rules", () => {
         paymentRequestId: "pr-a",
         receivedAmountTwd: 880,
         receivedAt: "2026-07-26T00:00:00.000Z",
+        receivingPaymentAccountId: "account-a",
         status: "confirmed",
         createdAt: serverTimestamp(),
         createdBy: "owner-a",
@@ -669,6 +678,7 @@ describe("Day 1 Firestore rules", () => {
         paymentRequestId: "pr-a",
         receivedAmountTwd: 880,
         receivedAt: "2026-07-26T00:00:00.000Z",
+        receivingPaymentAccountId: "account-a",
         status: "confirmed",
         createdAt: serverTimestamp(),
         createdBy: "member-a",
@@ -836,5 +846,47 @@ describe("Day 1 Firestore rules", () => {
         updatedAt: serverTimestamp(),
       }),
     );
+  });
+
+  it("keeps receiving payment accounts behind the server API", async () => {
+    const memberDb = testEnv.authenticatedContext("member-a").firestore();
+    const ownerDb = testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "paymentAccounts/account-a"), {
+        id: "account-a",
+        bankName: "國泰世華銀行",
+        accountName: "Astera OMS",
+        accountNumberLast5: "12345",
+        currency: "TWD",
+        status: "active",
+      });
+    });
+
+    await assertFails(getDoc(doc(memberDb, "paymentAccounts/account-a")));
+    await assertFails(getDoc(doc(ownerDb, "paymentAccounts/account-a")));
+    await assertFails(setDoc(doc(memberDb, "paymentAccounts/account-b"), { status: "active" }));
+  });
+
+  it("keeps member source payment accounts behind the protected API", async () => {
+    const memberDb = testEnv.authenticatedContext("member-a").firestore();
+    const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
+    const ownerDb = testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "memberPaymentAccounts/member-account-a"), {
+        memberUid: "member-a",
+        bankName: "測試銀行",
+        accountName: "會員 A",
+        accountNumberFull: "123456789012",
+        accountNumberLast5: "89012",
+        status: "active",
+      });
+    });
+
+    await assertFails(getDoc(doc(memberDb, "memberPaymentAccounts/member-account-a")));
+    await assertFails(getDoc(doc(otherMemberDb, "memberPaymentAccounts/member-account-a")));
+    await assertFails(getDoc(doc(ownerDb, "memberPaymentAccounts/member-account-a")));
+    await assertFails(setDoc(doc(memberDb, "memberPaymentAccounts/member-account-b"), { memberUid: "member-a" }));
   });
 });

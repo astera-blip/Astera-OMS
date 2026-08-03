@@ -39,6 +39,7 @@ export type CartLineItem = {
 };
 
 export type ShippingMethod = "address" | "seven_eleven" | "family_mart";
+export type CheckoutShippingMethod = "seven_eleven";
 
 type CheckoutContext = {
   orderId: string;
@@ -276,14 +277,10 @@ export function validateShippingDetails(input: {
   recipientName: string;
   recipientPhone: string;
   shippingMethod: ShippingMethod;
-  shippingAddress?: string;
-  shippingStoreInfo?: string;
 }) {
-  const errors: Partial<Record<"recipientName" | "recipientPhone" | "shippingAddress" | "shippingStoreInfo", string>> = {};
+  const errors: Partial<Record<"recipientName" | "recipientPhone" | "shippingMethod", string>> = {};
   const recipientName = input.recipientName.trim();
   const recipientPhone = normalizeRecipientPhone(input.recipientPhone);
-  const shippingAddress = input.shippingAddress?.trim() ?? "";
-  const shippingStoreInfo = input.shippingStoreInfo?.trim() ?? "";
 
   if (!recipientName) {
     errors.recipientName = "請填寫收件人姓名。";
@@ -295,16 +292,8 @@ export function validateShippingDetails(input: {
     errors.recipientPhone = "請輸入有效的台灣手機號碼。";
   }
 
-  if (input.shippingMethod === "address") {
-    if (!shippingAddress) {
-      errors.shippingAddress = "請填寫收件地址。";
-    } else if (shippingAddress.length > 200) {
-      errors.shippingAddress = "收件地址不可超過 200 個字元。";
-    }
-  } else if (!shippingStoreInfo) {
-    errors.shippingStoreInfo = "請填寫超商門市資訊。";
-  } else if (shippingStoreInfo.length > 200) {
-    errors.shippingStoreInfo = "門市資訊不可超過 200 個字元。";
+  if (input.shippingMethod !== "seven_eleven") {
+    errors.shippingMethod = "目前僅提供 7-Eleven 賣貨便。";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -316,8 +305,6 @@ export function validateShippingDetails(input: {
     value: {
       recipientName,
       recipientPhone,
-      ...(input.shippingMethod === "address" ? { shippingAddress } : {}),
-      ...(input.shippingMethod !== "address" ? { shippingStoreInfo } : {}),
     },
   };
 }

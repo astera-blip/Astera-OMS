@@ -17,6 +17,36 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   const memberToken = await signIn(request, "member-e2e@example.test");
   const ownerToken = await signIn(request, "owner-e2e@example.test");
 
+  const ownerAccountsResponse = await request.get("/api/workspace/payment-accounts", {
+    headers: authorized(ownerToken),
+  });
+  expect(ownerAccountsResponse.ok()).toBe(true);
+  expect(await ownerAccountsResponse.json()).toMatchObject({
+    accounts: [expect.objectContaining({ id: "e2e-account", status: "active" })],
+  });
+
+  const memberAccountsResponse = await request.get("/api/payment-accounts", {
+    headers: authorized(memberToken),
+  });
+  expect(memberAccountsResponse.ok()).toBe(true);
+  const memberAccounts = await memberAccountsResponse.json() as {
+    accounts: Array<Record<string, unknown>>;
+  };
+  expect(memberAccounts.accounts).toEqual([
+    expect.objectContaining({ id: "e2e-account", accountNumberLast5: "67890" }),
+  ]);
+  expect(memberAccounts.accounts[0]).not.toHaveProperty("status");
+
+  const memberCannotManageAccounts = await request.post("/api/workspace/payment-accounts", {
+    headers: authorized(memberToken),
+    data: {
+      bankName: "不應建立",
+      accountName: "Member",
+      accountNumberLast5: "00000",
+    },
+  });
+  expect(memberCannotManageAccounts.status()).toBe(403);
+
   const checkoutRequest = {
     idempotencyKey: `e2e_split_${runKey}`,
       cart: [
@@ -35,8 +65,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       ],
       recipientName: "測試會員",
       recipientPhone: "0912345678",
-      shippingMethod: "address",
-      shippingAddress: "台北市測試路 1 號",
+      shippingMethod: "seven_eleven",
       acceptedLegalTerms: true,
       acceptedSupplementRule: true,
       legalVersionIds: ["terms-v2026-07-26", "privacy-v2026-07-26"],
@@ -82,13 +111,40 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       receivedAt: "2026-07-27",
       receivedAmountTwd: 700,
       transferAccountLast5: "12345",
+      receivingPaymentAccountId: "e2e-account",
+      memberPaymentAccountId: "member-e2e-account",
+      bankCode: "999",
+      accountNumberLast5: "00000",
+      accountFingerprint: "client-controlled-fingerprint",
+      fingerprintKeyVersion: 99,
       payerName: "測試會員",
       memberNote: "E2E overpayment",
     },
   });
   expect(paymentResponse.ok()).toBe(true);
-  const paymentPayload = await paymentResponse.json() as { payment: { id: string; status: string } };
+  const paymentPayload = await paymentResponse.json() as {
+    payment: {
+      id: string;
+      status: string;
+      receivingPaymentAccount?: { id: string; accountNumberLast5: string };
+      memberPaymentAccount?: {
+        bankCode: string;
+        accountNumberLast5: string;
+        accountFingerprint: string;
+        fingerprintKeyVersion: number;
+      };
+      manualFingerprintReviewRequired?: boolean;
+    };
+  };
   expect(paymentPayload.payment.status).toBe("pendingReview");
+  expect(paymentPayload.payment.receivingPaymentAccount).toMatchObject({ id: "e2e-account", accountNumberLast5: "67890" });
+  expect(paymentPayload.payment.memberPaymentAccount).toEqual({
+    bankCode: "012",
+    accountNumberLast5: "12345",
+    accountFingerprint: "e2e-member-account-fingerprint",
+    fingerprintKeyVersion: 7,
+  });
+  expect(paymentPayload.payment.manualFingerprintReviewRequired).toBe(false);
 
   const confirmResponse = await request.post(`/api/workspace/payments/${paymentPayload.payment.id}/confirm`, {
     headers: authorized(ownerToken),
@@ -114,6 +170,13 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
     paymentStatus: "reversed",
     paymentRequestStatus: "open",
     orderStatus: "awaitingPayment",
+  });
+  const paymentAfterReverse = await db.collection("payments").doc(paymentPayload.payment.id).get();
+  expect(paymentAfterReverse.data()?.memberPaymentAccount).toEqual({
+    bankCode: "012",
+    accountNumberLast5: "12345",
+    accountFingerprint: "e2e-member-account-fingerprint",
+    fingerprintKeyVersion: 7,
   });
 
   const unpaidItems = await listOrderItems(unpaidOrder!.orderId);
@@ -150,8 +213,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       ],
       recipientName: "測試會員",
       recipientPhone: "0912345678",
-      shippingMethod: "address",
-      shippingAddress: "台北市測試路 1 號",
+      shippingMethod: "seven_eleven",
       acceptedLegalTerms: true,
       acceptedSupplementRule: true,
       legalVersionIds: ["terms-v2026-07-26", "privacy-v2026-07-26"],
@@ -169,7 +231,9 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       paymentRequestId: orderForPaidCancellation.paymentRequestId,
       receivedAt: "2026-07-27",
       receivedAmountTwd: orderForPaidCancellation.totalTwd,
-      transferAccountLast5: "54321",
+      transferAccountLast5: "12345",
+      receivingPaymentAccountId: "e2e-account",
+      memberPaymentAccountId: "member-e2e-account",
       payerName: "測試會員",
     },
   });

@@ -77,6 +77,33 @@ export default async function globalSetup() {
   ]);
 
   await Promise.all([
+    db.collection("paymentAccounts").doc("e2e-account").set({
+      id: "e2e-account",
+      bankName: "E2E 測試銀行",
+      branchName: "測試分行",
+      accountName: "Astera OMS 測試專用",
+      accountNumberLast5: "67890",
+      currency: "TWD",
+      status: "active",
+      createdAt: new Date(),
+      createdBy: "system",
+      updatedAt: new Date(),
+      updatedBy: "system",
+    }),
+    db.collection("memberPaymentAccounts").doc("member-e2e-account").set({
+      id: "member-e2e-account",
+      memberUid: "member-e2e",
+      bankCode: "012",
+      accountNumberLast5: "12345",
+      accountFingerprint: "e2e-member-account-fingerprint",
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+      status: "active",
+      createdAt: new Date(),
+      createdBy: "system",
+      updatedAt: new Date(),
+      updatedBy: "system",
+    }),
     db.collection("productsInternal").doc("prod_e2e_flow").set({
       id: "prod_e2e_flow",
       sku: "AST-P999001",

@@ -177,6 +177,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /memberPaymentAccounts/{accountId} {
+      allow read, write: if false;
+    }
+
+    match /paymentAccounts/{accountId} {
+      allow read, write: if false;
+    }
+
     match /legalDocumentVersions/{versionId} {
       allow get, list: if true;
       allow create, update: if false;

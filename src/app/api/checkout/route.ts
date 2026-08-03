@@ -24,7 +24,7 @@ type CheckoutRequestBody = {
   cart: CartLineItem[];
   recipientName: string;
   recipientPhone: string;
-  shippingMethod: "address" | "seven_eleven" | "family_mart";
+      shippingMethod: "address" | "seven_eleven" | "family_mart";
   shippingAddress?: string;
   shippingStoreInfo?: string;
   legalVersionIds?: string[];
@@ -78,9 +78,7 @@ export async function POST(request: Request) {
     const shippingCheck = validateShippingDetails({
       recipientName: body.recipientName ?? "",
       recipientPhone: body.recipientPhone ?? "",
-      shippingMethod: body.shippingMethod ?? "address",
-      shippingAddress: body.shippingAddress,
-      shippingStoreInfo: body.shippingStoreInfo,
+      shippingMethod: body.shippingMethod ?? "seven_eleven",
     });
 
     if (!shippingCheck.ok) {
@@ -88,6 +86,23 @@ export async function POST(request: Request) {
     }
 
     const db = getAdminFirestore();
+    const memberSnapshot = await db.collection("members").doc(claims.uid).get();
+    const member = memberSnapshot.data() as {
+      displayName?: unknown;
+      communityId?: unknown;
+      mobilePhone?: unknown;
+    } | undefined;
+    if (
+      !memberSnapshot.exists
+      || typeof member?.displayName !== "string"
+      || !member.displayName.trim()
+      || typeof member.communityId !== "string"
+      || !member.communityId.trim()
+      || typeof member.mobilePhone !== "string"
+      || !/^09\d{8}$/.test(member.mobilePhone)
+    ) {
+      return NextResponse.json({ error: "member_profile_incomplete" }, { status: 400 });
+    }
     const privateNoteSnapshot = await db.collection("memberPrivateNotes").doc(claims.uid).get();
     if (privateNoteSnapshot.data()?.riskState === "blacklisted") {
       return NextResponse.json({ error: "member_blacklisted" }, { status: 403 });
@@ -206,9 +221,7 @@ export async function POST(request: Request) {
             createdAt: timestamp,
             recipientName: shippingCheck.value.recipientName,
             recipientPhone: normalizeRecipientPhone(shippingCheck.value.recipientPhone),
-            shippingMethod: body.shippingMethod ?? "address",
-            ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-            ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
+            shippingMethod: body.shippingMethod ?? "seven_eleven",
           },
           group.items,
           catalog,
@@ -301,6 +314,8 @@ export async function POST(request: Request) {
         ? 401
         : message === "idempotency_conflict"
           ? 409
+          : message === "member_profile_incomplete"
+            ? 400
           : 500;
     return NextResponse.json(
       { error: status === 500 ? "internal_error" : message },

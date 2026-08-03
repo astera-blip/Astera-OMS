@@ -1,5 +1,12 @@
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
 import type { OrderBundle } from "@/lib/order/checkout";
+import type { AccountIdentity } from "@/lib/payment/accountIdentity";
+import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
+
+export type MemberPaymentAccountIdentitySnapshot = Pick<
+  AccountIdentity,
+  "bankCode" | "accountNumberLast5" | "accountFingerprint" | "fingerprintKeyVersion"
+>;
 
 export type LocalPaymentRequest = {
   id: string;
@@ -21,10 +28,16 @@ export type LocalPayment = {
   id: string;
   memberUid: string;
   paymentRequestId: string;
+  paymentGroupId?: string;
   receivedAmountTwd: number;
   receivedAt: string;
   status: "pendingReview" | "confirmed" | "rejected" | "reversed";
   transferAccountLast5?: string;
+  receivingPaymentAccountId?: string;
+  receivingPaymentAccount?: PublicPaymentAccount;
+  memberPaymentAccountId?: string;
+  memberPaymentAccount?: MemberPaymentAccountIdentitySnapshot;
+  manualFingerprintReviewRequired?: boolean;
   payerName?: string;
   memberNote?: string;
   adminNote?: string;
@@ -69,6 +82,54 @@ export function createPaymentRequestForOrder(
     ...(context.dueAt ? { dueAt: context.dueAt } : {}),
     createdAt: context.createdAt,
     createdBy: "system",
+  };
+}
+
+export function allocatePaymentReportAmount(
+  receivedAmountTwd: number,
+  requests: ReadonlyArray<{
+    id: string;
+    amountTwd: number;
+    allocatedAmountTwd?: number;
+  }>,
+) {
+  let remaining = Math.max(0, Math.trunc(receivedAmountTwd));
+
+  return requests.flatMap((request) => {
+    const outstanding = Math.max(request.amountTwd - (request.allocatedAmountTwd ?? 0), 0);
+    const allocated = Math.min(remaining, outstanding);
+    remaining -= allocated;
+
+    return allocated > 0
+      ? [{ paymentRequestId: request.id, receivedAmountTwd: allocated }]
+      : [];
+  });
+}
+
+export function buildMemberPaymentAccountIdentitySnapshot(
+  identity: AccountIdentity,
+): MemberPaymentAccountIdentitySnapshot {
+  return {
+    bankCode: identity.bankCode,
+    accountNumberLast5: identity.accountNumberLast5,
+    accountFingerprint: identity.accountFingerprint,
+    fingerprintKeyVersion: identity.fingerprintKeyVersion,
+  };
+}
+
+export function withPaymentFingerprintReviewCapability<T extends LocalPayment>(
+  payment: T,
+): T & { manualFingerprintReviewRequired: boolean } {
+  const identity = payment.memberPaymentAccount;
+  const hasExactFingerprint = Boolean(
+    identity
+    && identity.accountFingerprint
+    && Number.isSafeInteger(identity.fingerprintKeyVersion),
+  );
+
+  return {
+    ...payment,
+    manualFingerprintReviewRequired: !hasExactFingerprint,
   };
 }
 
