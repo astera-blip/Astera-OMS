@@ -81,7 +81,7 @@ Commit: `git add src/lib/payment/accountIdentity.ts src/lib/security/cloudKmsMac
 - Modify: `src/lib/payment/memberBankAccounts.ts`
 - Modify: `src/app/api/member/payment-accounts/route.ts`
 - Modify: `src/app/account/bank-accounts/page.tsx`
-- Modify: `src/components/account/MemberBankAccountsBoard.tsx`
+- Modify: `src/components/account/MemberPaymentAccountsBoard.tsx`
 - Test: `tests/unit/memberPaymentAccounts.test.ts`, `tests/unit/memberPaymentAccountApi.test.ts`, `tests/unit/memberPaymentAccountsUi.test.ts`
 
 **Interfaces:**
@@ -117,7 +117,7 @@ Run: `npx vitest run tests/unit/memberPaymentAccounts.test.ts tests/unit/memberP
 
 Expected: persistence has no plaintext account field, duplicate binding succeeds, notification is created, and the UI never renders the full account after submission.
 
-Commit: `git add src/lib/payment/memberBankAccounts.ts src/app/api/member/payment-accounts/route.ts src/app/account/bank-accounts/page.tsx src/components/account/MemberBankAccountsBoard.tsx tests/unit/memberPaymentAccounts.test.ts tests/unit/memberPaymentAccountApi.test.ts tests/unit/memberPaymentAccountsUi.test.ts && git commit -m "feat: persist member bank account fingerprints"`
+Commit: `git add src/lib/payment/memberBankAccounts.ts src/app/api/member/payment-accounts/route.ts src/app/account/bank-accounts/page.tsx src/components/account/MemberPaymentAccountsBoard.tsx tests/unit/memberPaymentAccounts.test.ts tests/unit/memberPaymentAccountApi.test.ts tests/unit/memberPaymentAccountsUi.test.ts && git commit -m "feat: persist member bank account fingerprints"`
 
 ### Task 3: Add fingerprint snapshots to payments
 
