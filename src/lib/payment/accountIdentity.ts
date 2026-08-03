@@ -23,7 +23,7 @@ export function normalizeBankCode(input: unknown): string {
     throw new Error("invalid_bank_code");
   }
 
-  const normalized = input.normalize("NFKC").trim();
+  const normalized = mapFullWidthDigits(input).replace(/ /g, "");
   if (!/^\d{3}$/.test(normalized)) {
     throw new Error("invalid_bank_code");
   }
@@ -36,7 +36,7 @@ export function normalizeAccountNumber(input: unknown): string {
     throw new Error("invalid_account_number");
   }
 
-  const normalized = input.normalize("NFKC").replace(/[ -]/g, "");
+  const normalized = mapFullWidthDigits(input).replace(/[ -]/g, "");
   if (!/^\d{8,20}$/.test(normalized)) {
     throw new Error("invalid_account_number");
   }
@@ -84,4 +84,8 @@ export async function verifyAccountIdentity(
 
 function toCanonicalAccount(bankCode: string, accountNumber: string): string {
   return `${ACCOUNT_CANONICAL_PREFIX}|${bankCode}|${accountNumber}`;
+}
+
+function mapFullWidthDigits(input: string): string {
+  return input.replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0));
 }

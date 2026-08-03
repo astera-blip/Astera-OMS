@@ -27,6 +27,10 @@ describe("bank account identity", () => {
     expect(() => normalizeAccountNumber("00123/456789")).toThrow("invalid_account_number");
   });
 
+  it("rejects compatibility digits other than full-width digits", () => {
+    expect(() => normalizeAccountNumber("¹23456789")).toThrow("invalid_account_number");
+  });
+
   it("requires exactly three ASCII digits for the bank code", () => {
     expect(normalizeBankCode(" ０１２ ")).toBe("012");
     expect(() => normalizeBankCode("12")).toThrow("invalid_bank_code");
