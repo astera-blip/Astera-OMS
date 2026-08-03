@@ -17,7 +17,6 @@ export async function POST(request: Request) {
       paymentRequestIds?: string[];
       receivedAt?: string;
       receivedAmountTwd?: number;
-      transferAccountLast5?: string;
       receivingPaymentAccountId?: string;
       memberPaymentAccountId?: string;
       payerName?: string;
@@ -33,7 +32,6 @@ export async function POST(request: Request) {
     const uniquePaymentRequestIds = [...new Set(paymentRequestIds)];
     const receivedAt = body.receivedAt?.trim() ?? "";
     const receivedAmountTwd = body.receivedAmountTwd;
-    const transferAccountLast5 = body.transferAccountLast5?.trim() ?? "";
     const receivingPaymentAccountId = body.receivingPaymentAccountId?.trim() ?? "";
     const memberPaymentAccountId = body.memberPaymentAccountId?.trim() ?? "";
     const payerName = body.payerName?.trim() ?? "";
@@ -46,7 +44,6 @@ export async function POST(request: Request) {
       || typeof receivedAmountTwd !== "number"
       || !Number.isInteger(receivedAmountTwd)
       || receivedAmountTwd <= 0
-      || !/^[0-9]{5}$/.test(transferAccountLast5)
       || !payerName
     ) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
@@ -125,11 +122,9 @@ export async function POST(request: Request) {
       if (memberAccount.status !== "active") {
         throw new Error("payment_account_member_inactive");
       }
-      if (memberAccount.accountNumberLast5 !== transferAccountLast5) {
-        throw new Error("payment_account_member_last5_mismatch");
-      }
       const receivingPaymentAccount = buildPaymentAccountSnapshot(receivingAccount);
       const memberPaymentAccount = buildMemberPaymentAccountIdentitySnapshot(memberAccount);
+      const manualFingerprintReviewRequired = !memberPaymentAccount.accountFingerprint;
 
       const paymentRefs = allocations.map(() => db.collection("payments").doc());
       const paymentGroupId = paymentRefs[0]?.id ?? "";
@@ -146,12 +141,11 @@ export async function POST(request: Request) {
           receivedAmountTwd: allocation.receivedAmountTwd
             + (index === allocations.length - 1 ? unallocatedAmountTwd : 0),
            receivedAt,
-           transferAccountLast5,
           receivingPaymentAccountId,
           receivingPaymentAccount,
           memberPaymentAccountId,
           memberPaymentAccount,
-          manualFingerprintReviewRequired: false,
+          manualFingerprintReviewRequired,
           payerName,
           ...(memberNote ? { memberNote } : {}),
           status: "pendingReview",
@@ -187,7 +181,6 @@ export async function POST(request: Request) {
                   || message === "payment_account_required"
                   || message === "payment_account_member_not_found"
                   || message === "payment_account_member_inactive"
-                  || message === "payment_account_member_last5_mismatch"
                   || message === "payment_account_member_required"
                   ? 400
               : 500;

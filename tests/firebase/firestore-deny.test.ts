@@ -876,10 +876,11 @@ describe("Day 1 Firestore rules", () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "memberPaymentAccounts/member-account-a"), {
         memberUid: "member-a",
-        bankName: "測試銀行",
-        accountName: "會員 A",
-        accountNumberFull: "123456789012",
+        bankCode: "012",
         accountNumberLast5: "89012",
+        accountFingerprint: "rules-test-member-account-fingerprint",
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 7,
         status: "active",
       });
     });

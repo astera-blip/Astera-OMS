@@ -159,7 +159,6 @@ export function PaymentRequestsBoard() {
           paymentRequestIds: selectedRequestIds,
           receivedAt,
           receivedAmountTwd,
-          transferAccountLast5: last5,
           receivingPaymentAccountId: selectedPaymentAccountId,
           memberPaymentAccountId: selectedMemberPaymentAccountId,
           payerName: payerName.trim(),

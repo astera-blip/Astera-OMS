@@ -5,8 +5,8 @@ import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
 
 export type MemberPaymentAccountIdentitySnapshot = Pick<
   AccountIdentity,
-  "bankCode" | "accountNumberLast5" | "accountFingerprint" | "fingerprintKeyVersion"
->;
+  "bankCode" | "accountNumberLast5"
+> & Partial<Pick<AccountIdentity, "accountFingerprint" | "fingerprintKeyVersion">>;
 
 export type LocalPaymentRequest = {
   id: string;
@@ -109,28 +109,40 @@ export function allocatePaymentReportAmount(
 export function buildMemberPaymentAccountIdentitySnapshot(
   identity: AccountIdentity,
 ): MemberPaymentAccountIdentitySnapshot {
-  return {
+  const snapshot: MemberPaymentAccountIdentitySnapshot = {
     bankCode: identity.bankCode,
     accountNumberLast5: identity.accountNumberLast5,
-    accountFingerprint: identity.accountFingerprint,
-    fingerprintKeyVersion: identity.fingerprintKeyVersion,
   };
+
+  return hasUsableFingerprint(identity)
+    ? {
+        ...snapshot,
+        accountFingerprint: identity.accountFingerprint,
+        fingerprintKeyVersion: identity.fingerprintKeyVersion,
+      }
+    : snapshot;
 }
 
 export function withPaymentFingerprintReviewCapability<T extends LocalPayment>(
   payment: T,
 ): T & { manualFingerprintReviewRequired: boolean } {
-  const identity = payment.memberPaymentAccount;
-  const hasExactFingerprint = Boolean(
-    identity
-    && identity.accountFingerprint
-    && Number.isSafeInteger(identity.fingerprintKeyVersion),
-  );
-
   return {
     ...payment,
-    manualFingerprintReviewRequired: !hasExactFingerprint,
+    manualFingerprintReviewRequired: !hasUsableFingerprint(payment.memberPaymentAccount),
   };
+}
+
+export function hasUsableFingerprint(
+  identity: Partial<Pick<AccountIdentity, "accountFingerprint" | "fingerprintKeyVersion">> | undefined,
+): boolean {
+  return Boolean(
+    identity
+    && typeof identity.accountFingerprint === "string"
+    && identity.accountFingerprint.length > 0
+    && typeof identity.fingerprintKeyVersion === "number"
+    && Number.isSafeInteger(identity.fingerprintKeyVersion)
+    && identity.fingerprintKeyVersion > 0,
+  );
 }
 
 export function confirmBankTransfer(input: {

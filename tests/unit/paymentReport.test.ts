@@ -22,6 +22,8 @@ import { POST } from "@/app/api/payments/route";
 type StoredPaymentAccount = {
   memberUid: string;
   status: "active" | "inactive" | "pendingDeletion";
+  accountFingerprint: string | undefined;
+  fingerprintKeyVersion: number | undefined;
 };
 
 function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaymentAccount> = {}) {
@@ -95,7 +97,6 @@ function paymentReportRequest(extra: Record<string, unknown> = {}) {
       paymentRequestId: "payment-request-1",
       receivedAt: "2026-08-03",
       receivedAmountTwd: 520,
-      transferAccountLast5: "56789",
       receivingPaymentAccountId: "astera-account-1",
       memberPaymentAccountId: "member-account-1",
       payerName: "Member A",
@@ -132,11 +133,12 @@ describe("allocatePaymentReportAmount", () => {
 });
 
 describe("payment report member account snapshot", () => {
-  it("persists immutable fingerprint identity from the authenticated member account and ignores client identity", async () => {
+  it("ignores the client transfer last five and persists only the selected account snapshot identity", async () => {
     const reporting = createPaymentReportFirestore();
     firestore.getAdminFirestore.mockReturnValue(reporting.db);
 
     const response = await POST(paymentReportRequest({
+      transferAccountLast5: "00000",
       bankCode: "999",
       accountNumberLast5: "00000",
       accountFingerprint: "Y2xpZW50LWZpbmdlcnByaW50",
@@ -167,6 +169,30 @@ describe("payment report member account snapshot", () => {
       accountFingerprint: "c2VydmVyLWZpbmdlcnByaW50",
       fingerprintKeyVersion: 7,
     });
+    expect(paymentWrite).not.toHaveProperty("transferAccountLast5");
+  });
+
+  it("creates a manual-review payment for an active legacy account without a usable fingerprint", async () => {
+    const reporting = createPaymentReportFirestore({
+      accountFingerprint: undefined,
+      fingerprintKeyVersion: 0,
+    });
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const response = await POST(paymentReportRequest());
+
+    expect(response.status).toBe(200);
+    const paymentWrite = reporting.set.mock.calls[0]?.[1];
+    expect(paymentWrite).toMatchObject({
+      memberPaymentAccountId: "member-account-1",
+      memberPaymentAccount: {
+        bankCode: "012",
+        accountNumberLast5: "56789",
+      },
+      manualFingerprintReviewRequired: true,
+    });
+    expect(paymentWrite.memberPaymentAccount).not.toHaveProperty("accountFingerprint");
+    expect(paymentWrite.memberPaymentAccount).not.toHaveProperty("fingerprintKeyVersion");
   });
 
   it("rejects another member's selected account without creating a payment", async () => {
