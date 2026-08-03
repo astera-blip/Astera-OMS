@@ -105,7 +105,7 @@ Replace bank-name/account-name/full-number persistence with `bankCode` plus the 
 
 - [ ] **Step 4: Add exact duplicate notification creation.**
 
-Within the Admin transaction, query candidate records by bank code and last five digits. Compare fingerprints only through Server code and create an Owner notification event with status `pendingReview`, `confirmedDifferent`, `confirmedDuplicate`, or `restricted`; notification payload contains account IDs and masked last five only, never the full number or HMAC input.
+Within the Admin transaction, query candidate records by bank code and last five digits. For records on older retained key versions, recompute the new input under each referenced version before comparison; never compare fingerprints from different versions directly. Create an Owner notification event with status `pendingReview`, `confirmedDifferent`, or `confirmedDuplicate`; notification payload contains account IDs and masked last five only, never the full number or HMAC input.
 
 - [ ] **Step 5: Update the member UI.**
 
@@ -161,6 +161,7 @@ Commit: `git add src/app/api/payments/route.ts src/lib/payment/manualBankTransfe
 - Modify: `src/lib/order/cancellation.ts`
 - Modify: `src/lib/order/repository.ts`
 - Modify: `src/app/api/cancellations/route.ts`
+- Create: `src/app/api/cancellations/[id]/refund-account/route.ts`
 - Modify: `src/app/api/workspace/cancellations/[id]/review/route.ts`
 - Create: `src/app/api/workspace/cancellations/[id]/refund-account/route.ts`
 - Test: `tests/unit/cancellationFlow.test.ts`, `tests/unit/refundAccountVault.test.ts`, `tests/unit/refundAccountApi.test.ts`
@@ -175,17 +176,17 @@ Commit: `git add src/app/api/payments/route.ts src/lib/payment/manualBankTransfe
 
 Verify KMS ciphertext is stored only in the cancellation request, expired records cannot be read, Owner-only reads return the full account through the API, and deletion removes ciphertext immediately.
 
-- [ ] **Step 2: Add HMAC verification to paid cancellation review.**
+- [ ] **Step 2: Add HMAC verification to the member paid-cancellation request.**
 
-Require `refundBankCode` and `refundAccountNumberFull` for a paid cancellation. Load the specific payment snapshot, verify bank code, last five, and HMAC using that snapshot’s `fingerprintKeyVersion`. Reject mismatch before creating adjustment; append a mismatch Audit Log without account data and enforce member/request/IP rate limits.
+Require the authenticated member to submit `targetPaymentId`, `refundBankCode`, and `refundAccountNumberFull` when creating a paid cancellation request. Load that member’s specific payment snapshot, verify bank code, last five, and HMAC using the snapshot’s `fingerprintKeyVersion`. Reject mismatch before creating the cancellation request or adjustment; append a mismatch Audit Log without account data and enforce member/request/IP rate limits. Different payment sources must create separate requests.
 
 - [ ] **Step 3: Encrypt the accepted full account with Cloud KMS.**
 
 Use a separate symmetric Cloud KMS encryption key for the short-lived refund vault. Store only `refundAccountCiphertext`, `refundEncryptionKeyVersion`, `refundAccountExpiresAt`, and permanent `refundBankCode`／`refundAccountLast5` metadata. Do not store an application key or raw input.
 
-- [ ] **Step 4: Add Owner reveal and deletion behavior.**
+- [ ] **Step 4: Add member resubmission, Owner reveal, and deletion behavior.**
 
-The reveal route checks Owner custom claim, expiry, and cancellation/order ownership. It decrypts only in the Server response. When the order transitions to `refunded`, transactionally delete the ciphertext fields; a refund reverse must not restore them.
+The member resubmission route accepts a new full account only for the member’s own expired `needsReverification` request and repeats the original-payment HMAC check. The Owner reveal route checks Owner custom claim and expiry, then decrypts only in the Server response. Owner review continues to accept refund date, amount, and reference rather than asking Owner to re-enter the account. When the order transitions to `refunded`, transactionally delete the ciphertext fields; a refund reverse must not restore them.
 
 - [ ] **Step 5: Run focused tests and commit.**
 
@@ -193,7 +194,7 @@ Run: `npx vitest run tests/unit/refundAccountVault.test.ts tests/unit/refundAcco
 
 Expected: valid historical-version matches succeed, mismatches create no adjustment, ciphertext is not returned by normal order/cancellation reads, and `refunded` deletes it.
 
-Commit: `git add src/lib/payment/refundAccountVault.ts src/lib/order/cancellation.ts src/lib/order/repository.ts src/app/api/cancellations/route.ts src/app/api/workspace/cancellations/[id]/review/route.ts src/app/api/workspace/cancellations/[id]/refund-account/route.ts tests/unit/refundAccountVault.test.ts tests/unit/refundAccountApi.test.ts tests/unit/cancellationFlow.test.ts && git commit -m "feat: verify and temporarily encrypt refund accounts"`
+Commit: `git add src/lib/payment/refundAccountVault.ts src/lib/order/cancellation.ts src/lib/order/repository.ts src/app/api/cancellations/route.ts src/app/api/cancellations/[id]/refund-account/route.ts src/app/api/workspace/cancellations/[id]/review/route.ts src/app/api/workspace/cancellations/[id]/refund-account/route.ts tests/unit/refundAccountVault.test.ts tests/unit/refundAccountApi.test.ts tests/unit/cancellationFlow.test.ts && git commit -m "feat: verify and temporarily encrypt refund accounts"`
 
 ### Task 5: Tighten Firestore Rules and notification/audit handling
 
@@ -219,7 +220,7 @@ Change cancellation rules to reject direct reads and writes; update affected cli
 
 - [ ] **Step 3: Add notification outcome transitions.**
 
-Allow Owner API to mark duplicate events `confirmedDifferent`, `confirmedDuplicate`, or `restricted`, preserving immutable event history and writing an audit entry for the action.
+Allow Owner API to mark duplicate events `confirmedDifferent` or `confirmedDuplicate`, preserving immutable event history and writing an audit entry for the action. Neither outcome automatically blocks the member account.
 
 - [ ] **Step 4: Add rate-limit and audit tests.**
 
