@@ -36,6 +36,13 @@ describe("bank account identity", () => {
     expect(() => normalizeBankCode("12")).toThrow("invalid_bank_code");
   });
 
+  it("trims only surrounding bank-code whitespace and rejects embedded separators", () => {
+    expect(normalizeBankCode(" ０１２ ")).toBe("012");
+    expect(() => normalizeBankCode("0 12")).toThrow("invalid_bank_code");
+    expect(() => normalizeBankCode("0-12")).toThrow("invalid_bank_code");
+    expect(() => normalizeBankCode("0/12")).toThrow("invalid_bank_code");
+  });
+
   it("rejects account numbers outside the 8 to 20 digit business range", () => {
     expect(() => normalizeAccountNumber("1234567")).toThrow("invalid_account_number");
     expect(() => normalizeAccountNumber("123456789012345678901")).toThrow("invalid_account_number");

@@ -23,7 +23,7 @@ export function normalizeBankCode(input: unknown): string {
     throw new Error("invalid_bank_code");
   }
 
-  const normalized = mapFullWidthDigits(input).replace(/ /g, "");
+  const normalized = mapFullWidthDigits(input).trim();
   if (!/^\d{3}$/.test(normalized)) {
     throw new Error("invalid_bank_code");
   }
