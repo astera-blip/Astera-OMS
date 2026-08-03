@@ -178,14 +178,25 @@ function normalizeOrderItemRecord(record: OrderItemRecord): OrderItemRecord {
 function normalizeCancellationRequestRecord(
   record: CancellationRequestRecord,
 ): CancellationRequestRecord {
+  const safeRecord = sanitizeCancellationRequest(record);
   return {
-    ...record,
-    createdAt: normalizeFirestoreTimestamp(record.createdAt),
-    ...(record.reviewedAt ? { reviewedAt: normalizeFirestoreTimestamp(record.reviewedAt) } : {}),
-    ...(record.refundCompletedAt
-      ? { refundCompletedAt: normalizeFirestoreTimestamp(record.refundCompletedAt) }
+    ...safeRecord,
+    createdAt: normalizeFirestoreTimestamp(safeRecord.createdAt),
+    ...(safeRecord.reviewedAt ? { reviewedAt: normalizeFirestoreTimestamp(safeRecord.reviewedAt) } : {}),
+    ...(safeRecord.refundCompletedAt
+      ? { refundCompletedAt: normalizeFirestoreTimestamp(safeRecord.refundCompletedAt) }
       : {}),
   };
+}
+
+export function sanitizeCancellationRequest(
+  record: CancellationRequestRecord,
+): CancellationRequestRecord {
+  const safeRecord = { ...record };
+  delete safeRecord.refundAccountCiphertext;
+  delete safeRecord.refundEncryptionKeyVersion;
+  delete safeRecord.refundAccountExpiresAt;
+  return safeRecord;
 }
 
 function normalizeFirestoreTimestamp(value: unknown): string {

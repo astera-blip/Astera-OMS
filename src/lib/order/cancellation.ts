@@ -1,5 +1,12 @@
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 import type { LocalAuditLog, LocalPaymentAllocation } from "@/lib/payment/manualBankTransfer";
+import {
+  normalizeAccountNumber,
+  normalizeBankCode,
+  verifyAccountIdentity,
+  type CloudKmsMacClient,
+} from "@/lib/payment/accountIdentity";
+import { hasUsableFingerprint, type LocalPayment } from "@/lib/payment/manualBankTransfer";
 import type { OrderItemRecord, OrderRecord } from "./checkout";
 
 export type CancellationRequestRecord = {
@@ -17,6 +24,16 @@ export type CancellationRequestRecord = {
   refundAmountTwd?: number;
   refundCompletedAt?: string;
   refundReference?: string;
+  targetPaymentId?: string;
+  refundBankCode?: string;
+  refundAccountLast5?: string;
+  refundAccountCiphertext?: string;
+  refundEncryptionKeyVersion?: number;
+  refundAccountExpiresAt?: string;
+};
+
+export type CancellationReviewOrder = Omit<OrderRecord, "status"> & {
+  status: OrderRecord["status"] | "refunded";
 };
 
 export function getPendingCancellationRequestId(orderId: string, orderItemIds: string[]) {
@@ -77,6 +94,9 @@ export function createCancellationRequest(input: {
   orderItemIds: string[];
   memberUid: string;
   reason: string;
+  targetPaymentId?: string;
+  refundBankCode?: string;
+  refundAccountLast5?: string;
   createdAt: string;
   createdBy: string;
 }): CancellationRequestRecord {
@@ -86,6 +106,9 @@ export function createCancellationRequest(input: {
     orderItemIds: [...input.orderItemIds],
     memberUid: input.memberUid,
     reason: input.reason,
+    ...(input.targetPaymentId ? { targetPaymentId: input.targetPaymentId } : {}),
+    ...(input.refundBankCode ? { refundBankCode: input.refundBankCode } : {}),
+    ...(input.refundAccountLast5 ? { refundAccountLast5: input.refundAccountLast5 } : {}),
     status: "pending",
     createdAt: input.createdAt,
     createdBy: input.createdBy,
@@ -161,7 +184,7 @@ export function applyCancellationReview(
     refundReference?: string;
   },
 ): {
-  order: OrderRecord;
+  order: CancellationReviewOrder;
   items: OrderItemRecord[];
   paymentRequests: LocalPaymentRequest[];
   adjustment?: LocalPaymentAllocation;
@@ -200,9 +223,13 @@ export function applyCancellationReview(
   const recalculated = recalculateOrderAfterCancellation(order, reviewedItems, paymentRequests, input);
   const refundAmountTwd = input.refundAmountTwd ?? 0;
   const needsRefundAdjustment = input.status === "approved" && refundAmountTwd > 0;
+  const reviewedOrder = needsRefundAdjustment && recalculated.order.totalTwd === 0
+    ? { ...recalculated.order, status: "refunded" as const }
+    : recalculated.order;
 
   return {
     ...recalculated,
+    order: reviewedOrder,
     ...(needsRefundAdjustment
       ? {
           adjustment: {
@@ -227,6 +254,37 @@ export function applyCancellationReview(
         }
       : {}),
   };
+}
+
+export async function verifyRefundAccountForPayment(input: {
+  refundBankCode: unknown;
+  refundAccountNumberFull: unknown;
+  payment: Pick<LocalPayment, "memberPaymentAccount">;
+  macClient: CloudKmsMacClient;
+}): Promise<"match" | "mismatch" | "needsReverification"> {
+  const expected = input.payment.memberPaymentAccount;
+  if (!expected || !hasUsableFingerprint(expected)) {
+    return "needsReverification";
+  }
+
+  const bankCode = normalizeBankCode(input.refundBankCode);
+  const accountNumber = normalizeAccountNumber(input.refundAccountNumberFull);
+  if (bankCode !== expected.bankCode || accountNumber.slice(-5) !== expected.accountNumberLast5) {
+    return "mismatch";
+  }
+
+  const matches = await verifyAccountIdentity(
+    { bankCode, accountNumber },
+    {
+      bankCode: expected.bankCode,
+      accountNumberLast5: expected.accountNumberLast5,
+      accountFingerprint: expected.accountFingerprint!,
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: expected.fingerprintKeyVersion!,
+    },
+    input.macClient,
+  );
+  return matches ? "match" : "mismatch";
 }
 
 function recalculateOrderAfterCancellation(

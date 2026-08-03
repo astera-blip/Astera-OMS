@@ -5,6 +5,7 @@ import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { applyCancellationReview, reviewCancellationRequest } from "@/lib/order/cancellation";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import { deletedRefundVaultFields } from "@/lib/payment/refundAccountVault";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -63,6 +64,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         reviewedBy: claims.uid,
         reviewNote,
       });
+      const reviewedWithRefundMetadata = {
+        ...reviewed,
+        ...(reviewStatus === "approved"
+          ? {
+              refundAmountTwd,
+              refundCompletedAt,
+              refundReference,
+            }
+          : {}),
+      };
 
       const orderRef = db.collection("orders").doc(reviewed.orderId);
       const [orderSnapshot, itemsSnapshot, paymentRequestsSnapshot] = await Promise.all([
@@ -87,7 +98,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ...(refundReference ? { refundReference } : {}),
       });
 
-      transaction.set(requestRef, reviewed);
+      transaction.set(requestRef, {
+        ...reviewedWithRefundMetadata,
+        ...(reviewedBundle.order.status === "refunded" ? deletedRefundVaultFields() : {}),
+      });
       for (const snapshot of itemsSnapshot.docs) {
         const item = snapshot.data() as OrderItemRecord;
         if (!targetItemIds.has(snapshot.id)) {
