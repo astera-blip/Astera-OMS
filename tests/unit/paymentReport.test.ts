@@ -16,7 +16,11 @@ vi.mock("@/lib/firebase/admin", () => ({
   getAdminFirestore: firestore.getAdminFirestore,
 }));
 
-import { allocatePaymentReportAmount } from "../../src/lib/payment/manualBankTransfer";
+import {
+  allocatePaymentReportAmount,
+  getPaymentAccountLast5,
+} from "../../src/lib/payment/manualBankTransfer";
+import type { LocalPayment } from "../../src/lib/payment/manualBankTransfer";
 import { POST } from "@/app/api/payments/route";
 
 type StoredPaymentAccount = {
@@ -129,6 +133,29 @@ describe("allocatePaymentReportAmount", () => {
       { paymentRequestId: "pr-a", receivedAmountTwd: 380 },
       { paymentRequestId: "pr-b", receivedAmountTwd: 620 },
     ]);
+  });
+});
+
+describe("Owner payment account display", () => {
+  it("reads the last five from a new server-authoritative member account snapshot", () => {
+    const payment = {
+      memberPaymentAccount: {
+        bankCode: "012",
+        accountNumberLast5: "56789",
+        accountFingerprint: "fingerprint",
+        fingerprintKeyVersion: 7,
+      },
+    } as LocalPayment;
+
+    expect(getPaymentAccountLast5(payment)).toBe("56789");
+  });
+
+  it("falls back to the legacy top-level last five for historical payments", () => {
+    const historicalPayment = {
+      transferAccountLast5: "54321",
+    } as LocalPayment;
+
+    expect(getPaymentAccountLast5(historicalPayment)).toBe("54321");
   });
 });
 

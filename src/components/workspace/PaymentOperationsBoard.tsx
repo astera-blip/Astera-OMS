@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { NotificationEvent } from "@/lib/notification/events";
 import type { OrderBundle } from "@/lib/order/checkout";
+import { getPaymentAccountLast5 } from "@/lib/payment/manualBankTransfer";
 import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
 export function PaymentOperationsBoard() {
@@ -331,7 +332,7 @@ export function PaymentOperationsBoard() {
                 </p>
               ) : null}
               <p className="mt-1 text-sm opacity-80">
-                末五碼 {payment.transferAccountLast5 ?? "未填"} · 匯款人 {payment.payerName ?? "未填"}
+                末五碼 {getPaymentAccountLast5(payment) ?? "未填"} · 匯款人 {payment.payerName ?? "未填"}
               </p>
             </button>
             );

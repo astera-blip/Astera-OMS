@@ -145,6 +145,10 @@ export function hasUsableFingerprint(
   );
 }
 
+export function getPaymentAccountLast5(payment: LocalPayment): string | undefined {
+  return payment.memberPaymentAccount?.accountNumberLast5 ?? payment.transferAccountLast5;
+}
+
 export function confirmBankTransfer(input: {
   orderBundle: OrderBundle;
   paymentRequest: LocalPaymentRequest;
