@@ -40,7 +40,9 @@ export type MemberPaymentAccountDuplicateReviewStatus =
 
 export type MemberPaymentAccountDuplicateNotification = {
   id: string;
-  type: "memberPaymentAccount.exactDuplicate";
+  type:
+    | "memberPaymentAccount.exactDuplicate"
+    | "memberPaymentAccount.last5Collision";
   audience: "owner";
   status: MemberPaymentAccountDuplicateReviewStatus;
   payload: {

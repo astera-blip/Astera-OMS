@@ -65,6 +65,7 @@ export async function POST(request: Request) {
           .where("accountNumberLast5", "==", identity.accountNumberLast5),
       );
       const exactDuplicateIds: string[] = [];
+      const last5CollisionIds: string[] = [];
       for (const document of candidateSnapshot.docs) {
         const candidate = {
           id: document.id,
@@ -76,6 +77,8 @@ export async function POST(request: Request) {
           macClient,
         )) {
           exactDuplicateIds.push(candidate.id);
+        } else {
+          last5CollisionIds.push(candidate.id);
         }
       }
 
@@ -91,15 +94,25 @@ export async function POST(request: Request) {
       };
       transaction.set(ref, accountRecord);
 
-      if (exactDuplicateIds.length > 0) {
+      const notificationGroups: Array<{
+        type: MemberPaymentAccountDuplicateNotification["type"];
+        accountIds: string[];
+      }> = [
+        { type: "memberPaymentAccount.exactDuplicate", accountIds: exactDuplicateIds },
+        { type: "memberPaymentAccount.last5Collision", accountIds: last5CollisionIds },
+      ];
+      for (const group of notificationGroups) {
+        if (group.accountIds.length === 0) {
+          continue;
+        }
         const notificationRef = db.collection("notificationEvents").doc();
         const notification: MemberPaymentAccountDuplicateNotification = {
           id: notificationRef.id,
-          type: "memberPaymentAccount.exactDuplicate",
+          type: group.type,
           audience: "owner",
           status: "pendingReview",
           payload: {
-            accountIds: [...new Set([...exactDuplicateIds, ref.id])],
+            accountIds: [...new Set([...group.accountIds, ref.id])],
             accountNumberMasked: maskMemberAccountNumber(identity.accountNumberLast5),
           },
           createdAt: FieldValue.serverTimestamp(),
@@ -115,7 +128,7 @@ export async function POST(request: Request) {
           id: ref.id,
           ...accountRecord,
         },
-        duplicateReviewPending: exactDuplicateIds.length > 0,
+        duplicateReviewPending: candidateSnapshot.docs.length > 0,
       };
     });
 

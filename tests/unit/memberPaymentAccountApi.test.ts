@@ -27,6 +27,7 @@ vi.mock("@/lib/security/cloudKmsMac", () => ({
 }));
 
 import { GET, POST } from "@/app/api/member/payment-accounts/route";
+import { POST as requestDeletion } from "@/app/api/member/payment-accounts/[id]/deletion-request/route";
 
 type StoredDocument = { id: string; data: Record<string, unknown> };
 
@@ -46,7 +47,7 @@ function createRegistrationFirestore(input: {
   const memberQuery = { kind: "member-query" };
   const candidateQuery = { kind: "candidate-query" };
   const accountRef = { id: "account-new" };
-  const notificationRef = { id: "notification-new" };
+  let notificationSequence = 0;
   const set = vi.fn();
   const transaction = {
     get: vi.fn(async (target: unknown) => target === memberQuery
@@ -60,7 +61,9 @@ function createRegistrationFirestore(input: {
       : { where: vi.fn(() => candidateQuery) }),
     doc: vi.fn(() => accountRef),
   };
-  const notificationEvents = { doc: vi.fn(() => notificationRef) };
+  const notificationEvents = {
+    doc: vi.fn(() => ({ id: `notification-${++notificationSequence}` })),
+  };
   const db = {
     collection: vi.fn((name: string) => name === "notificationEvents"
       ? notificationEvents
@@ -68,7 +71,7 @@ function createRegistrationFirestore(input: {
     runTransaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
   };
 
-  return { db, set, accountRef, notificationRef };
+  return { db, set, accountRef };
 }
 
 describe("member payment account API contract", () => {
@@ -142,7 +145,9 @@ describe("member payment account API contract", () => {
     expect(accountWrite).not.toHaveProperty("bankName");
     expect(accountWrite).not.toHaveProperty("accountName");
 
-    const eventWrite = registration.set.mock.calls.find(([ref]) => ref === registration.notificationRef)?.[1];
+    const eventWrite = registration.set.mock.calls.find(([, value]) => (
+      value as { type?: string }
+    ).type === "memberPaymentAccount.exactDuplicate")?.[1];
     expect(eventWrite).toMatchObject({
       type: "memberPaymentAccount.exactDuplicate",
       audience: "owner",
@@ -157,6 +162,20 @@ describe("member payment account API contract", () => {
     expect(JSON.stringify(eventWrite)).not.toContain("accountNumberFull");
     expect(JSON.stringify(eventWrite)).not.toContain("accountFingerprint");
     expect(JSON.stringify(eventWrite)).not.toContain("astera:bank-account");
+    const collisionEventWrite = registration.set.mock.calls.find(([, value]) => (
+      value as { type?: string }
+    ).type === "memberPaymentAccount.last5Collision")?.[1];
+    expect(collisionEventWrite).toMatchObject({
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        accountIds: ["account-same-last5", "account-new"],
+        accountNumberMasked: "***56789",
+      },
+    });
+    expect(JSON.stringify(collisionEventWrite)).not.toContain("accountNumberFull");
+    expect(JSON.stringify(collisionEventWrite)).not.toContain("accountFingerprint");
+    expect(JSON.stringify(collisionEventWrite)).not.toContain("astera:bank-account");
     expect(kms.signCanonicalAccount).toHaveBeenCalledWith(
       "astera:bank-account:v1|012|00123456789",
       3,
@@ -167,7 +186,7 @@ describe("member payment account API contract", () => {
     );
   });
 
-  it("allows same bank code and last five digits when the full identity differs", async () => {
+  it("allows a last-five collision and creates a non-blocking Owner review event", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
     kms.signCanonicalAccount.mockImplementation(async (_canonical: string, keyVersion?: number) => ({
       mac: keyVersion === 3 ? "bmV3" : "bmV3",
@@ -196,8 +215,23 @@ describe("member payment account API contract", () => {
     }));
 
     expect(response.status).toBe(201);
-    await expect(response.json()).resolves.not.toHaveProperty("warning");
-    expect(registration.set.mock.calls.some(([ref]) => ref === registration.notificationRef)).toBe(false);
+    await expect(response.json()).resolves.toMatchObject({
+      warning: "member_payment_account_duplicate_review_pending",
+    });
+    const collisionEventWrite = registration.set.mock.calls.find(([, value]) => (
+      value as { type?: string }
+    ).type === "memberPaymentAccount.last5Collision")?.[1];
+    expect(collisionEventWrite).toMatchObject({
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        accountIds: ["account-same-last5", "account-new"],
+        accountNumberMasked: "***56789",
+      },
+    });
+    expect(JSON.stringify(collisionEventWrite)).not.toContain("accountNumberFull");
+    expect(JSON.stringify(collisionEventWrite)).not.toContain("accountFingerprint");
+    expect(JSON.stringify(collisionEventWrite)).not.toContain("astera:bank-account");
   });
 
   it("preserves the five active or pending-deletion account limit", async () => {
@@ -268,5 +302,54 @@ describe("member payment account API contract", () => {
     });
     expect(JSON.stringify(payload)).not.toContain("accountFingerprint");
     expect(JSON.stringify(payload)).not.toContain("accountNumberFull");
+  });
+
+  it("lets the owning member request deletion and returns a masked pending snapshot", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    const update = vi.fn();
+    const accountRef = { id: "account-a" };
+    const transaction = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        id: "account-a",
+        data: () => ({
+          memberUid: "member-a",
+          bankCode: "012",
+          accountNumberLast5: "56789",
+          accountFingerprint: "c2VjcmV0LW1hYw==",
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 7,
+          status: "active",
+        }),
+      }),
+      update,
+    };
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({ doc: vi.fn(() => accountRef) })),
+      runTransaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
+    });
+
+    const response = await requestDeletion(
+      new Request("https://example.test/api/member/payment-accounts/account-a/deletion-request", {
+        method: "POST",
+      }),
+      { params: Promise.resolve({ id: "account-a" }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      account: {
+        id: "account-a",
+        bankCode: "012",
+        accountNumberMasked: "***56789",
+        accountNumberLast5: "56789",
+        status: "pendingDeletion",
+      },
+    });
+    expect(update).toHaveBeenCalledWith(accountRef, expect.objectContaining({
+      status: "pendingDeletion",
+      deletionRequestedBy: "member-a",
+      updatedBy: "member-a",
+    }));
   });
 });
