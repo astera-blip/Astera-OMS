@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
@@ -9,12 +8,18 @@ import {
   markCancellationRequested,
   splitCancellationItems,
   verifyRefundAccountForPayment,
+  type CancellationRequestRecord,
 } from "@/lib/order/cancellation";
 import { normalizeAccountNumber, normalizeBankCode } from "@/lib/payment/accountIdentity";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
-import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import type {
+  LocalPayment,
+  LocalPaymentAllocation,
+  LocalPaymentRequest,
+} from "@/lib/payment/manualBankTransfer";
 import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
-import { storeRefundAccount } from "@/lib/payment/refundAccountVault";
+import { encryptRefundAccount } from "@/lib/payment/refundAccountVault";
+import { appendRefundVerificationFailure } from "@/lib/order/refundVerificationAttempts";
 
 type CancellationRequestBody = {
   orderId?: string;
@@ -50,7 +55,74 @@ export async function POST(request: Request) {
       const requestRef = db.collection("cancellationRequests").doc(requestId);
       const existingRequest = await transaction.get(requestRef);
       if (existingRequest.exists) {
-        return { requestId, alreadyExists: true };
+        const existing = existingRequest.data() as CancellationRequestRecord;
+        if (existing.refundAccountCiphertext || existing.status !== "pending") {
+          return { requestId, alreadyExists: true };
+        }
+        if (
+          existing.memberUid !== claims.uid
+          || existing.orderId !== orderId
+          || existing.targetPaymentId !== targetPaymentId
+          || !sameIds(existing.orderItemIds, orderItemIds)
+          || refundBankCodeInput === undefined
+          || refundAccountNumberInput === undefined
+        ) {
+          throw new Error("idempotency_conflict");
+        }
+        const refundBankCode = normalizeBankCode(refundBankCodeInput);
+        const refundAccountNumberFull = normalizeAccountNumber(refundAccountNumberInput);
+        if (
+          existing.refundBankCode !== refundBankCode
+          || existing.refundAccountLast5 !== refundAccountNumberFull.slice(-5)
+        ) {
+          throw new Error("idempotency_conflict");
+        }
+        const paymentSnapshot = await transaction.get(db.collection("payments").doc(targetPaymentId));
+        if (!paymentSnapshot.exists) {
+          throw new Error("payment_not_found");
+        }
+        const payment = paymentSnapshot.data() as LocalPayment;
+        const paymentRequestSnapshot = await transaction.get(
+          db.collection("paymentRequests").doc(payment.paymentRequestId),
+        );
+        if (!paymentRequestSnapshot.exists) {
+          throw new Error("payment_request_not_found");
+        }
+        const paymentRequest = paymentRequestSnapshot.data() as LocalPaymentRequest;
+        if (
+          payment.memberUid !== claims.uid
+          || payment.status !== "confirmed"
+          || paymentRequest.memberUid !== claims.uid
+          || paymentRequest.orderId !== orderId
+        ) {
+          throw new Error("forbidden");
+        }
+        const macClient = new CloudKmsMac();
+        const verification = await verifyRefundAccountForPayment({
+          refundBankCode,
+          refundAccountNumberFull,
+          payment,
+          macClient,
+        });
+        if (verification !== "match") {
+          const rateLimited = await appendRefundVerificationFailure({
+            transaction,
+            db,
+            macClient,
+            requestId,
+            memberUid: claims.uid,
+            requestIp,
+            verification,
+          });
+          return { error: rateLimited ? "refund_account_rate_limited" : "refund_account_mismatch" };
+        }
+        const encryptedRefundAccount = await encryptRefundAccount(
+          requestId,
+          refundAccountNumberFull,
+          new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        );
+        transaction.update(requestRef, encryptedRefundAccount);
+        return { requestId, alreadyExists: true, repaired: true };
       }
 
       const orderRef = db.collection("orders").doc(orderId);
@@ -96,7 +168,13 @@ export async function POST(request: Request) {
 
       const split = splitCancellationItems(allItems, orderItemIds);
       const paymentRequests = paymentRequestsSnapshot.docs.map((snapshot) => snapshot.data() as LocalPaymentRequest);
-      let verifiedRefundAccount: { bankCode: string; accountNumberFull: string; accountNumberLast5: string } | undefined;
+      let verifiedRefundAccount: {
+        bankCode: string;
+        accountNumberFull: string;
+        accountNumberLast5: string;
+        targetPaymentRequestId: string;
+        refundRequestedAmountTwd: number;
+      } | undefined;
       if (split.paidItems.length > 0) {
         if (!targetPaymentId || refundBankCodeInput === undefined || refundAccountNumberInput === undefined) {
           throw new Error("refund_account_required");
@@ -126,20 +204,51 @@ export async function POST(request: Request) {
           throw new Error("forbidden");
         }
 
+        const [allocationsSnapshot, existingRefundsSnapshot] = await Promise.all([
+          transaction.get(
+            db.collection("paymentAllocations").where("paymentId", "==", targetPaymentId),
+          ),
+          transaction.get(
+            db.collection("cancellationRequests").where("targetPaymentId", "==", targetPaymentId),
+          ),
+        ]);
+        const refundableAllocationTwd = allocationsSnapshot.docs
+          .map((snapshot) => snapshot.data() as LocalPaymentAllocation)
+          .filter((allocation) =>
+            allocation.kind === "payment"
+            && allocation.targetType === "paymentRequest"
+            && allocation.targetId === targetPayment.paymentRequestId)
+          .reduce((total, allocation) => total + Math.max(0, allocation.amountTwd), 0);
+        const alreadyRequestedTwd = existingRefundsSnapshot.docs
+          .map((snapshot) => snapshot.data() as CancellationRequestRecord)
+          .filter((existing) => existing.status === "pending" || existing.status === "approved")
+          .reduce((total, existing) => total + Math.max(0, existing.refundRequestedAmountTwd ?? 0), 0);
+        const refundRequestedAmountTwd = split.paidItems.reduce(
+          (total, item) => total + item.snapshot.unitPriceTwd * item.quantity,
+          0,
+        );
+        if (
+          refundRequestedAmountTwd <= 0
+          || refundRequestedAmountTwd > refundableAllocationTwd - alreadyRequestedTwd
+        ) {
+          throw new Error("refund_payment_allocation_exceeded");
+        }
+
+        const macClient = new CloudKmsMac();
         const verification = await verifyRefundAccountForPayment({
           refundBankCode,
           refundAccountNumberFull,
           payment: targetPayment,
-          macClient: new CloudKmsMac(),
+          macClient,
         });
         if (verification !== "match") {
-          const rateLimited = await recordRefundVerificationFailure({
+          const rateLimited = await appendRefundVerificationFailure({
             transaction,
             db,
+            macClient,
             requestId,
             memberUid: claims.uid,
             requestIp,
-            orderId,
             verification,
           });
           return {
@@ -154,6 +263,8 @@ export async function POST(request: Request) {
           bankCode: refundBankCode,
           accountNumberFull: refundAccountNumberFull,
           accountNumberLast5: refundAccountNumberFull.slice(-5),
+          targetPaymentRequestId: targetPayment.paymentRequestId,
+          refundRequestedAmountTwd,
         };
       }
       const directCancellation = split.unpaidItems.length > 0
@@ -173,6 +284,8 @@ export async function POST(request: Request) {
             ...(verifiedRefundAccount
               ? {
                   targetPaymentId,
+                  targetPaymentRequestId: verifiedRefundAccount.targetPaymentRequestId,
+                  refundRequestedAmountTwd: verifiedRefundAccount.refundRequestedAmountTwd,
                   refundBankCode: verifiedRefundAccount.bankCode,
                   refundAccountLast5: verifiedRefundAccount.accountNumberLast5,
                 }
@@ -189,8 +302,16 @@ export async function POST(request: Request) {
         : directCancellation?.items ?? allItems;
 
       if (paidCancellationRequest) {
+        const encryptedRefundAccount = verifiedRefundAccount
+          ? await encryptRefundAccount(
+              requestId,
+              verifiedRefundAccount.accountNumberFull,
+              new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            )
+          : undefined;
         transaction.set(requestRef, {
           ...paidCancellationRequest,
+          ...encryptedRefundAccount,
           createdAt: FieldValue.serverTimestamp(),
         });
       }
@@ -241,26 +362,13 @@ export async function POST(request: Request) {
         directlyCancelledItemIds: split.unpaidItems.map((item) => item.id),
         pendingReviewItemIds: split.paidItems.map((item) => item.id),
         alreadyExists: false,
-        ...(verifiedRefundAccount
-          ? { refundAccountNumberFull: verifiedRefundAccount.accountNumberFull }
-          : {}),
       };
     });
 
     if ("error" in result) {
       throw new Error(result.error);
     }
-    const privateAccountNumber = "refundAccountNumberFull" in result
-      ? result.refundAccountNumberFull
-      : undefined;
-    if (result.requestId && privateAccountNumber) {
-      const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-      await storeRefundAccount(result.requestId, privateAccountNumber, expiresAt);
-    }
-
-    const publicResult = { ...result } as typeof result & { refundAccountNumberFull?: string };
-    delete publicResult.refundAccountNumberFull;
-    return NextResponse.json({ ok: true, ...publicResult });
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     const status =
@@ -274,10 +382,13 @@ export async function POST(request: Request) {
             ? 404
             : message === "duplicate_pending_request"
               ? 409
+              : message === "idempotency_conflict"
+                ? 409
               : message === "invalid_items"
                 || message === "refund_account_required"
                 || message === "refund_account_mismatch"
                 || message === "refund_account_reverification_required"
+                || message === "refund_payment_allocation_exceeded"
                 || message === "invalid_bank_code"
                 || message === "invalid_account_number"
                 ? 400
@@ -289,58 +400,14 @@ export async function POST(request: Request) {
   }
 }
 
-async function recordRefundVerificationFailure(input: {
-  transaction: FirebaseFirestore.Transaction;
-  db: FirebaseFirestore.Firestore;
-  requestId: string;
-  memberUid: string;
-  requestIp: string;
-  orderId: string;
-  verification: "mismatch" | "needsReverification";
-}) {
-  const windowStartedAt = Math.floor(Date.now() / (15 * 60 * 1000)) * 15 * 60 * 1000;
-  const limits = [
-    { scope: "request", key: input.requestId, maximum: 5 },
-    { scope: "member", key: input.memberUid, maximum: 10 },
-    { scope: "ip", key: input.requestIp, maximum: 20 },
-  ];
-  let rateLimited = false;
-  for (const limit of limits) {
-    const digest = createHash("sha256").update(limit.key).digest("hex");
-    const ref = input.db.collection("securityRateLimits").doc(
-      `refund-mismatch_${limit.scope}_${windowStartedAt}_${digest}`,
-    );
-    const snapshot = await input.transaction.get(ref);
-    const previousCount = snapshot.exists
-      ? Number((snapshot.data() as { count?: unknown }).count) || 0
-      : 0;
-    if (previousCount >= limit.maximum) {
-      rateLimited = true;
-    }
-    input.transaction.set(ref, {
-      scope: limit.scope,
-      count: previousCount + 1,
-      windowStartedAt: new Date(windowStartedAt).toISOString(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  }
-
-  input.transaction.set(input.db.collection("auditLogs").doc(`audit_refund_mismatch_${input.requestId}`), {
-    id: `audit_refund_mismatch_${input.requestId}`,
-    action: "refund.account.mismatch",
-    actorUid: input.memberUid,
-    targetType: "order",
-    targetId: input.orderId,
-    reason: input.verification === "needsReverification"
-      ? "refund account verification unavailable"
-      : "refund account verification failed",
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  return rateLimited;
-}
-
 function getRequestIp(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || request.headers.get("x-real-ip")?.trim()
     || "unknown";
+}
+
+function sameIds(left: readonly string[], right: readonly string[]) {
+  return left.length === right.length
+    && new Set(left).size === left.length
+    && left.every((id) => right.includes(id));
 }

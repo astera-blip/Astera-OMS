@@ -13,20 +13,51 @@ type RefundVaultRecord = {
 
 let kmsClient: KeyManagementServiceClient | undefined;
 
+export type EncryptedRefundAccountFields = {
+  refundAccountCiphertext: string;
+  refundEncryptionKeyVersion: number;
+  refundAccountExpiresAt: string;
+};
+
 export async function storeRefundAccount(
   requestId: string,
   accountNumberFull: string,
   expiresAt: string,
 ): Promise<{ encryptionKeyVersion: number; expiresAt: string }> {
   const normalizedRequestId = requireRequestId(requestId);
+  const encryptedFields = await encryptRefundAccount(
+    normalizedRequestId,
+    accountNumberFull,
+    expiresAt,
+  );
+  const db = getAdminFirestore();
+  const requestRef = db.collection("cancellationRequests").doc(normalizedRequestId);
+  await db.runTransaction(async (transaction) => {
+    const requestSnapshot = await transaction.get(requestRef);
+    if (!requestSnapshot.exists) {
+      throw new Error("cancellation_request_not_found");
+    }
+    const record = requestSnapshot.data() as RefundVaultRecord;
+    if (record.status !== "pending") {
+      throw new Error("refund_account_state_changed");
+    }
+    transaction.update(requestRef, encryptedFields);
+  });
+
+  return {
+    encryptionKeyVersion: encryptedFields.refundEncryptionKeyVersion,
+    expiresAt: encryptedFields.refundAccountExpiresAt,
+  };
+}
+
+export async function encryptRefundAccount(
+  requestId: string,
+  accountNumberFull: string,
+  expiresAt: string,
+): Promise<EncryptedRefundAccountFields> {
+  const normalizedRequestId = requireRequestId(requestId);
   const normalizedAccountNumber = normalizeAccountNumber(accountNumberFull);
   const normalizedExpiresAt = requireFutureExpiry(expiresAt);
-  const requestRef = getAdminFirestore().collection("cancellationRequests").doc(normalizedRequestId);
-  const requestSnapshot = await requestRef.get();
-  if (!requestSnapshot.exists) {
-    throw new Error("cancellation_request_not_found");
-  }
-
   const [encrypted] = await getKmsClient().encrypt({
     name: getRefundKeyName(),
     plaintext: Buffer.from(normalizedAccountNumber, "utf8"),
@@ -39,14 +70,11 @@ export async function storeRefundAccount(
   if (!encryptionKeyVersion) {
     throw new Error("refund_account_encryption_version_missing");
   }
-
-  await requestRef.update({
+  return {
     refundAccountCiphertext: Buffer.from(encrypted.ciphertext).toString("base64"),
     refundEncryptionKeyVersion: encryptionKeyVersion,
     refundAccountExpiresAt: normalizedExpiresAt,
-  });
-
-  return { encryptionKeyVersion, expiresAt: normalizedExpiresAt };
+  };
 }
 
 export async function readRefundAccountForOwner(
@@ -65,10 +93,7 @@ export async function readRefundAccountForOwner(
     : "";
   if (!expiresAt || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now()) {
     if (record.refundAccountCiphertext) {
-      await requestRef.update({
-        ...deletedVaultFields(),
-        ...(record.status === "pending" ? { status: "needsReverification" } : {}),
-      });
+      await deleteExpiredRefundAccount(getAdminFirestore(), requestRef, new Date());
     }
     throw new Error("refund_account_expired");
   }
@@ -108,19 +133,15 @@ export async function expireRefundAccounts(now: Date): Promise<number> {
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
     throw new Error("invalid_expiry_time");
   }
-  const snapshot = await getAdminFirestore()
+  const db = getAdminFirestore();
+  const snapshot = await db
     .collection("cancellationRequests")
     .where("refundAccountExpiresAt", "<=", now.toISOString())
     .get();
 
-  await Promise.all(snapshot.docs.map((document) => {
-    const record = document.data() as RefundVaultRecord;
-    return document.ref.update({
-      ...deletedVaultFields(),
-      ...(record.status === "pending" ? { status: "needsReverification" } : {}),
-    });
-  }));
-  return snapshot.docs.length;
+  const results = await Promise.all(snapshot.docs.map((document) =>
+    deleteExpiredRefundAccount(db, document.ref, now)));
+  return results.filter(Boolean).length;
 }
 
 export function deletedRefundVaultFields() {
@@ -167,10 +188,44 @@ function requireRequestId(requestId: string) {
 
 function requireFutureExpiry(expiresAt: string) {
   const timestamp = Date.parse(expiresAt);
-  if (!Number.isFinite(timestamp) || timestamp <= Date.now()) {
+  const now = Date.now();
+  if (
+    !Number.isFinite(timestamp)
+    || timestamp <= now
+    || timestamp > now + 14 * 24 * 60 * 60 * 1000
+  ) {
     throw new Error("invalid_refund_account_expiry");
   }
   return new Date(timestamp).toISOString();
+}
+
+async function deleteExpiredRefundAccount(
+  db: FirebaseFirestore.Firestore,
+  requestRef: FirebaseFirestore.DocumentReference,
+  now: Date,
+) {
+  return db.runTransaction(async (transaction) => {
+    const currentSnapshot = await transaction.get(requestRef);
+    if (!currentSnapshot.exists) {
+      return false;
+    }
+    const current = currentSnapshot.data() as RefundVaultRecord;
+    const currentExpiry = typeof current.refundAccountExpiresAt === "string"
+      ? Date.parse(current.refundAccountExpiresAt)
+      : Number.NaN;
+    if (
+      !current.refundAccountCiphertext
+      || !Number.isFinite(currentExpiry)
+      || currentExpiry > now.getTime()
+    ) {
+      return false;
+    }
+    transaction.update(requestRef, {
+      ...deletedVaultFields(),
+      ...(current.status === "pending" ? { status: "needsReverification" } : {}),
+    });
+    return true;
+  });
 }
 
 function keyVersionFromResourceName(resourceName: string | null | undefined) {

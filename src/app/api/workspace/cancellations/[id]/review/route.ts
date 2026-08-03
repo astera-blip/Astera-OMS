@@ -98,7 +98,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ...(refundReference ? { refundReference } : {}),
       });
 
-      transaction.set(requestRef, {
+      transaction.update(requestRef, {
         ...reviewedWithRefundMetadata,
         ...(reviewedBundle.order.status === "refunded" ? deletedRefundVaultFields() : {}),
       });

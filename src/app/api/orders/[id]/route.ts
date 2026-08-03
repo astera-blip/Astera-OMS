@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
+import { sanitizeCancellationRequest } from "@/lib/order/repository";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
@@ -38,7 +39,7 @@ export async function GET(request: Request, context: RouteContext) {
       .map((snapshot) => snapshot.data() as LocalPaymentRequest)
       .find((candidate) => candidate.memberUid === claims.uid) ?? null;
     const cancellationRequests = cancellationRequestsSnapshot.docs
-      .map((snapshot) => snapshot.data() as CancellationRequestRecord)
+      .map((snapshot) => sanitizeCancellationRequest(snapshot.data() as CancellationRequestRecord))
       .filter((candidate) => candidate.memberUid === claims.uid);
 
     return NextResponse.json(serializeForResponse({

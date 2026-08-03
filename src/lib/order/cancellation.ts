@@ -25,6 +25,8 @@ export type CancellationRequestRecord = {
   refundCompletedAt?: string;
   refundReference?: string;
   targetPaymentId?: string;
+  targetPaymentRequestId?: string;
+  refundRequestedAmountTwd?: number;
   refundBankCode?: string;
   refundAccountLast5?: string;
   refundAccountCiphertext?: string;
@@ -95,6 +97,8 @@ export function createCancellationRequest(input: {
   memberUid: string;
   reason: string;
   targetPaymentId?: string;
+  targetPaymentRequestId?: string;
+  refundRequestedAmountTwd?: number;
   refundBankCode?: string;
   refundAccountLast5?: string;
   createdAt: string;
@@ -107,6 +111,10 @@ export function createCancellationRequest(input: {
     memberUid: input.memberUid,
     reason: input.reason,
     ...(input.targetPaymentId ? { targetPaymentId: input.targetPaymentId } : {}),
+    ...(input.targetPaymentRequestId ? { targetPaymentRequestId: input.targetPaymentRequestId } : {}),
+    ...(input.refundRequestedAmountTwd
+      ? { refundRequestedAmountTwd: input.refundRequestedAmountTwd }
+      : {}),
     ...(input.refundBankCode ? { refundBankCode: input.refundBankCode } : {}),
     ...(input.refundAccountLast5 ? { refundAccountLast5: input.refundAccountLast5 } : {}),
     status: "pending",
@@ -222,6 +230,13 @@ export function applyCancellationReview(
   });
   const recalculated = recalculateOrderAfterCancellation(order, reviewedItems, paymentRequests, input);
   const refundAmountTwd = input.refundAmountTwd ?? 0;
+  if (
+    input.status === "approved"
+    && request.refundRequestedAmountTwd
+    && refundAmountTwd > request.refundRequestedAmountTwd
+  ) {
+    throw new Error("refund_payment_allocation_exceeded");
+  }
   const needsRefundAdjustment = input.status === "approved" && refundAmountTwd > 0;
   const reviewedOrder = needsRefundAdjustment && recalculated.order.totalTwd === 0
     ? { ...recalculated.order, status: "refunded" as const }
@@ -234,10 +249,10 @@ export function applyCancellationReview(
       ? {
           adjustment: {
             id: `adj_refund_${request.id}`,
-            paymentId: `manual_refund_${request.id}`,
+            paymentId: request.targetPaymentId ?? `manual_refund_${request.id}`,
             kind: "adjustment" as const,
             targetType: "paymentRequest" as const,
-            targetId: paymentRequests[0]?.id ?? request.orderId,
+            targetId: request.targetPaymentRequestId ?? paymentRequests[0]?.id ?? request.orderId,
             amountTwd: -refundAmountTwd,
             createdAt: input.updatedAt,
             createdBy: input.updatedBy,

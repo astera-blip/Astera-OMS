@@ -177,6 +177,9 @@ describe("applyCancellationReview", () => {
       orderItemIds: ["order_001-item-2"],
       memberUid: "member-a",
       reason: "已付款取消其中一項",
+      targetPaymentId: "payment-original",
+      targetPaymentRequestId: "pr_order_001",
+      refundRequestedAmountTwd: 400,
       createdAt: "2026-07-26T01:00:00.000Z",
       createdBy: "member-a",
     });
@@ -202,6 +205,8 @@ describe("applyCancellationReview", () => {
       adjustment: {
         kind: "adjustment",
         amountTwd: -400,
+        paymentId: "payment-original",
+        targetId: "pr_order_001",
       },
       auditLog: {
         reason: "refund 400 at 2026-07-26 ref BANK-001",

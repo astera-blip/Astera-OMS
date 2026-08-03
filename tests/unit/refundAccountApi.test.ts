@@ -7,6 +7,7 @@ const auth = vi.hoisted(() => ({
 const vault = vi.hoisted(() => ({
   readRefundAccountForOwner: vi.fn(),
   storeRefundAccount: vi.fn(),
+  encryptRefundAccount: vi.fn(),
   deletedRefundVaultFields: vi.fn(() => ({
     refundAccountCiphertext: "__DELETE__",
     refundEncryptionKeyVersion: "__DELETE__",
@@ -29,11 +30,16 @@ import { GET as revealRefundAccount } from "@/app/api/workspace/cancellations/[i
 import { POST as createCancellation } from "@/app/api/cancellations/route";
 import { POST as resubmitRefundAccount } from "@/app/api/cancellations/[id]/refund-account/route";
 import { POST as reviewCancellation } from "@/app/api/workspace/cancellations/[id]/review/route";
+import { GET as getOrderDetail } from "@/app/api/orders/[id]/route";
 
 type FakeRef = { kind: "doc"; collection: string; id: string };
 type FakeQuery = { kind: "query"; collection: string; filters: Array<[string, unknown]> };
 
-function createPaidCancellationFirestore() {
+function createPaidCancellationFirestore(options: {
+  existingCancellation?: Record<string, unknown>;
+  items?: Array<Record<string, unknown>>;
+  allocations?: Array<Record<string, unknown>>;
+} = {}) {
   const writes: Array<{ operation: "set" | "update"; ref: FakeRef; value: Record<string, unknown> }> = [];
   const itemRef: FakeRef = { kind: "doc", collection: "orderItems", id: "item-paid" };
   const paymentRequestRef: FakeRef = { kind: "doc", collection: "paymentRequests", id: "request-paid" };
@@ -65,34 +71,55 @@ function createPaidCancellationFirestore() {
       method: "bankTransfer",
     },
   };
+  if (options.existingCancellation) {
+    records["cancellationRequests/cancel_retry-incomplete"] = options.existingCancellation;
+  }
   const documentSnapshot = (ref: FakeRef) => {
     const data = records[`${ref.collection}/${ref.id}`];
     return { exists: Boolean(data), id: ref.id, ref, data: () => data };
   };
   const querySnapshot = (query: FakeQuery) => {
     if (query.collection === "orderItems") {
+      const orderItems = options.items ?? [{
+        id: "item-paid",
+        orderId: "order-paid",
+        memberUid: "member-a",
+        quantity: 1,
+        status: "paid",
+        snapshot: { unitPriceTwd: 400 },
+      }];
       return {
-        docs: [{
-          id: "item-paid",
-          ref: itemRef,
-          data: () => ({
-            id: "item-paid",
-            orderId: "order-paid",
-            memberUid: "member-a",
-            quantity: 1,
-            status: "paid",
-            snapshot: { unitPriceTwd: 400 },
-          }),
-        }],
+        docs: orderItems.map((item) => ({
+          id: String(item.id),
+          ref: { ...itemRef, id: String(item.id) },
+          data: () => item,
+        })),
       };
     }
     if (query.collection === "paymentRequests") {
       return { docs: [{ id: "request-paid", ref: paymentRequestRef, data: () => records["paymentRequests/request-paid"] }] };
     }
+    if (query.collection === "paymentAllocations") {
+      const allocations = options.allocations ?? [{
+          paymentId: "payment-original",
+          kind: "payment",
+          targetType: "paymentRequest",
+          targetId: "request-paid",
+          amountTwd: 400,
+      }];
+      const paymentId = query.filters.find(([field]) => field === "paymentId")?.[1];
+      return { docs: allocations
+        .filter((allocation) => !paymentId || allocation.paymentId === paymentId)
+        .map((allocation, index) => ({
+        id: `allocation-${index}`,
+        data: () => allocation,
+      })) };
+    }
     return { docs: [] };
   };
+  let generatedSequence = 0;
   const collection = vi.fn((name: string) => ({
-    doc: vi.fn((id = `generated-${name}`) => ({ kind: "doc", collection: name, id }) as FakeRef),
+    doc: vi.fn((id = `generated-${name}-${++generatedSequence}`) => ({ kind: "doc", collection: name, id }) as FakeRef),
     where: vi.fn((field: string, _operator: string, value: unknown) => {
       const query: FakeQuery & { where: (field: string, operator: string, value: unknown) => unknown } = {
         kind: "query",
@@ -106,16 +133,33 @@ function createPaidCancellationFirestore() {
       return query;
     }),
   }));
+  let hasStagedWrite = false;
   const transaction = {
-    get: vi.fn(async (target: FakeRef | FakeQuery) => target.kind === "doc"
-      ? documentSnapshot(target)
-      : querySnapshot(target)),
-    set: vi.fn((ref: FakeRef, value: Record<string, unknown>) => writes.push({ operation: "set", ref, value })),
-    update: vi.fn((ref: FakeRef, value: Record<string, unknown>) => writes.push({ operation: "update", ref, value })),
+    get: vi.fn(async (target: FakeRef | FakeQuery) => {
+      if (hasStagedWrite) {
+        throw new Error("Firestore transactions require all reads before all writes");
+      }
+      return target.kind === "doc" ? documentSnapshot(target) : querySnapshot(target);
+    }),
+    set: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
+      hasStagedWrite = true;
+      writes.push({ operation: "set", ref, value });
+    }),
+    create: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
+      hasStagedWrite = true;
+      writes.push({ operation: "set", ref, value });
+    }),
+    update: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
+      hasStagedWrite = true;
+      writes.push({ operation: "update", ref, value });
+    }),
   };
   const db = {
     collection,
-    runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
+    runTransaction: vi.fn(async (callback: (value: never) => unknown) => {
+      hasStagedWrite = false;
+      return callback(transaction as never);
+    }),
   };
   return { db, transaction, writes };
 }
@@ -176,9 +220,10 @@ describe("refund account protected APIs", () => {
       mac: Buffer.from("historical-match").toString("base64"),
       keyVersion: 3,
     });
-    vault.storeRefundAccount.mockResolvedValue({
-      encryptionKeyVersion: 4,
-      expiresAt: "2026-08-18T00:00:00.000Z",
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "Y2lwaGVydGV4dA==",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
     });
     const fake = createPaidCancellationFirestore();
     firestore.getAdminFirestore.mockReturnValue(fake.db);
@@ -212,15 +257,19 @@ describe("refund account protected APIs", () => {
       targetPaymentId: "payment-original",
       refundBankCode: "012",
       refundAccountLast5: "56789",
+      refundAccountCiphertext: "Y2lwaGVydGV4dA==",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
     });
     expect(cancellationWrite?.value).not.toHaveProperty("refundAccountNumberFull");
     expect(cancellationWrite?.value).not.toHaveProperty("fingerprintKeyVersion");
-    expect(vault.storeRefundAccount).toHaveBeenCalledWith(
+    expect(vault.encryptRefundAccount).toHaveBeenCalledWith(
       "cancel_paid-refund-1",
       "00123456789",
       expect.any(String),
     );
-    const expiry = Date.parse(vault.storeRefundAccount.mock.calls[0][2]);
+    expect(vault.storeRefundAccount).not.toHaveBeenCalled();
+    const expiry = Date.parse(vault.encryptRefundAccount.mock.calls[0][2]);
     expect(expiry).toBeGreaterThanOrEqual(before + 14 * 24 * 60 * 60 * 1000 - 1000);
     expect(expiry).toBeLessThanOrEqual(Date.now() + 14 * 24 * 60 * 60 * 1000 + 1000);
   });
@@ -258,7 +307,157 @@ describe("refund account protected APIs", () => {
     expect(audit?.value).toMatchObject({ action: "refund.account.mismatch" });
     expect(JSON.stringify(audit)).not.toContain("00123456789");
     expect(vault.storeRefundAccount).not.toHaveBeenCalled();
-    expect(fake.writes.filter((write) => write.ref.collection === "securityRateLimits")).toHaveLength(3);
+    expect(fake.writes.filter((write) => write.ref.collection === "securityRateLimits")).toHaveLength(0);
+    expect(audit?.ref.id).toMatch(/^generated-auditLogs-/);
+    expect(audit?.value).not.toHaveProperty("requestIp");
+    expect(audit?.value).not.toHaveProperty("memberUid");
+    expect(fake.transaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "auditLogs" }),
+      expect.objectContaining({ action: "refund.account.mismatch" }),
+    );
+    expect(JSON.stringify(audit)).not.toContain("203.0.113.8");
+    expect(JSON.stringify(audit)).not.toContain("member-a");
+    expect(JSON.stringify(audit)).not.toContain("paid-refund-mismatch");
+  });
+
+  it("does not commit cancellation state when KMS encryption fails", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kmsMac.signCanonicalAccount.mockResolvedValue({
+      mac: Buffer.from("historical-match").toString("base64"),
+      keyVersion: 3,
+    });
+    vault.encryptRefundAccount.mockRejectedValue(new Error("kms_unavailable"));
+    const fake = createPaidCancellationFirestore();
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+
+    const response = await createCancellation(new Request("https://example.test/api/cancellations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        reason: "paid cancellation",
+        idempotencyKey: "kms-failure",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountNumberFull: "00123456789",
+      }),
+    }));
+
+    expect(response.status).toBe(500);
+    expect(fake.writes.filter((write) =>
+      write.ref.collection === "cancellationRequests"
+      || write.ref.collection === "orderItems")).toHaveLength(0);
+  });
+
+  it("rejects one cancellation request that spans two original payment allocations", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kmsMac.signCanonicalAccount.mockResolvedValue({
+      mac: Buffer.from("historical-match").toString("base64"),
+      keyVersion: 3,
+    });
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "Y2lwaGVy",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+    });
+    const items = ["item-source-a", "item-source-b"].map((id) => ({
+      id,
+      orderId: "order-paid",
+      memberUid: "member-a",
+      quantity: 1,
+      status: "paid",
+      snapshot: { unitPriceTwd: 400 },
+    }));
+    const fake = createPaidCancellationFirestore({
+      items,
+      allocations: [
+        {
+          paymentId: "payment-original",
+          kind: "payment",
+          targetType: "paymentRequest",
+          targetId: "request-paid",
+          amountTwd: 400,
+        },
+        {
+          paymentId: "payment-second",
+          kind: "payment",
+          targetType: "paymentRequest",
+          targetId: "request-paid",
+          amountTwd: 400,
+        },
+      ],
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+
+    const response = await createCancellation(new Request("https://example.test/api/cancellations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId: "order-paid",
+        orderItemIds: items.map((item) => item.id),
+        reason: "two sources",
+        idempotencyKey: "two-sources",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountNumberFull: "00123456789",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "refund_payment_allocation_exceeded",
+    });
+    expect(fake.writes.filter((write) => write.ref.collection === "cancellationRequests")).toHaveLength(0);
+    expect(vault.encryptRefundAccount).not.toHaveBeenCalled();
+  });
+
+  it("repairs an idempotent pending request left without ciphertext after a prior failure", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kmsMac.signCanonicalAccount.mockResolvedValue({
+      mac: Buffer.from("historical-match").toString("base64"),
+      keyVersion: 3,
+    });
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "cmVwYWlyZWQtY2lwaGVy",
+      refundEncryptionKeyVersion: 5,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+    });
+    const fake = createPaidCancellationFirestore({
+      existingCancellation: {
+        id: "cancel_retry-incomplete",
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        memberUid: "member-a",
+        status: "pending",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+      },
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+
+    const response = await createCancellation(new Request("https://example.test/api/cancellations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        reason: "retry",
+        idempotencyKey: "retry-incomplete",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountNumberFull: "00123456789",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(vault.encryptRefundAccount).toHaveBeenCalled();
+    expect(fake.writes).toContainEqual(expect.objectContaining({
+      operation: "update",
+      ref: expect.objectContaining({ collection: "cancellationRequests" }),
+      value: expect.objectContaining({ refundAccountCiphertext: "cmVwYWlyZWQtY2lwaGVy" }),
+    }));
   });
 
   it("lets the member resubmit only their expired needs-reverification request", async () => {
@@ -267,9 +466,10 @@ describe("refund account protected APIs", () => {
       mac: Buffer.from("historical-match").toString("base64"),
       keyVersion: 3,
     });
-    vault.storeRefundAccount.mockResolvedValue({
-      encryptionKeyVersion: 5,
-      expiresAt: "2026-08-18T00:00:00.000Z",
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "bmV3LWNpcGhlcg==",
+      refundEncryptionKeyVersion: 5,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
     });
     const update = vi.fn();
     const refs: Record<string, { id: string; get: ReturnType<typeof vi.fn>; update?: ReturnType<typeof vi.fn> }> = {
@@ -308,10 +508,26 @@ describe("refund account protected APIs", () => {
         }),
       },
     };
+    const transaction = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          id: "cancel-expired",
+          memberUid: "member-a",
+          orderId: "order-paid",
+          targetPaymentId: "payment-original",
+          refundBankCode: "012",
+          refundAccountLast5: "56789",
+          status: "needsReverification",
+        }),
+      }),
+      update,
+    };
     firestore.getAdminFirestore.mockReturnValue({
       collection: vi.fn((name: string) => ({
         doc: vi.fn((id: string) => refs[`${name}/${id}`]),
       })),
+      runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
     });
 
     const response = await resubmitRefundAccount(
@@ -332,12 +548,98 @@ describe("refund account protected APIs", () => {
       "astera:bank-account:v1|012|00123456789",
       3,
     );
-    expect(vault.storeRefundAccount).toHaveBeenCalledWith(
+    expect(vault.encryptRefundAccount).toHaveBeenCalledWith(
       "cancel-expired",
       "00123456789",
       expect.any(String),
     );
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "pending" }));
+    expect(vault.storeRefundAccount).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith(
+      refs["cancellationRequests/cancel-expired"],
+      expect.objectContaining({
+        status: "pending",
+        refundAccountCiphertext: "bmV3LWNpcGhlcg==",
+      }),
+    );
+  });
+
+  it("does not resurrect a vault when review wins the resubmission race", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kmsMac.signCanonicalAccount.mockResolvedValue({
+      mac: Buffer.from("historical-match").toString("base64"),
+      keyVersion: 3,
+    });
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "bmV3LWNpcGhlcg==",
+      refundEncryptionKeyVersion: 5,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+    });
+    const requestRef = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          id: "cancel-race",
+          memberUid: "member-a",
+          orderId: "order-paid",
+          targetPaymentId: "payment-original",
+          refundBankCode: "012",
+          refundAccountLast5: "56789",
+          status: "needsReverification",
+        }),
+      }),
+    };
+    const paymentRef = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          memberUid: "member-a",
+          paymentRequestId: "request-paid",
+          status: "confirmed",
+          memberPaymentAccount: {
+            bankCode: "012",
+            accountNumberLast5: "56789",
+            accountFingerprint: Buffer.from("historical-match").toString("base64"),
+            fingerprintKeyVersion: 3,
+          },
+        }),
+      }),
+    };
+    const update = vi.fn();
+    const transaction = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        data: () => ({
+          id: "cancel-race",
+          memberUid: "member-a",
+          targetPaymentId: "payment-original",
+          refundBankCode: "012",
+          refundAccountLast5: "56789",
+          status: "approved",
+        }),
+      }),
+      update,
+    };
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn((name: string) => ({
+        doc: vi.fn(() => name === "payments" ? paymentRef : requestRef),
+      })),
+      runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
+    });
+
+    const response = await resubmitRefundAccount(
+      new Request("https://example.test/api/cancellations/cancel-race/refund-account", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          refundBankCode: "012",
+          refundAccountNumberFull: "00123456789",
+        }),
+      }),
+      { params: Promise.resolve({ id: "cancel-race" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("transactionally deletes vault fields when Owner completes a full refund", async () => {
@@ -401,7 +703,15 @@ describe("refund account protected APIs", () => {
         }
         return { exists: false, data: () => undefined };
       }),
-      set: vi.fn((ref: FakeRef, value: Record<string, unknown>) => writes.push({ operation: "set", ref, value })),
+      set: vi.fn((ref: FakeRef, value: Record<string, unknown>, options?: { merge?: boolean }) => {
+        if (
+          Object.values(value).includes("__DELETE__")
+          && !options?.merge
+        ) {
+          throw new Error("FieldValue.delete() requires update() or set() with merge");
+        }
+        writes.push({ operation: "set", ref, value });
+      }),
       update: vi.fn((ref: FakeRef, value: Record<string, unknown>) => writes.push({ operation: "update", ref, value })),
     };
     const db = {
@@ -446,5 +756,52 @@ describe("refund account protected APIs", () => {
     });
     expect(JSON.stringify(requestWrite)).not.toContain("ciphertext-secret");
     expect(JSON.stringify(writes)).not.toContain("client-must-not-send-this");
+  });
+
+  it("strips refund vault fields from the normal member order response", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    const queryResults: Record<string, Array<Record<string, unknown>>> = {
+      orderItems: [],
+      paymentRequests: [],
+      cancellationRequests: [{
+        id: "cancel-private",
+        orderId: "order-paid",
+        memberUid: "member-a",
+        status: "pending",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+        refundAccountCiphertext: "ciphertext-secret",
+        refundEncryptionKeyVersion: 4,
+        refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+      }],
+    };
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn((name: string) => ({
+        doc: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({
+            exists: true,
+            data: () => ({ id: "order-paid", memberUid: "member-a", status: "paid" }),
+          }),
+        })),
+        where: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({
+            docs: (queryResults[name] ?? []).map((data) => ({ data: () => data })),
+          }),
+        })),
+      })),
+    });
+
+    const response = await getOrderDetail(
+      new Request("https://example.test/api/orders/order-paid"),
+      { params: Promise.resolve({ id: "order-paid" }) },
+    );
+
+    expect(response.status).toBe(200);
+    const payload = JSON.stringify(await response.json());
+    expect(payload).toContain("refundAccountLast5");
+    expect(payload).not.toContain("refundAccountCiphertext");
+    expect(payload).not.toContain("refundEncryptionKeyVersion");
+    expect(payload).not.toContain("refundAccountExpiresAt");
+    expect(payload).not.toContain("ciphertext-secret");
   });
 });
