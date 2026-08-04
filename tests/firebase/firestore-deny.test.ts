@@ -226,7 +226,7 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(helperDb, "members/member-a")));
   });
 
-  it("requires a custom claim for owner-only reads", async () => {
+  it("keeps audit logs behind the custom-claim protected Server API", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "auditLogs/audit-bootstrap"), {
         id: "audit-bootstrap",
@@ -240,8 +240,53 @@ describe("Day 1 Firestore rules", () => {
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a", { email: "astera.0920@gmail.com" }).firestore();
 
-    await assertSucceeds(getDoc(doc(ownerDb, "auditLogs/audit-bootstrap")));
+    await assertFails(getDoc(doc(ownerDb, "auditLogs/audit-bootstrap")));
     await assertFails(getDoc(doc(memberDb, "auditLogs/audit-bootstrap")));
+  });
+
+  it("denies the full Client SDK role by read/write matrix for protected refund collections", async () => {
+    const collections = [
+      "cancellationRequests",
+      "memberPaymentAccounts",
+      "notificationEvents",
+      "auditLogs",
+    ] as const;
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      for (const collectionName of collections) {
+        await setDoc(doc(context.firestore(), `${collectionName}/matrix-seeded`), {
+          id: "matrix-seeded",
+          memberUid: "member-a",
+          status: "pending",
+        });
+      }
+      await setDoc(doc(context.firestore(), "productsPublic/matrix-published"), {
+        id: "matrix-published",
+        publishState: "published",
+      });
+    });
+
+    const contexts = [
+      { label: "anonymous", db: testEnv.unauthenticatedContext().firestore() },
+      { label: "member", db: testEnv.authenticatedContext("member-a").firestore() },
+      {
+        label: "helper",
+        db: testEnv.authenticatedContext("helper-a", { role: "helper" }).firestore(),
+      },
+      {
+        label: "owner",
+        db: testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore(),
+      },
+    ];
+
+    for (const { label, db } of contexts) {
+      for (const collectionName of collections) {
+        await assertFails(getDoc(doc(db, `${collectionName}/matrix-seeded`)));
+        await assertFails(setDoc(doc(db, `${collectionName}/matrix-${label}`), {
+          id: `matrix-${label}`,
+        }));
+      }
+      await assertSucceeds(getDoc(doc(db, "productsPublic/matrix-published")));
+    }
   });
 
   it("allows public reads of published product projections but denies internal product reads", async () => {
@@ -657,7 +702,7 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(memberDb, "paymentRequests/pr-a")));
     await assertFails(getDoc(doc(otherMemberDb, "paymentRequests/pr-a")));
     await assertFails(getDoc(doc(memberDb, "auditLogs/audit-a")));
-    await assertSucceeds(getDoc(doc(ownerDb, "auditLogs/audit-a")));
+    await assertFails(getDoc(doc(ownerDb, "auditLogs/audit-a")));
     await assertFails(
       setDoc(doc(ownerDb, "payments/pay-a"), {
         id: "pay-a",

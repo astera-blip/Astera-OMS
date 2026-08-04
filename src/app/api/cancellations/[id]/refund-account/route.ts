@@ -8,9 +8,9 @@ import type { LocalPayment } from "@/lib/payment/manualBankTransfer";
 import { encryptRefundAccount } from "@/lib/payment/refundAccountVault";
 import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
 import {
-  appendRefundVerificationFailure,
   buildRefundVerificationScopes,
-  readRefundVerificationCooldown,
+  finalizeRefundVerificationFailureReservation,
+  reserveRefundVerificationAttempt,
 } from "@/lib/order/refundVerificationAttempts";
 
 type RefundAccountResubmissionRequest = Omit<CancellationRequestRecord, "status"> & {
@@ -59,13 +59,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       memberUid: claims.uid,
       requestIp: getRequestIp(request),
     });
-    const cooldown = await readRefundVerificationCooldown({
+    const reservationResult = await reserveRefundVerificationAttempt({
       db,
       scopes: verificationScopes,
     });
-    if (cooldown.limited) {
+    if (reservationResult.limited) {
       throw new Error("refund_account_rate_limited");
     }
+    const { reservation } = reservationResult;
     const macClient = new CloudKmsMac();
     const verification = await verifyRefundAccountForPayment({
       refundBankCode,
@@ -78,20 +79,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       || cancellation.refundBankCode !== refundBankCode
       || cancellation.refundAccountLast5 !== refundAccountNumberFull.slice(-5)
     ) {
-      const rateLimited = await db.runTransaction((transaction) =>
-        appendRefundVerificationFailure({
-          transaction,
-          db,
-          scopes: verificationScopes,
-          verification: verification === "needsReverification"
-            ? "needsReverification"
-            : "mismatch",
-        }));
-      throw new Error(rateLimited
-        ? "refund_account_rate_limited"
-        : verification === "needsReverification"
-          ? "refund_account_reverification_required"
-          : "refund_account_mismatch");
+      await finalizeRefundVerificationFailureReservation({
+        db,
+        reservation,
+        verification: verification === "needsReverification"
+          ? "needsReverification"
+          : "mismatch",
+      });
+      throw new Error(verification === "needsReverification"
+        ? "refund_account_reverification_required"
+        : "refund_account_mismatch");
     }
 
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -117,6 +114,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: claims.uid,
       });
+      transaction.delete(db.collection("auditLogs").doc(reservation.id));
     });
     return NextResponse.json({
       ok: true,

@@ -362,6 +362,33 @@ describe("Owner duplicate-account notification API", () => {
     expect(response.status).toBe(403);
     expect(notificationRoute.getAdminFirestore).not.toHaveBeenCalled();
   });
+
+  it("returns only safe allowlisted fields after an ordinary delivery retry", async () => {
+    notificationRoute.getAdminFirestore.mockReturnValue({ collection: vi.fn() });
+    notificationRoute.attemptNotificationDelivery.mockResolvedValue({
+      id: "notif-order",
+      status: "failed",
+      attemptCount: 3,
+      providerMessageId: "provider-private-id",
+      lastError: "raw provider response with Authorization header",
+    });
+
+    const response = await updateNotification(
+      new Request("https://example.test/api/workspace/notifications/notif-order/retry", {
+        method: "POST",
+      }),
+      { params: Promise.resolve({ id: "notif-order" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      id: "notif-order",
+      status: "failed",
+      attemptCount: 3,
+      deliveryIssue: "deliveryFailed",
+    });
+  });
 });
 
 describe("Owner notification list API", () => {

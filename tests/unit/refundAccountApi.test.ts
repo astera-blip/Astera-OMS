@@ -621,28 +621,41 @@ describe("refund account protected APIs", () => {
         }),
       },
     };
+    const reservationRef = { id: "reservation-success", kind: "doc", collection: "auditLogs" };
+    const auditQuery = {
+      kind: "query",
+      collection: "auditLogs",
+      limit: vi.fn(),
+    };
+    auditQuery.limit.mockReturnValue(auditQuery);
     const transaction = {
-      get: vi.fn().mockResolvedValue({
-        exists: true,
-        data: () => ({
-          id: "cancel-expired",
-          memberUid: "member-a",
-          orderId: "order-paid",
-          targetPaymentId: "payment-original",
-          refundBankCode: "012",
-          refundAccountLast5: "56789",
-          status: "needsReverification",
-        }),
-      }),
+      get: vi.fn(async (target: { kind?: string }) => target.kind === "query"
+        ? { docs: [] }
+        : {
+            exists: true,
+            data: () => ({
+              id: "cancel-expired",
+              memberUid: "member-a",
+              orderId: "order-paid",
+              targetPaymentId: "payment-original",
+              refundBankCode: "012",
+              refundAccountLast5: "56789",
+              status: "needsReverification",
+            }),
+          }),
+      create: vi.fn(),
       update,
+      delete: vi.fn(),
     };
     firestore.getAdminFirestore.mockReturnValue({
-      collection: vi.fn((name: string) => ({
-        doc: vi.fn((id: string) => refs[`${name}/${id}`]),
-        where: vi.fn(() => ({
-          get: vi.fn().mockResolvedValue({ docs: [] }),
-        })),
-      })),
+      collection: vi.fn((name: string) => name === "auditLogs"
+        ? {
+            doc: vi.fn(() => reservationRef),
+            where: vi.fn(() => auditQuery),
+          }
+        : {
+            doc: vi.fn((id: string) => refs[`${name}/${id}`]),
+          }),
       runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
     });
 
@@ -677,6 +690,7 @@ describe("refund account protected APIs", () => {
         refundAccountCiphertext: "bmV3LWNpcGhlcg==",
       }),
     );
+    expect(transaction.delete).toHaveBeenCalledWith(reservationRef);
   });
 
   it("does not resurrect a vault when review wins the resubmission race", async () => {
@@ -721,27 +735,40 @@ describe("refund account protected APIs", () => {
       }),
     };
     const update = vi.fn();
+    const reservationRef = { id: "reservation-race", kind: "doc", collection: "auditLogs" };
+    const auditQuery = {
+      kind: "query",
+      collection: "auditLogs",
+      limit: vi.fn(),
+    };
+    auditQuery.limit.mockReturnValue(auditQuery);
     const transaction = {
-      get: vi.fn().mockResolvedValue({
-        exists: true,
-        data: () => ({
-          id: "cancel-race",
-          memberUid: "member-a",
-          targetPaymentId: "payment-original",
-          refundBankCode: "012",
-          refundAccountLast5: "56789",
-          status: "approved",
-        }),
-      }),
+      get: vi.fn(async (target: { kind?: string }) => target.kind === "query"
+        ? { docs: [] }
+        : {
+            exists: true,
+            data: () => ({
+              id: "cancel-race",
+              memberUid: "member-a",
+              targetPaymentId: "payment-original",
+              refundBankCode: "012",
+              refundAccountLast5: "56789",
+              status: "approved",
+            }),
+          }),
+      create: vi.fn(),
       update,
+      delete: vi.fn(),
     };
     firestore.getAdminFirestore.mockReturnValue({
-      collection: vi.fn((name: string) => ({
-        doc: vi.fn(() => name === "payments" ? paymentRef : requestRef),
-        where: vi.fn(() => ({
-          get: vi.fn().mockResolvedValue({ docs: [] }),
-        })),
-      })),
+      collection: vi.fn((name: string) => name === "auditLogs"
+        ? {
+            doc: vi.fn(() => reservationRef),
+            where: vi.fn(() => auditQuery),
+          }
+        : {
+            doc: vi.fn(() => name === "payments" ? paymentRef : requestRef),
+          }),
       runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
     });
 

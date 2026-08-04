@@ -1,6 +1,9 @@
 import { createHmac } from "node:crypto";
 
 const WINDOW_MS = 15 * 60 * 1000;
+const RESERVATION_WINDOW_MS = 60 * 1000;
+const RESERVATION_ACTION = "refund.verification.reservation";
+const EXPIRED_RESERVATION_CLEANUP_LIMIT = 20;
 const SCOPE_PREFIX = "astera:refund-verification-scope:v1";
 const LIMITS = {
   request: 5,
@@ -15,7 +18,14 @@ export type RefundVerificationScopes = {
 };
 
 type RefundVerificationAttemptRecord = Partial<RefundVerificationScopes> & {
+  action?: unknown;
   refundVerificationExpiresAt?: unknown;
+};
+
+export type RefundVerificationReservation = {
+  id: string;
+  attemptCount: number;
+  scopes: RefundVerificationScopes;
 };
 
 export function buildRefundVerificationScopes(input: {
@@ -114,6 +124,136 @@ export async function readRefundVerificationCooldownInTransaction(input: {
     input.scopes,
     now,
   );
+}
+
+export async function reserveRefundVerificationAttempt(input: {
+  db: FirebaseFirestore.Firestore;
+  scopes: RefundVerificationScopes;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const nowIso = now.toISOString();
+  return input.db.runTransaction(async (transaction) => {
+    const activeQuery = input.db
+      .collection("auditLogs")
+      .where("refundVerificationExpiresAt", ">", nowIso);
+    const expiredQuery = input.db
+      .collection("auditLogs")
+      .where("refundVerificationExpiresAt", "<=", nowIso)
+      .limit(EXPIRED_RESERVATION_CLEANUP_LIMIT);
+
+    // Firestore transactions require all reads before writes. The active set
+    // includes both failed attempts and still-pending reservations.
+    const [activeSnapshot, expiredSnapshot] = await Promise.all([
+      transaction.get(activeQuery),
+      transaction.get(expiredQuery),
+    ]);
+    const cooldown = assessRefundVerificationCooldown(
+      activeSnapshot.docs.map(
+        (document) => document.data() as RefundVerificationAttemptRecord,
+      ),
+      input.scopes,
+      now,
+    );
+
+    for (const document of expiredSnapshot.docs) {
+      const record = document.data() as RefundVerificationAttemptRecord;
+      if (record.action === RESERVATION_ACTION) {
+        transaction.delete(input.db.collection("auditLogs").doc(document.id));
+      }
+    }
+
+    if (cooldown.limited) {
+      return cooldown;
+    }
+
+    const reservationRef = input.db.collection("auditLogs").doc();
+    const reservation: RefundVerificationReservation = {
+      id: reservationRef.id,
+      attemptCount: cooldown.counts.request + 1,
+      scopes: input.scopes,
+    };
+    transaction.create(reservationRef, {
+      id: reservation.id,
+      action: RESERVATION_ACTION,
+      actorUid: "system",
+      targetType: "refundVerificationReservation",
+      targetId: input.scopes.requestScopeHash,
+      status: "pending",
+      attemptCount: reservation.attemptCount,
+      ...input.scopes,
+      refundVerificationExpiresAt: new Date(
+        now.getTime() + RESERVATION_WINDOW_MS,
+      ).toISOString(),
+      createdAt: nowIso,
+    });
+    return {
+      limited: false as const,
+      counts: cooldown.counts,
+      reservation,
+    };
+  });
+}
+
+export async function releaseRefundVerificationReservation(input: {
+  db: FirebaseFirestore.Firestore;
+  reservationId: string;
+}) {
+  await input.db.runTransaction(async (transaction) => {
+    const reservationRef = input.db.collection("auditLogs").doc(input.reservationId);
+    const snapshot = await transaction.get(reservationRef);
+    if (
+      snapshot.exists
+      && (snapshot.data() as RefundVerificationAttemptRecord | undefined)?.action
+        === RESERVATION_ACTION
+    ) {
+      transaction.delete(reservationRef);
+    }
+  });
+}
+
+export async function finalizeRefundVerificationFailureReservation(input: {
+  db: FirebaseFirestore.Firestore;
+  reservation: RefundVerificationReservation;
+  verification: "mismatch" | "needsReverification";
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  await input.db.runTransaction(async (transaction) => {
+    const reservationRef = input.db
+      .collection("auditLogs")
+      .doc(input.reservation.id);
+    const reservationSnapshot = await transaction.get(reservationRef);
+    const reservationRecord = reservationSnapshot.data() as
+      | RefundVerificationAttemptRecord
+      | undefined;
+    if (
+      !reservationSnapshot.exists
+      || reservationRecord?.action !== RESERVATION_ACTION
+    ) {
+      throw new Error("refund_verification_reservation_missing");
+    }
+
+    const auditRef = input.db.collection("auditLogs").doc();
+    transaction.update(reservationRef, {
+      status: "failed",
+      result: input.verification,
+      finalizedAt: now.toISOString(),
+      refundVerificationExpiresAt: new Date(
+        now.getTime() + WINDOW_MS,
+      ).toISOString(),
+    });
+    transaction.create(auditRef, {
+      id: auditRef.id,
+      action: "refund.account.mismatch",
+      actorUid: "system",
+      targetType: "refundVerificationRequest",
+      targetId: input.reservation.id,
+      result: input.verification,
+      attemptCount: input.reservation.attemptCount,
+      createdAt: now.toISOString(),
+    });
+  });
 }
 
 function requireRateLimitSecret() {

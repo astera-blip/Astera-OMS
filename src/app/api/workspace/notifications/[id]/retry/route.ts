@@ -69,8 +69,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       id: delivered.id,
       status: delivered.status,
       attemptCount: delivered.attemptCount,
-      ...(delivered.providerMessageId ? { providerMessageId: delivered.providerMessageId } : {}),
-      ...(delivered.lastError ? { lastError: delivered.lastError } : {}),
+      ...(delivered.status === "failed" ? { deliveryIssue: "deliveryFailed" } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";

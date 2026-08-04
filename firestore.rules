@@ -161,9 +161,7 @@ service cloud.firestore {
     }
 
     match /auditLogs/{auditId} {
-      allow get, list: if isOwner();
-      allow create: if false;
-      allow update, delete: if false;
+      allow read, write: if false;
     }
 
     match /notificationEvents/{eventId} {

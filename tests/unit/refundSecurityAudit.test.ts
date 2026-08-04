@@ -3,6 +3,8 @@ import {
   assessRefundVerificationCooldown,
   buildRefundVerificationFailureAudit,
   buildRefundVerificationScopes,
+  releaseRefundVerificationReservation,
+  reserveRefundVerificationAttempt,
 } from "../../src/lib/order/refundVerificationAttempts";
 import { POST as resubmitRefundAccount } from "../../src/app/api/cancellations/[id]/refund-account/route";
 
@@ -41,6 +43,216 @@ vi.mock("@/lib/security/cloudKmsMac", () => ({
 
 const secret = "task-5-test-rate-limit-secret-at-least-32-bytes";
 const now = new Date("2026-08-04T00:10:00.000Z");
+
+type ReservationRef = { collection: "auditLogs"; id: string };
+type ReservationQuery = {
+  collection: "auditLogs";
+  field: string;
+  operator: ">" | "<=";
+  value: string;
+  maximum?: number;
+};
+
+function createReservationFirestore() {
+  const records = new Map<string, Record<string, unknown>>();
+  let sequence = 0;
+  let transactionTail = Promise.resolve();
+  const collection = {
+    doc: vi.fn((id = `reservation-${++sequence}`): ReservationRef => ({
+      collection: "auditLogs",
+      id,
+    })),
+    where: vi.fn((field: string, operator: ">" | "<=", value: string) => {
+      const query: ReservationQuery & { limit: (maximum: number) => ReservationQuery } = {
+        collection: "auditLogs",
+        field,
+        operator,
+        value,
+        limit(maximum) {
+          this.maximum = maximum;
+          return this;
+        },
+      };
+      return query;
+    }),
+  };
+  const db = {
+    collection: vi.fn(() => collection),
+    runTransaction: vi.fn(async (callback: (transaction: unknown) => unknown) => {
+      let releaseLock: () => void = () => undefined;
+      const previous = transactionTail;
+      transactionTail = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      await previous;
+      try {
+        const transaction = {
+          get: vi.fn(async (target: ReservationRef | ReservationQuery) => {
+            if ("operator" in target) {
+              const filtered = [...records.entries()].filter(([, value]) => {
+                const candidate = String(value[target.field] ?? "");
+                return target.operator === ">" ? candidate > target.value : candidate <= target.value;
+              }).slice(0, target.maximum);
+              return {
+                docs: filtered.map(([id, value]) => ({
+                  id,
+                  data: () => ({ ...value }),
+                })),
+              };
+            }
+            const value = records.get(target.id);
+            return {
+              exists: Boolean(value),
+              data: () => value ? { ...value } : undefined,
+            };
+          }),
+          create: vi.fn((ref: ReservationRef, value: Record<string, unknown>) => {
+            if (records.has(ref.id)) {
+              throw new Error("already_exists");
+            }
+            records.set(ref.id, { ...value });
+          }),
+          delete: vi.fn((ref: ReservationRef) => {
+            records.delete(ref.id);
+          }),
+        };
+        return await callback(transaction);
+      } finally {
+        releaseLock();
+      }
+    }),
+  };
+  return { db, records };
+}
+
+function createRefundRouteFirestore() {
+  const auditRecords = new Map<string, Record<string, unknown>>();
+  const deletedAuditIds: string[] = [];
+  let cancellation: Record<string, unknown> = {
+    id: "cancel-concurrent",
+    memberUid: "member-a",
+    targetPaymentId: "payment-a",
+    refundBankCode: "012",
+    refundAccountLast5: "56789",
+    status: "needsReverification",
+  };
+  const payment = {
+    id: "payment-a",
+    memberUid: "member-a",
+    status: "confirmed",
+  };
+  let sequence = 0;
+  let transactionTail = Promise.resolve();
+  const makeRef = (collection: string, id: string) => ({
+    collection,
+    id,
+    get: vi.fn(async () => {
+      const value = collection === "cancellationRequests"
+        ? cancellation
+        : collection === "payments"
+          ? payment
+          : auditRecords.get(id);
+      return {
+        exists: Boolean(value),
+        data: () => value ? { ...value } : undefined,
+      };
+    }),
+  });
+  const db = {
+    collection: vi.fn((name: string) => ({
+      doc: vi.fn((id = `audit-${++sequence}`) => makeRef(name, id)),
+      where: vi.fn((field: string, operator: ">" | "<=", value: string) => {
+        const query = {
+          collection: name,
+          field,
+          operator,
+          value,
+          maximum: undefined as number | undefined,
+          limit(maximum: number) {
+            this.maximum = maximum;
+            return this;
+          },
+        };
+        return query;
+      }),
+    })),
+    runTransaction: vi.fn(async (callback: (transaction: unknown) => unknown) => {
+      let releaseLock: () => void = () => undefined;
+      const previous = transactionTail;
+      transactionTail = new Promise<void>((resolve) => {
+        releaseLock = resolve;
+      });
+      await previous;
+      try {
+        const transaction = {
+          get: vi.fn(async (target: {
+            collection: string;
+            id?: string;
+            field?: string;
+            operator?: ">" | "<=";
+            value?: string;
+            maximum?: number;
+          }) => {
+            if (target.operator && target.field && target.value) {
+              const matches = [...auditRecords.entries()]
+                .filter(([, record]) => {
+                  const candidate = String(record[target.field!] ?? "");
+                  return target.operator === ">"
+                    ? candidate > target.value!
+                    : candidate <= target.value!;
+                })
+                .slice(0, target.maximum);
+              return {
+                docs: matches.map(([id, value]) => ({
+                  id,
+                  data: () => ({ ...value }),
+                })),
+              };
+            }
+            const value = target.collection === "cancellationRequests"
+              ? cancellation
+              : auditRecords.get(String(target.id));
+            return {
+              exists: Boolean(value),
+              data: () => value ? { ...value } : undefined,
+            };
+          }),
+          create: vi.fn((ref: { id: string }, value: Record<string, unknown>) => {
+            auditRecords.set(ref.id, { ...value });
+          }),
+          update: vi.fn((
+            ref: { collection: string; id: string },
+            value: Record<string, unknown>,
+          ) => {
+            if (ref.collection === "cancellationRequests") {
+              cancellation = { ...cancellation, ...value };
+            } else {
+              auditRecords.set(ref.id, {
+                ...auditRecords.get(ref.id),
+                ...value,
+              });
+            }
+          }),
+          delete: vi.fn((ref: { collection: string; id: string }) => {
+            if (ref.collection === "auditLogs") {
+              deletedAuditIds.push(ref.id);
+              auditRecords.delete(ref.id);
+            }
+          }),
+        };
+        return await callback(transaction);
+      } finally {
+        releaseLock();
+      }
+    }),
+  };
+  return {
+    db,
+    auditRecords,
+    deletedAuditIds,
+    getCancellation: () => cancellation,
+  };
+}
 
 describe("refund verification security audit", () => {
   it.each([
@@ -88,6 +300,31 @@ describe("refund verification security audit", () => {
     });
   });
 
+  it.each([
+    ["missing", undefined],
+    ["short", "too-short"],
+  ])("rejects a %s server-only refund rate-limit hash secret", (_label, configuredSecret) => {
+    const previous = process.env.REFUND_RATE_LIMIT_HASH_SECRET;
+    try {
+      if (configuredSecret === undefined) {
+        delete process.env.REFUND_RATE_LIMIT_HASH_SECRET;
+      } else {
+        process.env.REFUND_RATE_LIMIT_HASH_SECRET = configuredSecret;
+      }
+      expect(() => buildRefundVerificationScopes({
+        requestId: "cancel-a",
+        memberUid: "member-a",
+        requestIp: "203.0.113.8",
+      })).toThrow("refund_rate_limit_hash_secret_missing");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.REFUND_RATE_LIMIT_HASH_SECRET;
+      } else {
+        process.env.REFUND_RATE_LIMIT_HASH_SECRET = previous;
+      }
+    }
+  });
+
   it("builds an allowlisted mismatch audit with safe hashes, counters, result, and timestamps only", () => {
     const scopes = buildRefundVerificationScopes({
       requestId: "cancel-sensitive",
@@ -118,6 +355,84 @@ describe("refund verification security audit", () => {
     });
     expect(JSON.stringify(audit)).not.toMatch(
       /cancel-sensitive|member-sensitive|203\.0\.113\.8|accountNumber|canonical|ciphertext|keyVersion|secret/i,
+    );
+  });
+
+  it("atomically limits concurrent reservations before verification, KMS, or encryption", async () => {
+    const fake = createReservationFirestore();
+    const scopes = buildRefundVerificationScopes({
+      requestId: "cancel-concurrent",
+      memberUid: "member-a",
+      requestIp: "203.0.113.8",
+    }, secret);
+    const verify = vi.fn();
+    const kms = vi.fn();
+    const encrypt = vi.fn();
+
+    const outcomes = await Promise.all(Array.from({ length: 6 }, async () => {
+      const reservation = await reserveRefundVerificationAttempt({
+        db: fake.db as never,
+        scopes,
+        now,
+      });
+      if (reservation.limited) {
+        return "limited";
+      }
+      verify();
+      kms();
+      encrypt();
+      return "entered";
+    }));
+
+    expect(outcomes.filter((outcome) => outcome === "entered")).toHaveLength(5);
+    expect(outcomes.filter((outcome) => outcome === "limited")).toHaveLength(1);
+    expect(verify).toHaveBeenCalledTimes(5);
+    expect(kms).toHaveBeenCalledTimes(5);
+    expect(encrypt).toHaveBeenCalledTimes(5);
+  });
+
+  it("deletes a successful reservation and physically cleans an expired crash residual", async () => {
+    const fake = createReservationFirestore();
+    const scopes = buildRefundVerificationScopes({
+      requestId: "cancel-cleanup",
+      memberUid: "member-a",
+      requestIp: "203.0.113.8",
+    }, secret);
+    const first = await reserveRefundVerificationAttempt({
+      db: fake.db as never,
+      scopes,
+      now,
+    });
+    expect(first.limited).toBe(false);
+    if (first.limited) {
+      throw new Error("unexpected_limit");
+    }
+
+    await releaseRefundVerificationReservation({
+      db: fake.db as never,
+      reservationId: first.reservation.id,
+    });
+    expect(fake.records.has(first.reservation.id)).toBe(false);
+
+    const crashed = await reserveRefundVerificationAttempt({
+      db: fake.db as never,
+      scopes,
+      now,
+    });
+    expect(crashed.limited).toBe(false);
+    if (crashed.limited) {
+      throw new Error("unexpected_limit");
+    }
+    const afterExpiry = await reserveRefundVerificationAttempt({
+      db: fake.db as never,
+      scopes,
+      now: new Date(now.getTime() + 61_000),
+    });
+
+    expect(afterExpiry.limited).toBe(false);
+    expect(fake.records.has(crashed.reservation.id)).toBe(false);
+    expect(JSON.stringify([...fake.records.values()])).not.toMatch(
+      /cancel-cleanup|member-a|203\.0\.113\.8|accountNumber|canonical|ciphertext/i,
     );
   });
 });
@@ -162,19 +477,37 @@ describe("refund verification API preflight", () => {
         }),
       }),
     };
-    const auditQuery = {
-      where: vi.fn(),
-      get: vi.fn().mockResolvedValue({
-        docs: activeAttempts.map((attempt) => ({ data: () => attempt })),
+    const auditCollection = {
+      doc: vi.fn((id = "unused-reservation") => ({ collection: "auditLogs", id })),
+      where: vi.fn((field: string, operator: ">" | "<=", value: string) => {
+        const query = {
+          collection: "auditLogs",
+          field,
+          operator,
+          value,
+          limit: vi.fn(),
+        };
+        query.limit.mockReturnValue(query);
+        return query;
       }),
     };
-    auditQuery.where.mockReturnValue(auditQuery);
-    const db = {
-      collection: vi.fn((name: string) => ({
-        doc: vi.fn(() => name === "cancellationRequests" ? requestRef : paymentRef),
-        where: auditQuery.where,
+    const transaction = {
+      get: vi.fn(async (target: { operator: ">" | "<=" }) => ({
+        docs: target.operator === ">"
+          ? activeAttempts.map((attempt) => ({ data: () => attempt }))
+          : [],
       })),
-      runTransaction: vi.fn(),
+      delete: vi.fn(),
+      create: vi.fn(),
+    };
+    const db = {
+      collection: vi.fn((name: string) => name === "auditLogs"
+        ? auditCollection
+        : {
+            doc: vi.fn(() => name === "cancellationRequests" ? requestRef : paymentRef),
+          }),
+      runTransaction: vi.fn(async (callback: (value: unknown) => unknown) =>
+        callback(transaction)),
     };
     refundRoute.getAdminFirestore.mockReturnValue(db);
 
@@ -197,7 +530,92 @@ describe("refund verification API preflight", () => {
     expect(refundRoute.verifyRefundAccountForPayment).not.toHaveBeenCalled();
     expect(refundRoute.cloudKmsMac).not.toHaveBeenCalled();
     expect(refundRoute.encryptRefundAccount).not.toHaveBeenCalled();
-    expect(db.runTransaction).not.toHaveBeenCalled();
+    expect(db.runTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows only five of six concurrent requests into verification, KMS, and encryption", async () => {
+    const fake = createRefundRouteFirestore();
+    refundRoute.getAdminFirestore.mockReturnValue(fake.db);
+    refundRoute.verifyRefundAccountForPayment.mockResolvedValue("match");
+    refundRoute.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "encrypted",
+      refundEncryptionKeyVersion: 7,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+    });
+
+    const responses = await Promise.all(Array.from({ length: 6 }, () =>
+      resubmitRefundAccount(
+        new Request("https://example.test/api/cancellations/cancel-concurrent/refund-account", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-forwarded-for": "203.0.113.8",
+          },
+          body: JSON.stringify({
+            refundBankCode: "012",
+            refundAccountNumberFull: "00123456789",
+          }),
+        }),
+        { params: Promise.resolve({ id: "cancel-concurrent" }) },
+      )));
+
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(1);
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+    expect(responses.filter((response) => response.status === 409)).toHaveLength(4);
+    expect(refundRoute.verifyRefundAccountForPayment).toHaveBeenCalledTimes(5);
+    expect(refundRoute.cloudKmsMac).toHaveBeenCalledTimes(5);
+    expect(refundRoute.encryptRefundAccount).toHaveBeenCalledTimes(5);
+    expect(fake.deletedAuditIds).toHaveLength(1);
+    expect(fake.getCancellation()).toMatchObject({ status: "pending" });
+  });
+
+  it("turns a mismatch reservation into an active failure and appends a safe immutable audit", async () => {
+    const fake = createRefundRouteFirestore();
+    refundRoute.getAdminFirestore.mockReturnValue(fake.db);
+    refundRoute.verifyRefundAccountForPayment.mockResolvedValue("mismatch");
+
+    const response = await resubmitRefundAccount(
+      new Request("https://example.test/api/cancellations/cancel-concurrent/refund-account", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.8",
+        },
+        body: JSON.stringify({
+          refundBankCode: "012",
+          refundAccountNumberFull: "00123456789",
+        }),
+      }),
+      { params: Promise.resolve({ id: "cancel-concurrent" }) },
+    );
+
+    expect(response.status).toBe(400);
+    const records = [...fake.auditRecords.values()];
+    const failed = records.find((record) =>
+      record.action === "refund.verification.reservation");
+    const audit = records.find((record) =>
+      record.action === "refund.account.mismatch");
+    expect(failed).toMatchObject({
+      status: "failed",
+      result: "mismatch",
+      attemptCount: 1,
+    });
+    expect(Date.parse(String(failed?.refundVerificationExpiresAt))).toBeGreaterThan(
+      Date.now() + 14 * 60 * 1000,
+    );
+    expect(audit).toEqual({
+      id: expect.any(String),
+      action: "refund.account.mismatch",
+      actorUid: "system",
+      targetType: "refundVerificationRequest",
+      targetId: expect.any(String),
+      result: "mismatch",
+      attemptCount: 1,
+      createdAt: expect.any(String),
+    });
+    expect(JSON.stringify(audit)).not.toMatch(
+      /requestScopeHash|memberScopeHash|ipScopeHash|refundVerificationExpiresAt|00123456789|203\.0\.113\.8|ciphertext|canonical/i,
+    );
   });
 });
 
@@ -252,5 +670,88 @@ describe("Owner sanitized cancellation list API", () => {
     expect(JSON.stringify(payload)).not.toMatch(
       /00123456789|kms-ciphertext|private-fingerprint|canonicalInput|refundAccountCiphertext|refundEncryptionKeyVersion|refundAccountExpiresAt/,
     );
+  });
+});
+
+describe("Owner sanitized audit list API", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    refundRoute.requireFirebaseUser.mockResolvedValue({ uid: "owner-a", role: "owner" });
+    refundRoute.isOwnerClaim.mockReturnValue(true);
+  });
+
+  it("returns mismatch operations through a strict allowlist without limiter or secret metadata", async () => {
+    refundRoute.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({
+        get: vi.fn().mockResolvedValue({
+          docs: [
+            {
+              id: "reservation-internal",
+              data: () => ({
+                id: "reservation-internal",
+                action: "refund.verification.reservation",
+                actorUid: "system",
+                targetType: "refundVerificationReservation",
+                targetId: "request-scope-hash",
+                status: "pending",
+                attemptCount: 5,
+                requestScopeHash: "request-scope-hash",
+                memberScopeHash: "member-scope-hash",
+                ipScopeHash: "ip-scope-hash",
+                refundVerificationExpiresAt: "2026-08-04T00:25:00.000Z",
+              }),
+            },
+            {
+              id: "audit-mismatch-1",
+              data: () => ({
+                id: "audit-mismatch-1",
+                action: "refund.account.mismatch",
+                actorUid: "system",
+                targetType: "refundVerificationRequest",
+                targetId: "request-scope-hash",
+                attemptCount: 5,
+                result: "mismatch",
+                createdAt: "2026-08-04T00:10:00.000Z",
+                requestScopeHash: "request-scope-hash",
+                memberScopeHash: "member-scope-hash",
+                ipScopeHash: "ip-scope-hash",
+                refundVerificationExpiresAt: "2026-08-04T00:25:00.000Z",
+                providerError: "raw provider response",
+                refundAccountCiphertext: "kms-ciphertext",
+                accountFingerprint: "private-fingerprint",
+                encryptionKeyVersion: 4,
+              }),
+            },
+          ],
+        }),
+      })),
+    });
+    const { GET } = await import("../../src/app/api/workspace/audit-logs/route");
+
+    const response = await GET(new Request("https://example.test/api/workspace/audit-logs"));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      logs: [{
+        id: "audit-mismatch-1",
+        action: "refund.account.mismatch",
+        actorUid: "system",
+        requestReference: "audit-mismatch-1",
+        attemptCount: 5,
+        result: "mismatch",
+        createdAt: "2026-08-04T00:10:00.000Z",
+      }],
+    });
+  });
+
+  it("requires the Owner custom claim before reading audit documents", async () => {
+    refundRoute.requireFirebaseUser.mockResolvedValue({ uid: "helper-a", role: "helper" });
+    refundRoute.isOwnerClaim.mockReturnValue(false);
+
+    const { GET } = await import("../../src/app/api/workspace/audit-logs/route");
+    const response = await GET(new Request("https://example.test/api/workspace/audit-logs"));
+
+    expect(response.status).toBe(403);
+    expect(refundRoute.getAdminFirestore).not.toHaveBeenCalled();
   });
 });
