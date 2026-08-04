@@ -30,6 +30,9 @@ import { GET, POST } from "@/app/api/member/payment-accounts/route";
 import { POST as requestDeletion } from "@/app/api/member/payment-accounts/[id]/deletion-request/route";
 
 type StoredDocument = { id: string; data: Record<string, unknown> };
+const oldVersionFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+const currentFingerprint = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
+const differentFingerprint = "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=";
 
 function documents(records: StoredDocument[]) {
   return {
@@ -82,13 +85,13 @@ describe("member payment account API contract", () => {
   it("persists only a derived identity and creates a non-blocking Owner duplicate event across key versions", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
     kms.signCanonicalAccount.mockImplementation(async (_canonical: string, keyVersion?: number) => ({
-      mac: keyVersion === 3 ? "b2xk" : "bmV3",
+      mac: keyVersion === 3 ? oldVersionFingerprint : currentFingerprint,
       keyVersion: keyVersion ?? 7,
     }));
     const oldVersionMatch = {
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: "b2xk",
+      accountFingerprint: oldVersionFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 3,
       memberUid: "member-old",
@@ -96,7 +99,7 @@ describe("member payment account API contract", () => {
     };
     const sameLast5ButDifferent = {
       ...oldVersionMatch,
-      accountFingerprint: "bm90",
+      accountFingerprint: differentFingerprint,
       fingerprintKeyVersion: 7,
       memberUid: "member-other",
     };
@@ -134,7 +137,7 @@ describe("member payment account API contract", () => {
     expect(accountWrite).toMatchObject({
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: "bmV3",
+      accountFingerprint: currentFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
       memberUid: "member-new",
@@ -193,7 +196,7 @@ describe("member payment account API contract", () => {
   it("allows a last-five collision and creates a non-blocking Owner review event", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
     kms.signCanonicalAccount.mockImplementation(async (_canonical: string, keyVersion?: number) => ({
-      mac: keyVersion === 3 ? "bmV3" : "bmV3",
+      mac: currentFingerprint,
       keyVersion: keyVersion ?? 7,
     }));
     const registration = createRegistrationFirestore({
@@ -202,7 +205,7 @@ describe("member payment account API contract", () => {
         data: {
           bankCode: "012",
           accountNumberLast5: "56789",
-          accountFingerprint: "b2xk",
+          accountFingerprint: oldVersionFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 3,
           memberUid: "member-other",
@@ -241,7 +244,7 @@ describe("member payment account API contract", () => {
 
   it("preserves the five active or pending-deletion account limit", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-full" });
-    kms.signCanonicalAccount.mockResolvedValue({ mac: "bmV3", keyVersion: 7 });
+    kms.signCanonicalAccount.mockResolvedValue({ mac: currentFingerprint, keyVersion: 7 });
     const registration = createRegistrationFirestore({
       existing: Array.from({ length: 5 }, (_, index) => ({
         id: `account-${index}`,
@@ -282,10 +285,11 @@ describe("member payment account API contract", () => {
               memberUid: "member-a",
               bankCode: "012",
               accountNumberLast5: "56789",
-              accountFingerprint: "c2VjcmV0LW1hYw==",
+              accountFingerprint: currentFingerprint,
               fingerprintAlgorithm: "HMAC-SHA-256",
               fingerprintKeyVersion: 7,
               status: "active",
+              verificationStatus: "verified",
             },
           }])),
         })),
@@ -322,10 +326,11 @@ describe("member payment account API contract", () => {
           memberUid: "member-a",
           bankCode: "012",
           accountNumberLast5: "56789",
-          accountFingerprint: "c2VjcmV0LW1hYw==",
+          accountFingerprint: currentFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 7,
           status: "active",
+          verificationStatus: "verified",
         }),
       }),
       update,

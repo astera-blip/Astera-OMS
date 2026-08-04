@@ -366,7 +366,7 @@ describe("verifyRefundAccountForPayment", () => {
   it("uses the target payment snapshot's historical key version", async () => {
     const macClient = {
       signCanonicalAccount: vi.fn().mockResolvedValue({
-        mac: Buffer.from("historical-match").toString("base64"),
+        mac: validHistoricalFingerprint,
         keyVersion: 3,
       }),
     };
@@ -378,7 +378,8 @@ describe("verifyRefundAccountForPayment", () => {
         memberPaymentAccount: {
           bankCode: "012",
           accountNumberLast5: "56789",
-          accountFingerprint: Buffer.from("historical-match").toString("base64"),
+          accountFingerprint: validHistoricalFingerprint,
+          fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 3,
         },
       },
@@ -446,3 +447,4 @@ describe("cancellation repository privacy", () => {
     }))).not.toContain("refundAccountCiphertext");
   });
 });
+const validHistoricalFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";

@@ -8,6 +8,8 @@ import {
   validateMemberPaymentAccountInput,
 } from "@/lib/payment/memberBankAccounts";
 
+const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+
 describe("member payment accounts", () => {
   it("accepts only a bank code and normalized full account as transient request data", () => {
     expect(validateMemberPaymentAccountInput({
@@ -47,7 +49,7 @@ describe("member payment accounts", () => {
       memberUid: "member-1",
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: "fingerprint-base64",
+      accountFingerprint: validFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
       status: "active",
@@ -109,5 +111,43 @@ describe("member payment accounts", () => {
       ...base,
       status: "inactive",
     })).toBe(false);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["unknown", "unknown"],
+  ])("fails closed when verification status is %s", (_label, verificationStatus) => {
+    const normalized = normalizeMemberPaymentAccount({
+      id: "member-account-untrusted-verification",
+      memberUid: "member-1",
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: validFingerprint,
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+      status: "active",
+      verificationStatus: verificationStatus as never,
+    });
+
+    expect(normalized.verificationStatus).toBe("needsReverification");
+    expect(isMemberPaymentAccountUsableForPayment(
+      buildMemberPaymentAccountSnapshot(normalized),
+    )).toBe(false);
+  });
+
+  it("fails closed when verified identity bytes are malformed", () => {
+    const normalized = normalizeMemberPaymentAccount({
+      id: "member-account-malformed-fingerprint",
+      memberUid: "member-1",
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: "not-canonical-base64",
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+      status: "active",
+      verificationStatus: "verified",
+    });
+
+    expect(normalized.verificationStatus).toBe("needsReverification");
   });
 });

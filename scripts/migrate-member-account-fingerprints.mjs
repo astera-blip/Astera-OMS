@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { isUsableFingerprintIdentity } from "../src/lib/payment/fingerprintIdentity.mjs";
 
 const FULL_ACCOUNT_FIELDS = [
   "accountNumberFull",
@@ -61,13 +62,7 @@ export async function runFingerprintMigration({
     const id = safeDocumentId(account?.id);
     const deleteFields = FULL_ACCOUNT_FIELDS.filter((field) =>
       Object.prototype.hasOwnProperty.call(account, field));
-    if (
-      typeof account?.accountFingerprint === "string"
-      && account.accountFingerprint.length > 0
-      && account.fingerprintAlgorithm === "HMAC-SHA-256"
-      && Number.isSafeInteger(account?.fingerprintKeyVersion)
-      && account.fingerprintKeyVersion > 0
-    ) {
+    if (isUsableFingerprintIdentity(account)) {
       if (deleteFields.length > 0) {
         operations.push({
           id,
@@ -93,6 +88,19 @@ export async function runFingerprintMigration({
         bankCode: account.bankCode,
         accountNumber: account[fullAccountField],
       });
+      if (!isUsableFingerprintIdentity(identity)) {
+        operations.push({
+          id,
+          action: "needsReverification",
+          set: { verificationStatus: "needsReverification" },
+          deleteFields: [],
+        });
+        accountReport.push({
+          id,
+          status: dryRun ? "wouldRequireReverification" : "needsReverification",
+        });
+        continue;
+      }
       operations.push({
         id,
         action: "deriveFingerprint",
@@ -118,13 +126,14 @@ export async function runFingerprintMigration({
       id,
       action: "needsReverification",
       set: { verificationStatus: "needsReverification" },
-      deleteFields: [],
+      deleteFields,
     });
     accountReport.push({ id, status: dryRun ? "wouldRequireReverification" : "needsReverification" });
   }
 
   const paymentSnapshotsForManualReview = payments
-    .filter((payment) => !hasUsableFingerprint(payment?.memberPaymentAccount ?? payment))
+    .filter((payment) =>
+      !isUsableFingerprintIdentity(payment?.memberPaymentAccount ?? payment))
     .map((payment) => safeDocumentId(payment?.id));
 
   if (!dryRun) {
@@ -163,13 +172,6 @@ export function buildSafeMigrationOutput(result) {
       immutablePaymentSnapshotsUpdated: result.immutablePaymentSnapshotsUpdated,
     },
   };
-}
-
-function hasUsableFingerprint(snapshot) {
-  return typeof snapshot?.accountFingerprint === "string"
-    && snapshot.accountFingerprint.length > 0
-    && Number.isSafeInteger(snapshot?.fingerprintKeyVersion)
-    && snapshot.fingerprintKeyVersion > 0;
 }
 
 function normalizeBankCode(value) {

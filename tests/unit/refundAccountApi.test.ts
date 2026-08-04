@@ -34,6 +34,7 @@ import { GET as getOrderDetail } from "@/app/api/orders/[id]/route";
 
 type FakeRef = { kind: "doc"; collection: string; id: string };
 type FakeQuery = { kind: "query"; collection: string; filters: Array<[string, unknown]> };
+const validHistoricalFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 
 function createPaidCancellationFirestore(options: {
   existingCancellation?: Record<string, unknown>;
@@ -53,7 +54,8 @@ function createPaidCancellationFirestore(options: {
     memberPaymentAccount: {
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: Buffer.from("historical-match").toString("base64"),
+      accountFingerprint: validHistoricalFingerprint,
+      fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 3,
     },
   };
@@ -247,7 +249,7 @@ describe("refund account protected APIs", () => {
   it("verifies the specified historical payment and stores a 14-day vault entry", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
-      mac: Buffer.from("historical-match").toString("base64"),
+      mac: validHistoricalFingerprint,
       keyVersion: 3,
     });
     vault.encryptRefundAccount.mockResolvedValue({
@@ -355,7 +357,7 @@ describe("refund account protected APIs", () => {
   it("does not commit cancellation state when KMS encryption fails", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
-      mac: Buffer.from("historical-match").toString("base64"),
+      mac: validHistoricalFingerprint,
       keyVersion: 3,
     });
     vault.encryptRefundAccount.mockRejectedValue(new Error("kms_unavailable"));
@@ -385,7 +387,7 @@ describe("refund account protected APIs", () => {
   it("derives non-overlapping source-specific shares for one item funded by two payments", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
-      mac: Buffer.from("historical-match").toString("base64"),
+      mac: validHistoricalFingerprint,
       keyVersion: 3,
     });
     vault.encryptRefundAccount.mockResolvedValue({
@@ -409,7 +411,8 @@ describe("refund account protected APIs", () => {
       memberPaymentAccount: {
         bankCode: "012",
         accountNumberLast5: "56789",
-        accountFingerprint: Buffer.from("historical-match").toString("base64"),
+        accountFingerprint: validHistoricalFingerprint,
+        fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 3,
       },
     }));
@@ -528,7 +531,7 @@ describe("refund account protected APIs", () => {
   it("repairs an idempotent pending request left without ciphertext after a prior failure", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
-      mac: Buffer.from("historical-match").toString("base64"),
+      mac: validHistoricalFingerprint,
       keyVersion: 3,
     });
     vault.encryptRefundAccount.mockResolvedValue({
@@ -576,7 +579,7 @@ describe("refund account protected APIs", () => {
   it("lets the member resubmit only their expired needs-reverification request", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
-      mac: Buffer.from("historical-match").toString("base64"),
+      mac: validHistoricalFingerprint,
       keyVersion: 3,
     });
     vault.encryptRefundAccount.mockResolvedValue({
@@ -614,7 +617,8 @@ describe("refund account protected APIs", () => {
             memberPaymentAccount: {
               bankCode: "012",
               accountNumberLast5: "56789",
-              accountFingerprint: Buffer.from("historical-match").toString("base64"),
+              accountFingerprint: validHistoricalFingerprint,
+              fingerprintAlgorithm: "HMAC-SHA-256",
               fingerprintKeyVersion: 3,
             },
           }),
@@ -696,7 +700,7 @@ describe("refund account protected APIs", () => {
   it("does not resurrect a vault when review wins the resubmission race", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
-      mac: Buffer.from("historical-match").toString("base64"),
+      mac: validHistoricalFingerprint,
       keyVersion: 3,
     });
     vault.encryptRefundAccount.mockResolvedValue({
@@ -728,7 +732,8 @@ describe("refund account protected APIs", () => {
           memberPaymentAccount: {
             bankCode: "012",
             accountNumberLast5: "56789",
-            accountFingerprint: Buffer.from("historical-match").toString("base64"),
+            accountFingerprint: validHistoricalFingerprint,
+            fingerprintAlgorithm: "HMAC-SHA-256",
             fingerprintKeyVersion: 3,
           },
         }),

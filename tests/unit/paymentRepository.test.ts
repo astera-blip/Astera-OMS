@@ -13,6 +13,8 @@ vi.mock("firebase/firestore", () => ({
 
 import { listAllPayments, listMemberPaymentRequests } from "@/lib/payment/repository";
 
+const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+
 describe("listMemberPaymentRequests", () => {
   it("normalizes Firestore timestamps before payment UI renders them", async () => {
     firestore.getDocs.mockResolvedValueOnce({
@@ -68,7 +70,8 @@ describe("listAllPayments", () => {
             memberPaymentAccount: {
               bankCode: "012",
               accountNumberLast5: "56789",
-              accountFingerprint: "c2VydmVyLWZpbmdlcnByaW50",
+              accountFingerprint: validFingerprint,
+              fingerprintAlgorithm: "HMAC-SHA-256",
               fingerprintKeyVersion: 7,
             },
             status: "pendingReview",
@@ -90,7 +93,8 @@ describe("listAllPayments", () => {
       id: "payment-current",
       manualFingerprintReviewRequired: false,
       memberPaymentAccount: {
-        accountFingerprint: "c2VydmVyLWZpbmdlcnByaW50",
+        accountFingerprint: validFingerprint,
+        fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
       },
     });

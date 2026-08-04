@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import {
+  buildMemberPaymentAccountSnapshot,
+  isMemberPaymentAccountUsableForPayment,
+} from "@/lib/payment/memberBankAccounts";
 
 describe("member payment account UI contract", () => {
   it("collects only bank code and full account while explaining minimized retention", () => {
@@ -39,5 +43,22 @@ describe("member payment account UI contract", () => {
 
     expect(paymentBoard).toContain("isMemberPaymentAccountUsableForPayment");
     expect(accountBoard).toContain("需要重新驗證");
+  });
+
+  it("does not offer an account with an unknown stored verification state", () => {
+    const snapshot = buildMemberPaymentAccountSnapshot({
+      id: "member-account-unknown-verification",
+      memberUid: "member-1",
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+      status: "active",
+      verificationStatus: "unknown" as never,
+    });
+
+    expect(snapshot.verificationStatus).toBe("needsReverification");
+    expect(isMemberPaymentAccountUsableForPayment(snapshot)).toBe(false);
   });
 });

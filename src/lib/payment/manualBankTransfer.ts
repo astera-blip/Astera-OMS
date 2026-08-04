@@ -2,11 +2,15 @@ import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
 import type { OrderBundle } from "@/lib/order/checkout";
 import type { AccountIdentity } from "@/lib/payment/accountIdentity";
 import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
+import { isUsableFingerprintIdentity } from "@/lib/payment/fingerprintIdentity.mjs";
 
 export type MemberPaymentAccountIdentitySnapshot = Pick<
   AccountIdentity,
   "bankCode" | "accountNumberLast5"
-> & Partial<Pick<AccountIdentity, "accountFingerprint" | "fingerprintKeyVersion">>;
+> & Partial<Pick<
+  AccountIdentity,
+  "accountFingerprint" | "fingerprintAlgorithm" | "fingerprintKeyVersion"
+>>;
 
 export type LocalPaymentRequest = {
   id: string;
@@ -118,6 +122,7 @@ export function buildMemberPaymentAccountIdentitySnapshot(
     ? {
         ...snapshot,
         accountFingerprint: identity.accountFingerprint,
+        fingerprintAlgorithm: identity.fingerprintAlgorithm,
         fingerprintKeyVersion: identity.fingerprintKeyVersion,
       }
     : snapshot;
@@ -133,16 +138,12 @@ export function withPaymentFingerprintReviewCapability<T extends LocalPayment>(
 }
 
 export function hasUsableFingerprint(
-  identity: Partial<Pick<AccountIdentity, "accountFingerprint" | "fingerprintKeyVersion">> | undefined,
+  identity: Partial<Pick<
+    AccountIdentity,
+    "accountFingerprint" | "fingerprintAlgorithm" | "fingerprintKeyVersion"
+  >> | undefined,
 ): boolean {
-  return Boolean(
-    identity
-    && typeof identity.accountFingerprint === "string"
-    && identity.accountFingerprint.length > 0
-    && typeof identity.fingerprintKeyVersion === "number"
-    && Number.isSafeInteger(identity.fingerprintKeyVersion)
-    && identity.fingerprintKeyVersion > 0,
-  );
+  return isUsableFingerprintIdentity(identity);
 }
 
 export function getPaymentAccountLast5(payment: LocalPayment): string | undefined {

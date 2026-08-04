@@ -17,12 +17,15 @@ import {
   parseKeyUsageArgs,
 } from "../../scripts/report-fingerprint-key-usage.mjs";
 
+const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+const anotherValidFingerprint = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
+
 describe("member account fingerprint migration", () => {
   it("derives a fingerprint only for legacy records that still contain a full account", async () => {
     const deriveIdentity = vi.fn(async () => ({
       bankCode: "004",
       accountNumberLast5: "56789",
-      accountFingerprint: "safe-fingerprint",
+      accountFingerprint: validFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
     }));
@@ -54,7 +57,7 @@ describe("member account fingerprint migration", () => {
       set: {
         bankCode: "004",
         accountNumberLast5: "56789",
-        accountFingerprint: "safe-fingerprint",
+        accountFingerprint: validFingerprint,
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
         verificationStatus: "verified",
@@ -102,7 +105,7 @@ describe("member account fingerprint migration", () => {
         bankCode: "004",
         accountNumberFull: "sensitive-full-account",
         accountNumberLast5: "56789",
-        accountFingerprint: "retained-fingerprint",
+        accountFingerprint: validFingerprint,
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 3,
         status: "pendingDeletion",
@@ -130,7 +133,7 @@ describe("member account fingerprint migration", () => {
     const deriveIdentity = vi.fn().mockResolvedValue({
       bankCode: "004",
       accountNumberLast5: "56789",
-      accountFingerprint: "replacement-fingerprint",
+      accountFingerprint: anotherValidFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
     });
@@ -157,12 +160,66 @@ describe("member account fingerprint migration", () => {
       set: {
         bankCode: "004",
         accountNumberLast5: "56789",
-        accountFingerprint: "replacement-fingerprint",
+        accountFingerprint: anotherValidFingerprint,
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
         verificationStatus: "verified",
       },
       deleteFields: ["accountNumberFull"],
+    }]);
+  });
+
+  it("removes recognized non-string plaintext after backup and requires re-verification", async () => {
+    const deriveIdentity = vi.fn();
+    const result = await runFingerprintMigration({
+      accounts: [{
+        id: "account-invalid-unrecoverable",
+        bankCode: "004",
+        accountNumberFull: 123456789,
+        accountNumberLast5: "56789",
+        accountFingerprint: "not-canonical-base64",
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 3,
+        status: "active",
+      }],
+      payments: [],
+      dryRun: true,
+      deriveIdentity,
+    });
+
+    expect(deriveIdentity).not.toHaveBeenCalled();
+    expect(result.operations).toEqual([{
+      id: "account-invalid-unrecoverable",
+      action: "needsReverification",
+      set: { verificationStatus: "needsReverification" },
+      deleteFields: ["accountNumberFull"],
+    }]);
+  });
+
+  it("does not delete plaintext when the newly derived identity is malformed", async () => {
+    const result = await runFingerprintMigration({
+      accounts: [{
+        id: "account-invalid-derived",
+        bankCode: "004",
+        accountNumberFull: "00123456789",
+        status: "active",
+      }],
+      payments: [],
+      dryRun: true,
+      deriveIdentity: vi.fn().mockResolvedValue({
+        bankCode: "004",
+        accountNumberLast5: "56789",
+        accountFingerprint: "not-canonical-base64",
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 7,
+      }),
+    });
+
+    expect(result.operations).toEqual([{
+      id: "account-invalid-derived",
+      action: "needsReverification",
+      set: { verificationStatus: "needsReverification" },
+      deleteFields: [],
     }]);
   });
 
@@ -188,7 +245,7 @@ describe("member account fingerprint migration", () => {
       deriveIdentity: async () => ({
         bankCode: "004",
         accountNumberLast5: "54321",
-        accountFingerprint: "safe-fingerprint",
+        accountFingerprint: validFingerprint,
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
       }),
@@ -200,6 +257,26 @@ describe("member account fingerprint migration", () => {
     expect(update).not.toHaveBeenCalled();
     expect(result.paymentSnapshotsForManualReview).toEqual(["payment-without-fingerprint"]);
     expect(JSON.stringify(result)).not.toContain(fullAccount);
+  });
+
+  it("reports a payment snapshot with malformed fingerprint bytes for manual review", async () => {
+    const result = await runFingerprintMigration({
+      accounts: [],
+      payments: [{
+        id: "payment-malformed-fingerprint",
+        memberPaymentAccount: {
+          accountFingerprint: "not-canonical-base64",
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 7,
+        },
+      }],
+      dryRun: true,
+      deriveIdentity: vi.fn(),
+    });
+
+    expect(result.paymentSnapshotsForManualReview).toEqual([
+      "payment-malformed-fingerprint",
+    ]);
   });
 
   it("prints only IDs, operation status, key version, and statistics", () => {
@@ -263,7 +340,7 @@ describe("member account fingerprint migration", () => {
       deriveIdentity: async () => ({
         bankCode: "004",
         accountNumberLast5: "56789",
-        accountFingerprint: "safe-fingerprint",
+        accountFingerprint: validFingerprint,
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
       }),
@@ -376,14 +453,14 @@ describe("monthly fingerprint key usage report", () => {
       memberAccounts: [
         {
           id: "account-1",
-          accountFingerprint: "fingerprint-account-1",
+          accountFingerprint: validFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 2,
           createdAt: "2026-01-03T00:00:00.000Z",
         },
         {
           id: "account-2",
-          accountFingerprint: "fingerprint-account-2",
+          accountFingerprint: anotherValidFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 2,
           createdAt: "2026-03-03T00:00:00.000Z",
@@ -395,7 +472,7 @@ describe("monthly fingerprint key usage report", () => {
           id: "payment-1",
           createdAt: "2026-02-03T00:00:00.000Z",
           memberPaymentAccount: {
-            accountFingerprint: "fingerprint-payment-1",
+            accountFingerprint: validFingerprint,
             fingerprintAlgorithm: "HMAC-SHA-256",
             fingerprintKeyVersion: 2,
           },
@@ -404,7 +481,7 @@ describe("monthly fingerprint key usage report", () => {
           id: "payment-2",
           createdAt: "2026-04-03T00:00:00.000Z",
           memberPaymentAccount: {
-            accountFingerprint: "fingerprint-payment-2",
+            accountFingerprint: anotherValidFingerprint,
             fingerprintAlgorithm: "HMAC-SHA-256",
             fingerprintKeyVersion: 3,
           },
@@ -445,8 +522,8 @@ describe("monthly fingerprint key usage report", () => {
       paymentSnapshots: [],
     });
     expect(report.autoDisabledVersions).toEqual([]);
-    expect(JSON.stringify(report)).not.toContain("fingerprint-account");
-    expect(JSON.stringify(report)).not.toContain("fingerprint-payment");
+    expect(JSON.stringify(report)).not.toContain(validFingerprint);
+    expect(JSON.stringify(report)).not.toContain(anotherValidFingerprint);
   });
 
   it("classifies malformed identities separately and counts overdue references", () => {
@@ -454,7 +531,7 @@ describe("monthly fingerprint key usage report", () => {
       memberAccounts: [
         {
           id: "account-overdue",
-          accountFingerprint: "valid-but-private",
+          accountFingerprint: validFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 2,
           createdAt: "2025-01-01T00:00:00.000Z",
@@ -463,6 +540,12 @@ describe("monthly fingerprint key usage report", () => {
         {
           id: "account-version-only",
           fingerprintKeyVersion: 3,
+        },
+        {
+          id: "account-malformed-base64",
+          accountFingerprint: "not-canonical-base64",
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 2,
         },
       ],
       payments: [
@@ -507,16 +590,17 @@ describe("monthly fingerprint key usage report", () => {
       }),
     ]);
     expect(report.unclassifiedDocuments).toEqual({
-      memberAccounts: ["account-version-only"],
+      memberAccounts: ["account-version-only", "account-malformed-base64"],
       paymentSnapshots: ["payment-fingerprint-only", "payment-wrong-algorithm"],
     });
     expect(report.documentStatistics).toEqual({
-      malformedMemberAccounts: 1,
+      malformedMemberAccounts: 2,
       malformedPaymentSnapshots: 2,
       overdueMemberAccounts: 1,
       overduePaymentSnapshots: 0,
     });
-    expect(JSON.stringify(report)).not.toMatch(/valid-but-private|missing-version|private/);
+    expect(JSON.stringify(report)).not.toContain(validFingerprint);
+    expect(JSON.stringify(report)).not.toMatch(/missing-version|private/);
   });
 
   it("requires an exact project confirmation", () => {

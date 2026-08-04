@@ -28,8 +28,11 @@ type StoredPaymentAccount = {
   status: "active" | "inactive" | "pendingDeletion";
   verificationStatus?: "verified" | "needsReverification";
   accountFingerprint: string | undefined;
+  fingerprintAlgorithm: "HMAC-SHA-256" | string | undefined;
   fingerprintKeyVersion: number | undefined;
 };
+
+const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 
 function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaymentAccount> = {}) {
   let paymentSequence = 0;
@@ -70,10 +73,11 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
             memberUid: "member-a",
             bankCode: "012",
             accountNumberLast5: "56789",
-            accountFingerprint: "c2VydmVyLWZpbmdlcnByaW50",
+            accountFingerprint: validFingerprint,
             fingerprintAlgorithm: "HMAC-SHA-256",
             fingerprintKeyVersion: 7,
             status: "active",
+            verificationStatus: "verified",
             ...memberAccountOverrides,
           }),
         };
@@ -187,7 +191,8 @@ describe("payment report member account snapshot", () => {
       memberPaymentAccount: {
         bankCode: "012",
         accountNumberLast5: "56789",
-        accountFingerprint: "c2VydmVyLWZpbmdlcnByaW50",
+        accountFingerprint: validFingerprint,
+        fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
       },
       manualFingerprintReviewRequired: false,
@@ -195,13 +200,14 @@ describe("payment report member account snapshot", () => {
     expect(paymentWrite.memberPaymentAccount).toEqual({
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: "c2VydmVyLWZpbmdlcnByaW50",
+      accountFingerprint: validFingerprint,
+      fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
     });
     expect(paymentWrite).not.toHaveProperty("transferAccountLast5");
   });
 
-  it("creates a manual-review payment for an active legacy account without a usable fingerprint", async () => {
+  it("rejects an active legacy account without a usable fingerprint", async () => {
     const reporting = createPaymentReportFirestore({
       accountFingerprint: undefined,
       fingerprintKeyVersion: 0,
@@ -210,18 +216,8 @@ describe("payment report member account snapshot", () => {
 
     const response = await POST(paymentReportRequest());
 
-    expect(response.status).toBe(200);
-    const paymentWrite = reporting.set.mock.calls[0]?.[1];
-    expect(paymentWrite).toMatchObject({
-      memberPaymentAccountId: "member-account-1",
-      memberPaymentAccount: {
-        bankCode: "012",
-        accountNumberLast5: "56789",
-      },
-      manualFingerprintReviewRequired: true,
-    });
-    expect(paymentWrite.memberPaymentAccount).not.toHaveProperty("accountFingerprint");
-    expect(paymentWrite.memberPaymentAccount).not.toHaveProperty("fingerprintKeyVersion");
+    expect(response.status).toBe(400);
+    expect(reporting.set).not.toHaveBeenCalled();
   });
 
   it("rejects another member's selected account without creating a payment", async () => {
@@ -247,6 +243,30 @@ describe("payment report member account snapshot", () => {
   it("rejects an active account that requires identity re-verification", async () => {
     const reporting = createPaymentReportFirestore({
       verificationStatus: "needsReverification",
+    });
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const response = await POST(paymentReportRequest());
+
+    expect(response.status).toBe(400);
+    expect(reporting.set).not.toHaveBeenCalled();
+  });
+
+  it("rejects an active account with an unknown verification state", async () => {
+    const reporting = createPaymentReportFirestore({
+      verificationStatus: "unknown" as never,
+    });
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const response = await POST(paymentReportRequest());
+
+    expect(response.status).toBe(400);
+    expect(reporting.set).not.toHaveBeenCalled();
+  });
+
+  it("rejects an explicitly verified account with malformed fingerprint bytes", async () => {
+    const reporting = createPaymentReportFirestore({
+      accountFingerprint: "not-canonical-base64",
     });
     firestore.getAdminFirestore.mockReturnValue(reporting.db);
 

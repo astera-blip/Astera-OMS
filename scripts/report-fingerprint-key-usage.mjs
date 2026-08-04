@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { assertHmacKeyNameForProject } from "./migrate-member-account-fingerprints.mjs";
+import { isUsableFingerprintIdentity } from "../src/lib/payment/fingerprintIdentity.mjs";
 
 export function parseKeyUsageArgs(argv) {
   const values = parseNamedArgs(argv);
@@ -56,7 +57,7 @@ export function buildFingerprintKeyUsageReport({
 
   for (const account of memberAccounts) {
     const version = account?.fingerprintKeyVersion;
-    if (!hasUsableFingerprint(account)) {
+    if (!isUsableFingerprintIdentity(account)) {
       unclassifiedDocuments.memberAccounts.push(safeDocumentId(account?.id));
       documentStatistics.malformedMemberAccounts += 1;
       continue;
@@ -72,7 +73,7 @@ export function buildFingerprintKeyUsageReport({
   for (const payment of payments) {
     const snapshot = payment?.memberPaymentAccount ?? payment;
     const version = snapshot?.fingerprintKeyVersion;
-    if (!hasUsableFingerprint(snapshot)) {
+    if (!isUsableFingerprintIdentity(snapshot)) {
       unclassifiedDocuments.paymentSnapshots.push(safeDocumentId(payment?.id));
       documentStatistics.malformedPaymentSnapshots += 1;
       continue;
@@ -105,14 +106,6 @@ export function buildFingerprintKeyUsageReport({
     documentStatistics,
     autoDisabledVersions: [],
   };
-}
-
-function hasUsableFingerprint(value) {
-  return typeof value?.accountFingerprint === "string"
-    && value.accountFingerprint.length > 0
-    && value.fingerprintAlgorithm === "HMAC-SHA-256"
-    && Number.isSafeInteger(value.fingerprintKeyVersion)
-    && value.fingerprintKeyVersion > 0;
 }
 
 function isOverdueReference(record, reportTimestamp) {

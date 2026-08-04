@@ -3,6 +3,7 @@ import {
   normalizeBankCode,
   type AccountIdentity,
 } from "@/lib/payment/accountIdentity";
+import { isUsableFingerprintIdentity } from "@/lib/payment/fingerprintIdentity.mjs";
 import type {
   DuplicateAccountNotificationEvent,
   DuplicateAccountNotificationStatus,
@@ -98,15 +99,10 @@ export function normalizeMemberPaymentAccount(value: MemberPaymentAccount): Memb
     || value.status === "inactive"
     ? value.status
     : "inactive";
-  const hasUsableFingerprint = typeof value.accountFingerprint === "string"
-    && value.accountFingerprint.length > 0
-    && value.fingerprintAlgorithm === "HMAC-SHA-256"
-    && Number.isSafeInteger(value.fingerprintKeyVersion)
-    && value.fingerprintKeyVersion > 0;
-  const verificationStatus = value.verificationStatus === "needsReverification"
-    || !hasUsableFingerprint
-    ? "needsReverification"
-    : "verified";
+  const verificationStatus = value.verificationStatus === "verified"
+    && isUsableFingerprintIdentity(value)
+    ? "verified"
+    : "needsReverification";
 
   return {
     ...value,
@@ -134,6 +130,14 @@ export function isMemberPaymentAccountUsableForPayment(
 ): boolean {
   return account.status === "active"
     && account.verificationStatus === "verified";
+}
+
+export function isStoredMemberPaymentAccountUsableForPayment(
+  account: MemberPaymentAccount,
+): boolean {
+  return account.status === "active"
+    && account.verificationStatus === "verified"
+    && isUsableFingerprintIdentity(account);
 }
 
 export function memberPaymentAccountErrorMessage(error: string): string {

@@ -3,7 +3,10 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { buildPaymentAccountSnapshot, type PaymentAccount } from "@/lib/payment/bankAccounts";
-import type { MemberPaymentAccount } from "@/lib/payment/memberBankAccounts";
+import {
+  isStoredMemberPaymentAccountUsableForPayment,
+  type MemberPaymentAccount,
+} from "@/lib/payment/memberBankAccounts";
 import {
   allocatePaymentReportAmount,
   buildMemberPaymentAccountIdentitySnapshot,
@@ -119,10 +122,7 @@ export async function POST(request: Request) {
       if (memberAccount.memberUid !== claims.uid) {
         throw new Error("forbidden");
       }
-      if (
-        memberAccount.status !== "active"
-        || memberAccount.verificationStatus === "needsReverification"
-      ) {
+      if (!isStoredMemberPaymentAccountUsableForPayment(memberAccount)) {
         throw new Error("payment_account_member_inactive");
       }
       const receivingPaymentAccount = buildPaymentAccountSnapshot(receivingAccount);
