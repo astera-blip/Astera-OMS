@@ -2,11 +2,17 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   formatEnvironmentReport,
+  getMissingEnvironmentNames,
+  validateProductionEnvironment,
 } from "../../scripts/check-production-env.mjs";
 import {
   auditProductProjection,
   parseProductionArgs,
 } from "../../scripts/audit-product-projection.mjs";
+import {
+  buildProjectionFromPublicDocument,
+  parseSyncArgs,
+} from "../../scripts/sync-product-projection.mjs";
 import {
   parseSmokeArgs,
   runAnonymousSmoke,
@@ -34,6 +40,74 @@ describe("production environment checker", () => {
     expect(source).toContain("GCP_WORKLOAD_IDENTITY_POOL_ID");
     expect(source).toContain("GCP_WORKLOAD_IDENTITY_PROVIDER_ID");
     expect(source).toContain("GCP_SERVICE_ACCOUNT_EMAIL");
+  });
+
+  it("returns missing production variables for strict deployment gates", () => {
+    expect(getMissingEnvironmentNames({ NEXT_PUBLIC_FIREBASE_PROJECT_ID: "astera-oms-prod" }))
+      .toContain("GCP_PROJECT_ID");
+    expect(getMissingEnvironmentNames(Object.fromEntries(
+      [
+        "GOOGLE_CLOUD_PROJECT",
+        "GCP_PROJECT_ID",
+        "GCP_PROJECT_NUMBER",
+        "GCP_WORKLOAD_IDENTITY_POOL_ID",
+        "GCP_WORKLOAD_IDENTITY_PROVIDER_ID",
+        "GCP_SERVICE_ACCOUNT_EMAIL",
+        "GCP_WORKLOAD_IDENTITY_AUDIENCE",
+        "GCP_KMS_HMAC_KEY_NAME",
+        "GCP_KMS_HMAC_KEY_VERSION",
+        "GCP_KMS_REFUND_KEY_NAME",
+        "REFUND_RATE_LIMIT_HASH_SECRET",
+        "NEXT_PUBLIC_FIREBASE_API_KEY",
+        "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+        "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+        "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+        "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+        "NEXT_PUBLIC_FIREBASE_APP_ID",
+        "RESEND_API_KEY",
+        "RESEND_FROM_EMAIL",
+        "RESEND_REPLY_TO_EMAIL",
+      ].map((name) => [name, "configured"]),
+    ))).toEqual([]);
+  });
+
+  it("requires stable refund rate-limit, KMS, and workload identity configuration", () => {
+    const environment = Object.fromEntries(
+      [
+        "GOOGLE_CLOUD_PROJECT",
+        "GCP_PROJECT_ID",
+        "GCP_PROJECT_NUMBER",
+        "GCP_WORKLOAD_IDENTITY_POOL_ID",
+        "GCP_WORKLOAD_IDENTITY_PROVIDER_ID",
+        "GCP_SERVICE_ACCOUNT_EMAIL",
+        "GCP_WORKLOAD_IDENTITY_AUDIENCE",
+        "GCP_KMS_HMAC_KEY_NAME",
+        "GCP_KMS_HMAC_KEY_VERSION",
+        "GCP_KMS_REFUND_KEY_NAME",
+        "REFUND_RATE_LIMIT_HASH_SECRET",
+        "NEXT_PUBLIC_FIREBASE_API_KEY",
+        "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+        "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+        "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+        "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+        "NEXT_PUBLIC_FIREBASE_APP_ID",
+        "RESEND_API_KEY",
+        "RESEND_FROM_EMAIL",
+        "RESEND_REPLY_TO_EMAIL",
+      ].map((name) => [name, "configured"]),
+    );
+    environment.GCP_KMS_HMAC_KEY_VERSION = "7";
+    environment.REFUND_RATE_LIMIT_HASH_SECRET = "stable-secret-at-least-thirty-two-characters";
+
+    expect(validateProductionEnvironment(environment)).toEqual([]);
+    expect(validateProductionEnvironment({
+      ...environment,
+      REFUND_RATE_LIMIT_HASH_SECRET: "short",
+    })).toContain("REFUND_RATE_LIMIT_HASH_SECRET=invalid");
+    expect(validateProductionEnvironment({
+      ...environment,
+      GCP_KMS_HMAC_KEY_VERSION: "latest",
+    })).toContain("GCP_KMS_HMAC_KEY_VERSION=invalid");
   });
 
   it("allows absent OIDC resources to fall through to their create commands on Windows", () => {
@@ -110,10 +184,56 @@ describe("product projection audit", () => {
   });
 });
 
+describe("product projection sync", () => {
+  it("requires exact project confirmation and explicit apply", () => {
+    expect(() => parseSyncArgs([
+      "--project", "astera-oms-prod",
+      "--confirm-project", "astera-oms-prod",
+    ])).toThrow("apply_confirmation_required");
+    expect(() => parseSyncArgs([
+      "--project", "astera-oms-prod",
+      "--confirm-project", "astera-oms-dev-b2b2e",
+      "--apply",
+    ])).toThrow("project_confirmation_required");
+  });
+
+  it("rebuilds a public projection without private fields", () => {
+    const projection = buildProjectionFromPublicDocument("prod_1", {
+      name: "Public product",
+      publicDescription: "Description",
+      publishState: "published",
+      sku: "AST-P000001",
+      internalNote: "private",
+      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500, sku: "AST-P000001-V001" }],
+      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
+    });
+
+    expect(projection).toEqual(expect.objectContaining({ id: "prod_1", name: "Public product" }));
+    expect(projection).not.toHaveProperty("sku");
+    expect(projection).not.toHaveProperty("internalNote");
+    expect(projection.variants[0]).not.toHaveProperty("sku");
+  });
+
+  it("keeps the audit script read-only while sync is the only writer", () => {
+    const auditSource = readFileSync("scripts/audit-product-projection.mjs", "utf8");
+    const syncSource = readFileSync("scripts/sync-product-projection.mjs", "utf8");
+    expect(auditSource).not.toMatch(/\.set\s*\(/);
+    expect(syncSource).toContain("--apply");
+    expect(syncSource).toContain("createBackup");
+  });
+});
+
 describe("anonymous production smoke", () => {
   it("requires an https base URL", () => {
     expect(() => parseSmokeArgs(["--base-url", "http://example.com"]))
       .toThrow("https_base_url_required");
+  });
+
+  it("accepts an explicit product id for hydrated storefront pages", () => {
+    expect(parseSmokeArgs([
+      "--base-url", "https://example.com",
+      "--product-id", "prod_002",
+    ])).toEqual({ baseUrl: "https://example.com", productId: "prod_002" });
   });
 
   it("checks public pages without sending credentials", async () => {
@@ -135,6 +255,18 @@ describe("anonymous production smoke", () => {
       }));
       expect(init?.headers).toBeUndefined();
     }
+  });
+
+  it("checks an explicit hydrated product detail route", async () => {
+    const fetcher = vi.fn(async () => new Response("ok", { status: 200 }));
+    const report = await runAnonymousSmoke("https://example.com", fetcher, "prod_002");
+
+    expect(report.ok).toBe(true);
+    expect(report.checks).toContainEqual({
+      path: "/products/prod_002",
+      status: 200,
+      ok: true,
+    });
   });
 
   it("fails when no public Product detail can be discovered", async () => {

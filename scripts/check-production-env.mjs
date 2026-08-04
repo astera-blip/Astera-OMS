@@ -8,6 +8,10 @@ export const productionEnvironmentNames = [
   "GCP_WORKLOAD_IDENTITY_PROVIDER_ID",
   "GCP_SERVICE_ACCOUNT_EMAIL",
   "GCP_WORKLOAD_IDENTITY_AUDIENCE",
+  "GCP_KMS_HMAC_KEY_NAME",
+  "GCP_KMS_HMAC_KEY_VERSION",
+  "GCP_KMS_REFUND_KEY_NAME",
+  "REFUND_RATE_LIMIT_HASH_SECRET",
   "NEXT_PUBLIC_FIREBASE_API_KEY",
   "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
   "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
@@ -25,6 +29,27 @@ export function formatEnvironmentReport(env) {
     .join("\n");
 }
 
+export function getMissingEnvironmentNames(env) {
+  return productionEnvironmentNames.filter((name) => !String(env[name] ?? "").trim());
+}
+
+export function validateProductionEnvironment(env) {
+  const issues = getMissingEnvironmentNames(env).map((name) => `${name}=missing`);
+  const fingerprintKeyVersion = String(env.GCP_KMS_HMAC_KEY_VERSION ?? "").trim();
+  if (
+    fingerprintKeyVersion
+    && (!/^[1-9]\d*$/.test(fingerprintKeyVersion)
+      || !Number.isSafeInteger(Number(fingerprintKeyVersion)))
+  ) {
+    issues.push("GCP_KMS_HMAC_KEY_VERSION=invalid");
+  }
+  const rateLimitSecret = String(env.REFUND_RATE_LIMIT_HASH_SECRET ?? "");
+  if (rateLimitSecret && rateLimitSecret.length < 32) {
+    issues.push("REFUND_RATE_LIMIT_HASH_SECRET=invalid");
+  }
+  return issues;
+}
+
 export function assertProductionFlags(env) {
   if (
     env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
@@ -38,6 +63,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     assertProductionFlags(process.env);
     console.log(formatEnvironmentReport(process.env));
+    if (process.argv.includes("--strict") && validateProductionEnvironment(process.env).length > 0) {
+      throw new Error("production_environment_incomplete");
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : "environment_check_failed");
     process.exitCode = 1;
