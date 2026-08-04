@@ -37,30 +37,32 @@ type FakeQuery = { kind: "query"; collection: string; filters: Array<[string, un
 
 function createPaidCancellationFirestore(options: {
   existingCancellation?: Record<string, unknown>;
+  existingCancellations?: Array<Record<string, unknown>>;
   items?: Array<Record<string, unknown>>;
+  payments?: Array<Record<string, unknown>>;
   allocations?: Array<Record<string, unknown>>;
 } = {}) {
   const writes: Array<{ operation: "set" | "update"; ref: FakeRef; value: Record<string, unknown> }> = [];
   const itemRef: FakeRef = { kind: "doc", collection: "orderItems", id: "item-paid" };
   const paymentRequestRef: FakeRef = { kind: "doc", collection: "paymentRequests", id: "request-paid" };
+  const defaultPayment = {
+    id: "payment-original",
+    memberUid: "member-a",
+    paymentRequestId: "request-paid",
+    status: "confirmed",
+    memberPaymentAccount: {
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: Buffer.from("historical-match").toString("base64"),
+      fingerprintKeyVersion: 3,
+    },
+  };
   const records: Record<string, Record<string, unknown>> = {
     "orders/order-paid": {
       id: "order-paid",
       memberUid: "member-a",
       status: "paid",
       totalTwd: 400,
-    },
-    "payments/payment-original": {
-      id: "payment-original",
-      memberUid: "member-a",
-      paymentRequestId: "request-paid",
-      status: "confirmed",
-      memberPaymentAccount: {
-        bankCode: "012",
-        accountNumberLast5: "56789",
-        accountFingerprint: Buffer.from("historical-match").toString("base64"),
-        fingerprintKeyVersion: 3,
-      },
     },
     "paymentRequests/request-paid": {
       id: "request-paid",
@@ -71,8 +73,15 @@ function createPaidCancellationFirestore(options: {
       method: "bankTransfer",
     },
   };
-  if (options.existingCancellation) {
-    records["cancellationRequests/cancel_retry-incomplete"] = options.existingCancellation;
+  for (const payment of options.payments ?? [defaultPayment]) {
+    records[`payments/${String(payment.id)}`] = payment;
+  }
+  for (const cancellation of [
+    ...(options.existingCancellations ?? []),
+    ...(options.existingCancellation ? [options.existingCancellation] : []),
+  ]) {
+    const id = String(cancellation.id ?? "cancel_retry-incomplete");
+    records[`cancellationRequests/${id}`] = cancellation;
   }
   const documentSnapshot = (ref: FakeRef) => {
     const data = records[`${ref.collection}/${ref.id}`];
@@ -114,6 +123,24 @@ function createPaidCancellationFirestore(options: {
         id: `allocation-${index}`,
         data: () => allocation,
       })) };
+    }
+    if (query.collection === "cancellationRequests") {
+      const cancellations = Object.entries(records)
+        .filter(([key]) => key.startsWith("cancellationRequests/"))
+        .map(([, value]) => value)
+        .filter((cancellation) => query.filters.every(([field, value]) =>
+          cancellation[field] === value));
+      return {
+        docs: cancellations.map((cancellation) => ({
+          id: String(cancellation.id),
+          ref: {
+            kind: "doc" as const,
+            collection: "cancellationRequests",
+            id: String(cancellation.id),
+          },
+          data: () => cancellation,
+        })),
+      };
     }
     return { docs: [] };
   };
@@ -224,6 +251,8 @@ describe("refund account protected APIs", () => {
       refundAccountCiphertext: "Y2lwaGVydGV4dA==",
       refundEncryptionKeyVersion: 4,
       refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+      refundRequestedAmountTwd: 400,
+      refundItemAllocations: [{ orderItemId: "item-paid", amountTwd: 400 }],
     });
     const fake = createPaidCancellationFirestore();
     firestore.getAdminFirestore.mockReturnValue(fake.db);
@@ -350,7 +379,7 @@ describe("refund account protected APIs", () => {
       || write.ref.collection === "orderItems")).toHaveLength(0);
   });
 
-  it("rejects one cancellation request that spans two original payment allocations", async () => {
+  it("derives non-overlapping source-specific shares for one item funded by two payments", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
       mac: Buffer.from("historical-match").toString("base64"),
@@ -361,55 +390,136 @@ describe("refund account protected APIs", () => {
       refundEncryptionKeyVersion: 4,
       refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
     });
-    const items = ["item-source-a", "item-source-b"].map((id) => ({
-      id,
+    const paidItem = {
+      id: "item-shared",
       orderId: "order-paid",
       memberUid: "member-a",
       quantity: 1,
       status: "paid",
-      snapshot: { unitPriceTwd: 400 },
+      snapshot: { unitPriceTwd: 1000 },
+    };
+    const payments = ["payment-source-a", "payment-source-b"].map((id) => ({
+      id,
+      memberUid: "member-a",
+      paymentRequestId: "request-paid",
+      status: "confirmed",
+      memberPaymentAccount: {
+        bankCode: "012",
+        accountNumberLast5: "56789",
+        accountFingerprint: Buffer.from("historical-match").toString("base64"),
+        fingerprintKeyVersion: 3,
+      },
     }));
-    const fake = createPaidCancellationFirestore({
-      items,
-      allocations: [
-        {
-          paymentId: "payment-original",
-          kind: "payment",
-          targetType: "paymentRequest",
-          targetId: "request-paid",
-          amountTwd: 400,
-        },
-        {
-          paymentId: "payment-second",
-          kind: "payment",
-          targetType: "paymentRequest",
-          targetId: "request-paid",
-          amountTwd: 400,
-        },
-      ],
+    const allocations = [
+      {
+        paymentId: "payment-source-a",
+        kind: "payment",
+        targetType: "paymentRequest",
+        targetId: "request-paid",
+        amountTwd: 400,
+      },
+      {
+        paymentId: "payment-source-b",
+        kind: "payment",
+        targetType: "paymentRequest",
+        targetId: "request-paid",
+        amountTwd: 600,
+      },
+    ];
+    const requestFor = (targetPaymentId: string, idempotencyKey: string) =>
+      new Request("https://example.test/api/cancellations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: "order-paid",
+          orderItemIds: ["item-shared"],
+          reason: "shared source refund",
+          idempotencyKey,
+          targetPaymentId,
+          refundBankCode: "012",
+          refundAccountNumberFull: "00123456789",
+        }),
+      });
+
+    const sourceAFake = createPaidCancellationFirestore({
+      items: [paidItem],
+      payments,
+      allocations,
     });
-    firestore.getAdminFirestore.mockReturnValue(fake.db);
+    firestore.getAdminFirestore.mockReturnValue(sourceAFake.db);
+    const sourceAResponse = await createCancellation(requestFor("payment-source-a", "source-a"));
 
-    const response = await createCancellation(new Request("https://example.test/api/cancellations", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        orderId: "order-paid",
-        orderItemIds: items.map((item) => item.id),
-        reason: "two sources",
-        idempotencyKey: "two-sources",
-        targetPaymentId: "payment-original",
-        refundBankCode: "012",
-        refundAccountNumberFull: "00123456789",
-      }),
-    }));
+    expect(sourceAResponse.status).toBe(200);
+    const sourceARequest = sourceAFake.writes.find((write) =>
+      write.ref.collection === "cancellationRequests")?.value;
+    expect(sourceARequest).toMatchObject({
+      id: "cancel_source-a",
+      targetPaymentId: "payment-source-a",
+      refundRequestedAmountTwd: 400,
+      refundItemAllocations: [{ orderItemId: "item-shared", amountTwd: 400 }],
+    });
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
+    const expiredSourceAFake = createPaidCancellationFirestore({
+      items: [{ ...paidItem, status: "cancelRequested" }],
+      payments,
+      allocations,
+      existingCancellations: [{
+        ...sourceARequest!,
+        status: "needsReverification",
+      }],
+    });
+    firestore.getAdminFirestore.mockReturnValue(expiredSourceAFake.db);
+    const expiredSourceAResponse = await createCancellation(
+      requestFor("payment-source-a", "source-a-expired-duplicate"),
+    );
+
+    expect(expiredSourceAResponse.status).toBe(400);
+    await expect(expiredSourceAResponse.json()).resolves.toMatchObject({
       error: "refund_payment_allocation_exceeded",
     });
-    expect(fake.writes.filter((write) => write.ref.collection === "cancellationRequests")).toHaveLength(0);
-    expect(vault.encryptRefundAccount).not.toHaveBeenCalled();
+    expect(expiredSourceAFake.writes.filter((write) =>
+      write.ref.collection === "cancellationRequests")).toHaveLength(0);
+
+    const sourceBFake = createPaidCancellationFirestore({
+      items: [{ ...paidItem, status: "cancelRequested" }],
+      payments,
+      allocations,
+      existingCancellations: [sourceARequest!],
+    });
+    firestore.getAdminFirestore.mockReturnValue(sourceBFake.db);
+    const sourceBResponse = await createCancellation(requestFor("payment-source-b", "source-b"));
+
+    expect(sourceBResponse.status).toBe(200);
+    const sourceBRequest = sourceBFake.writes.find((write) =>
+      write.ref.collection === "cancellationRequests")?.value;
+    expect(sourceBRequest).toMatchObject({
+      id: "cancel_source-b",
+      targetPaymentId: "payment-source-b",
+      refundRequestedAmountTwd: 600,
+      refundItemAllocations: [{ orderItemId: "item-shared", amountTwd: 600 }],
+    });
+    expect(
+      Number(sourceARequest?.refundRequestedAmountTwd)
+      + Number(sourceBRequest?.refundRequestedAmountTwd),
+    ).toBe(1000);
+
+    const duplicateSourceFake = createPaidCancellationFirestore({
+      items: [{ ...paidItem, status: "cancelRequested" }],
+      payments,
+      allocations,
+      existingCancellations: [sourceARequest!, sourceBRequest!],
+    });
+    firestore.getAdminFirestore.mockReturnValue(duplicateSourceFake.db);
+    const duplicateSourceResponse = await createCancellation(
+      requestFor("payment-source-a", "source-a-duplicate"),
+    );
+
+    expect(duplicateSourceResponse.status).toBe(400);
+    await expect(duplicateSourceResponse.json()).resolves.toMatchObject({
+      error: "refund_payment_allocation_exceeded",
+    });
+    expect(duplicateSourceFake.writes.filter((write) =>
+      write.ref.collection === "cancellationRequests")).toHaveLength(0);
   });
 
   it("repairs an idempotent pending request left without ciphertext after a prior failure", async () => {
@@ -689,6 +799,15 @@ describe("refund account protected APIs", () => {
             status: "paid",
             method: "bankTransfer",
           }) }] };
+        }
+        if (target.kind === "query" && target.collection === "cancellationRequests") {
+          return {
+            docs: [{
+              id: requestRecord.id,
+              ref: refs.cancellation,
+              data: () => requestRecord,
+            }],
+          };
         }
         if (target.kind === "doc" && target.collection === "cancellationRequests") {
           return { exists: true, id: target.id, ref: target, data: () => requestRecord };

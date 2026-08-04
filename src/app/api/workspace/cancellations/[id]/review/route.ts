@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
-import { applyCancellationReview, reviewCancellationRequest } from "@/lib/order/cancellation";
+import {
+  applyCancellationReview,
+  reviewCancellationRequest,
+  type CancellationRequestRecord,
+} from "@/lib/order/cancellation";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 import { deletedRefundVaultFields } from "@/lib/payment/refundAccountVault";
@@ -76,10 +80,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       };
 
       const orderRef = db.collection("orders").doc(reviewed.orderId);
-      const [orderSnapshot, itemsSnapshot, paymentRequestsSnapshot] = await Promise.all([
+      const [
+        orderSnapshot,
+        itemsSnapshot,
+        paymentRequestsSnapshot,
+        relatedRequestsSnapshot,
+      ] = await Promise.all([
         transaction.get(orderRef),
         transaction.get(db.collection("orderItems").where("orderId", "==", reviewed.orderId)),
         transaction.get(db.collection("paymentRequests").where("orderId", "==", reviewed.orderId)),
+        transaction.get(db.collection("cancellationRequests").where("orderId", "==", reviewed.orderId)),
       ]);
       if (!orderSnapshot.exists) {
         throw new Error("order_not_found");
@@ -96,6 +106,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ...(typeof refundAmountTwd === "number" ? { refundAmountTwd } : {}),
         ...(refundCompletedAt ? { refundCompletedAt } : {}),
         ...(refundReference ? { refundReference } : {}),
+        relatedRequests: relatedRequestsSnapshot.docs.map(
+          (snapshot) => snapshot.data() as CancellationRequestRecord,
+        ),
       });
 
       transaction.update(requestRef, {

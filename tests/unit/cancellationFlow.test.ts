@@ -214,6 +214,103 @@ describe("applyCancellationReview", () => {
     });
   });
 
+  it("keeps a shared item open until source-specific approved refunds cover its value", () => {
+    const sharedItem = {
+      ...items[1],
+      id: "item-shared",
+      status: "cancelRequested" as const,
+      snapshot: {
+        ...items[1].snapshot,
+        unitPriceTwd: 1000,
+      },
+    };
+    const paidOrder = { ...order, status: "paid" as const, totalTwd: 1000 };
+    const paidRequest = { ...paymentRequest, amountTwd: 1000, status: "paid" as const };
+    const sourceARequest = createCancellationRequest({
+      id: "cancel-source-a",
+      orderId: order.id,
+      orderItemIds: [sharedItem.id],
+      memberUid: "member-a",
+      reason: "source A share",
+      targetPaymentId: "payment-source-a",
+      targetPaymentRequestId: paidRequest.id,
+      refundRequestedAmountTwd: 400,
+      refundItemAllocations: [{ orderItemId: sharedItem.id, amountTwd: 400 }],
+      createdAt: "2026-07-26T01:00:00.000Z",
+      createdBy: "member-a",
+    });
+    const sourceBRequest = createCancellationRequest({
+      id: "cancel-source-b",
+      orderId: order.id,
+      orderItemIds: [sharedItem.id],
+      memberUid: "member-a",
+      reason: "source B share",
+      targetPaymentId: "payment-source-b",
+      targetPaymentRequestId: paidRequest.id,
+      refundRequestedAmountTwd: 600,
+      refundItemAllocations: [{ orderItemId: sharedItem.id, amountTwd: 600 }],
+      createdAt: "2026-07-26T01:01:00.000Z",
+      createdBy: "member-a",
+    });
+
+    const sourceAReview = applyCancellationReview(
+      paidOrder,
+      [sharedItem],
+      [paidRequest],
+      sourceARequest,
+      {
+        status: "approved",
+        updatedAt: "2026-07-26T02:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 400,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-A",
+        relatedRequests: [sourceARequest, sourceBRequest],
+      },
+    );
+
+    expect(sourceAReview).toMatchObject({
+      order: { status: "paid", totalTwd: 1000 },
+      items: [{ id: "item-shared", status: "cancelRequested" }],
+      adjustment: {
+        paymentId: "payment-source-a",
+        targetId: paidRequest.id,
+        amountTwd: -400,
+      },
+    });
+
+    const approvedSourceA = {
+      ...sourceARequest,
+      status: "approved" as const,
+      refundAmountTwd: 400,
+    };
+    const sourceBReview = applyCancellationReview(
+      paidOrder,
+      sourceAReview.items,
+      [paidRequest],
+      sourceBRequest,
+      {
+        status: "approved",
+        updatedAt: "2026-07-26T03:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 600,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-B",
+        relatedRequests: [approvedSourceA, sourceBRequest],
+      },
+    );
+
+    expect(sourceBReview).toMatchObject({
+      order: { status: "refunded", totalTwd: 0 },
+      items: [{ id: "item-shared", status: "cancelled" }],
+      adjustment: {
+        paymentId: "payment-source-b",
+        targetId: paidRequest.id,
+        amountTwd: -600,
+      },
+    });
+  });
+
   it("rejects a cancellation and restores selected items to awaitingPayment", () => {
     const requestedItems = markCancellationRequested(items, request, {
       updatedAt: "2026-07-26T01:00:00.000Z",

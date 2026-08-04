@@ -5,6 +5,7 @@ import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import {
   applyDirectUnpaidCancellation,
   createCancellationRequest,
+  deriveSourceSpecificRefundAllocation,
   markCancellationRequested,
   splitCancellationItems,
   verifyRefundAccountForPayment,
@@ -150,21 +151,14 @@ export async function POST(request: Request) {
         throw new Error("invalid_items");
       }
 
-      const pendingSnapshot = await transaction.get(
+      const existingCancellationSnapshot = await transaction.get(
         db
           .collection("cancellationRequests")
           .where("orderId", "==", orderId)
-          .where("memberUid", "==", claims.uid)
-          .where("status", "==", "pending"),
+          .where("memberUid", "==", claims.uid),
       );
-      const selectedItemSet = new Set(orderItemIds);
-      const hasDuplicatePendingItem = pendingSnapshot.docs.some((snapshot) => {
-        const pending = snapshot.data() as { orderItemIds?: string[] };
-        return (pending.orderItemIds ?? []).some((itemId) => selectedItemSet.has(itemId));
-      });
-      if (hasDuplicatePendingItem) {
-        throw new Error("duplicate_pending_request");
-      }
+      const existingCancellationRequests = existingCancellationSnapshot.docs
+        .map((snapshot) => snapshot.data() as CancellationRequestRecord);
 
       const split = splitCancellationItems(allItems, orderItemIds);
       const paymentRequests = paymentRequestsSnapshot.docs.map((snapshot) => snapshot.data() as LocalPaymentRequest);
@@ -174,6 +168,7 @@ export async function POST(request: Request) {
         accountNumberLast5: string;
         targetPaymentRequestId: string;
         refundRequestedAmountTwd: number;
+        refundItemAllocations: Array<{ orderItemId: string; amountTwd: number }>;
       } | undefined;
       if (split.paidItems.length > 0) {
         if (!targetPaymentId || refundBankCodeInput === undefined || refundAccountNumberInput === undefined) {
@@ -204,14 +199,9 @@ export async function POST(request: Request) {
           throw new Error("forbidden");
         }
 
-        const [allocationsSnapshot, existingRefundsSnapshot] = await Promise.all([
-          transaction.get(
-            db.collection("paymentAllocations").where("paymentId", "==", targetPaymentId),
-          ),
-          transaction.get(
-            db.collection("cancellationRequests").where("targetPaymentId", "==", targetPaymentId),
-          ),
-        ]);
+        const allocationsSnapshot = await transaction.get(
+          db.collection("paymentAllocations").where("paymentId", "==", targetPaymentId),
+        );
         const refundableAllocationTwd = allocationsSnapshot.docs
           .map((snapshot) => snapshot.data() as LocalPaymentAllocation)
           .filter((allocation) =>
@@ -219,18 +209,19 @@ export async function POST(request: Request) {
             && allocation.targetType === "paymentRequest"
             && allocation.targetId === targetPayment.paymentRequestId)
           .reduce((total, allocation) => total + Math.max(0, allocation.amountTwd), 0);
-        const alreadyRequestedTwd = existingRefundsSnapshot.docs
-          .map((snapshot) => snapshot.data() as CancellationRequestRecord)
-          .filter((existing) => existing.status === "pending" || existing.status === "approved")
-          .reduce((total, existing) => total + Math.max(0, existing.refundRequestedAmountTwd ?? 0), 0);
-        const refundRequestedAmountTwd = split.paidItems.reduce(
-          (total, item) => total + item.snapshot.unitPriceTwd * item.quantity,
-          0,
+        const {
+          refundRequestedAmountTwd,
+          refundItemAllocations,
+        } = deriveSourceSpecificRefundAllocation(
+          allItems,
+          split.paidItems.map((item) => item.id),
+          existingCancellationRequests,
+          {
+            targetPaymentId,
+            sourceAllocatedAmountTwd: refundableAllocationTwd,
+          },
         );
-        if (
-          refundRequestedAmountTwd <= 0
-          || refundRequestedAmountTwd > refundableAllocationTwd - alreadyRequestedTwd
-        ) {
+        if (refundRequestedAmountTwd <= 0) {
           throw new Error("refund_payment_allocation_exceeded");
         }
 
@@ -265,6 +256,7 @@ export async function POST(request: Request) {
           accountNumberLast5: refundAccountNumberFull.slice(-5),
           targetPaymentRequestId: targetPayment.paymentRequestId,
           refundRequestedAmountTwd,
+          refundItemAllocations,
         };
       }
       const directCancellation = split.unpaidItems.length > 0
@@ -286,6 +278,7 @@ export async function POST(request: Request) {
                   targetPaymentId,
                   targetPaymentRequestId: verifiedRefundAccount.targetPaymentRequestId,
                   refundRequestedAmountTwd: verifiedRefundAccount.refundRequestedAmountTwd,
+                  refundItemAllocations: verifiedRefundAccount.refundItemAllocations,
                   refundBankCode: verifiedRefundAccount.bankCode,
                   refundAccountLast5: verifiedRefundAccount.accountNumberLast5,
                 }
