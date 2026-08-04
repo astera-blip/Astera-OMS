@@ -111,10 +111,29 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ),
       });
 
+      const refundVaultDeletes = reviewedBundle.order.status === "refunded"
+        ? deletedRefundVaultFields()
+        : undefined;
       transaction.update(requestRef, {
         ...reviewedWithRefundMetadata,
-        ...(reviewedBundle.order.status === "refunded" ? deletedRefundVaultFields() : {}),
+        ...refundVaultDeletes,
       });
+      if (refundVaultDeletes) {
+        for (const relatedSnapshot of relatedRequestsSnapshot.docs) {
+          if (relatedSnapshot.id === id) {
+            continue;
+          }
+          const related = relatedSnapshot.data() as CancellationRequestRecord;
+          if (
+            related.refundAccountCiphertext === undefined
+            && related.refundEncryptionKeyVersion === undefined
+            && related.refundAccountExpiresAt === undefined
+          ) {
+            continue;
+          }
+          transaction.update(relatedSnapshot.ref, refundVaultDeletes);
+        }
+      }
       for (const snapshot of itemsSnapshot.docs) {
         const item = snapshot.data() as OrderItemRecord;
         if (!targetItemIds.has(snapshot.id)) {

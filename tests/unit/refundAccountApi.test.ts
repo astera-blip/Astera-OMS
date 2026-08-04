@@ -752,34 +752,69 @@ describe("refund account protected APIs", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("transactionally deletes vault fields when Owner completes a full refund", async () => {
+  it("transactionally deletes every source vault when the final approval refunds the order", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "owner-a", role: "owner" });
     auth.isOwnerClaim.mockReturnValue(true);
     const writes: Array<{ operation: string; ref: FakeRef; value: Record<string, unknown> }> = [];
     const refs = {
-      cancellation: { kind: "doc", collection: "cancellationRequests", id: "cancel-full" } as FakeRef,
+      sourceA: { kind: "doc", collection: "cancellationRequests", id: "cancel-source-a" } as FakeRef,
+      sourceB: { kind: "doc", collection: "cancellationRequests", id: "cancel-source-b" } as FakeRef,
+      noVault: { kind: "doc", collection: "cancellationRequests", id: "cancel-no-vault" } as FakeRef,
       order: { kind: "doc", collection: "orders", id: "order-paid" } as FakeRef,
       item: { kind: "doc", collection: "orderItems", id: "item-paid" } as FakeRef,
       paymentRequest: { kind: "doc", collection: "paymentRequests", id: "request-paid" } as FakeRef,
     };
     const requestRecord = {
-      id: "cancel-full",
+      id: "cancel-source-b",
       orderId: "order-paid",
       orderItemIds: ["item-paid"],
       memberUid: "member-a",
-      reason: "full refund",
+      reason: "source B refund",
       status: "pending",
-      targetPaymentId: "payment-original",
+      targetPaymentId: "payment-source-b",
+      targetPaymentRequestId: "request-paid",
+      refundRequestedAmountTwd: 600,
+      refundItemAllocations: [{ orderItemId: "item-paid", amountTwd: 600 }],
       refundBankCode: "012",
       refundAccountLast5: "56789",
-      refundAccountCiphertext: "ciphertext-secret",
-      refundEncryptionKeyVersion: 4,
+      refundAccountCiphertext: "ciphertext-source-b",
+      refundEncryptionKeyVersion: 5,
       refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
       createdAt: "2026-08-04T00:00:00.000Z",
       createdBy: "member-a",
     };
+    const sourceARecord = {
+      ...requestRecord,
+      id: "cancel-source-a",
+      reason: "source A refund",
+      status: "approved",
+      targetPaymentId: "payment-source-a",
+      refundRequestedAmountTwd: 400,
+      refundItemAllocations: [{ orderItemId: "item-paid", amountTwd: 400 }],
+      refundAmountTwd: 400,
+      refundReference: "BANK-A",
+      refundAccountCiphertext: "ciphertext-source-a",
+      refundEncryptionKeyVersion: 4,
+    };
+    const noVaultRecord = {
+      ...sourceARecord,
+      id: "cancel-no-vault",
+      status: "rejected",
+      targetPaymentId: "payment-unused",
+      refundRequestedAmountTwd: 0,
+      refundItemAllocations: [],
+      refundAmountTwd: undefined,
+      refundReference: undefined,
+      refundAccountCiphertext: undefined,
+      refundEncryptionKeyVersion: undefined,
+      refundAccountExpiresAt: undefined,
+    };
+    let hasStagedWrite = false;
     const transaction = {
       get: vi.fn(async (target: FakeRef | FakeQuery): Promise<unknown> => {
+        if (hasStagedWrite) {
+          throw new Error("Firestore transactions require all reads before all writes");
+        }
         if (target.kind === "query" && target.collection === "orderItems") {
           return { docs: [{ id: "item-paid", ref: refs.item, data: () => ({
             id: "item-paid",
@@ -787,7 +822,7 @@ describe("refund account protected APIs", () => {
             memberUid: "member-a",
             quantity: 1,
             status: "cancelRequested",
-            snapshot: { unitPriceTwd: 400 },
+            snapshot: { unitPriceTwd: 1000 },
           }) }] };
         }
         if (target.kind === "query" && target.collection === "paymentRequests") {
@@ -795,18 +830,18 @@ describe("refund account protected APIs", () => {
             id: "request-paid",
             memberUid: "member-a",
             orderId: "order-paid",
-            amountTwd: 400,
+            amountTwd: 1000,
             status: "paid",
             method: "bankTransfer",
           }) }] };
         }
         if (target.kind === "query" && target.collection === "cancellationRequests") {
           return {
-            docs: [{
-              id: requestRecord.id,
-              ref: refs.cancellation,
-              data: () => requestRecord,
-            }],
+            docs: [
+              { id: sourceARecord.id, ref: refs.sourceA, data: () => sourceARecord },
+              { id: requestRecord.id, ref: refs.sourceB, data: () => requestRecord },
+              { id: noVaultRecord.id, ref: refs.noVault, data: () => noVaultRecord },
+            ],
           };
         }
         if (target.kind === "doc" && target.collection === "cancellationRequests") {
@@ -817,7 +852,7 @@ describe("refund account protected APIs", () => {
             id: "order-paid",
             memberUid: "member-a",
             status: "paid",
-            totalTwd: 400,
+            totalTwd: 1000,
           }) };
         }
         return { exists: false, data: () => undefined };
@@ -829,9 +864,13 @@ describe("refund account protected APIs", () => {
         ) {
           throw new Error("FieldValue.delete() requires update() or set() with merge");
         }
+        hasStagedWrite = true;
         writes.push({ operation: "set", ref, value });
       }),
-      update: vi.fn((ref: FakeRef, value: Record<string, unknown>) => writes.push({ operation: "update", ref, value })),
+      update: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
+        hasStagedWrite = true;
+        writes.push({ operation: "update", ref, value });
+      }),
     };
     const db = {
       collection: vi.fn((name: string) => ({
@@ -847,33 +886,44 @@ describe("refund account protected APIs", () => {
     firestore.getAdminFirestore.mockReturnValue(db);
 
     const response = await reviewCancellation(
-      new Request("https://example.test/api/workspace/cancellations/cancel-full/review", {
+      new Request("https://example.test/api/workspace/cancellations/cancel-source-b/review", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           status: "approved",
           reviewNote: "refund complete",
-          refundAmountTwd: 400,
+          refundAmountTwd: 600,
           refundCompletedAt: "2026-08-04",
-          refundReference: "BANK-400",
+          refundReference: "BANK-B",
           refundAccountNumberFull: "client-must-not-send-this",
         }),
       }),
-      { params: Promise.resolve({ id: "cancel-full" }) },
+      { params: Promise.resolve({ id: "cancel-source-b" }) },
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ orderStatus: "refunded" });
-    const requestWrite = writes.find((write) => write.ref.collection === "cancellationRequests");
-    expect(requestWrite?.value).toMatchObject({
+    const cancellationWrites = writes.filter((write) =>
+      write.ref.collection === "cancellationRequests");
+    expect(cancellationWrites).toHaveLength(2);
+    const sourceBWrite = cancellationWrites.find((write) => write.ref.id === "cancel-source-b");
+    expect(sourceBWrite?.value).toMatchObject({
       refundAccountCiphertext: "__DELETE__",
       refundEncryptionKeyVersion: "__DELETE__",
       refundAccountExpiresAt: "__DELETE__",
-      refundAmountTwd: 400,
+      refundAmountTwd: 600,
       refundCompletedAt: "2026-08-04",
-      refundReference: "BANK-400",
+      refundReference: "BANK-B",
     });
-    expect(JSON.stringify(requestWrite)).not.toContain("ciphertext-secret");
+    const sourceAWrite = cancellationWrites.find((write) => write.ref.id === "cancel-source-a");
+    expect(sourceAWrite?.value).toEqual({
+      refundAccountCiphertext: "__DELETE__",
+      refundEncryptionKeyVersion: "__DELETE__",
+      refundAccountExpiresAt: "__DELETE__",
+    });
+    expect(cancellationWrites.some((write) => write.ref.id === "cancel-no-vault")).toBe(false);
+    expect(JSON.stringify(cancellationWrites)).not.toContain("ciphertext-source-a");
+    expect(JSON.stringify(cancellationWrites)).not.toContain("ciphertext-source-b");
     expect(JSON.stringify(writes)).not.toContain("client-must-not-send-this");
   });
 
