@@ -59,12 +59,30 @@ export async function runFingerprintMigration({
   const accountReport = [];
   for (const account of accounts) {
     const id = safeDocumentId(account?.id);
+    const deleteFields = FULL_ACCOUNT_FIELDS.filter((field) =>
+      Object.prototype.hasOwnProperty.call(account, field));
     if (
       typeof account?.accountFingerprint === "string"
+      && account.accountFingerprint.length > 0
+      && account.fingerprintAlgorithm === "HMAC-SHA-256"
       && Number.isSafeInteger(account?.fingerprintKeyVersion)
       && account.fingerprintKeyVersion > 0
     ) {
-      accountReport.push({ id, status: "alreadyFingerprintProtected" });
+      if (deleteFields.length > 0) {
+        operations.push({
+          id,
+          action: "removeLegacyPlaintext",
+          set: {},
+          deleteFields,
+        });
+        accountReport.push({
+          id,
+          status: dryRun ? "wouldRemoveLegacyPlaintext" : "legacyPlaintextRemoved",
+          fingerprintKeyVersion: account.fingerprintKeyVersion,
+        });
+      } else {
+        accountReport.push({ id, status: "alreadyFingerprintProtected" });
+      }
       continue;
     }
 
@@ -75,8 +93,6 @@ export async function runFingerprintMigration({
         bankCode: account.bankCode,
         accountNumber: account[fullAccountField],
       });
-      const deleteFields = FULL_ACCOUNT_FIELDS.filter((field) =>
-        Object.prototype.hasOwnProperty.call(account, field));
       operations.push({
         id,
         action: "deriveFingerprint",
@@ -86,6 +102,7 @@ export async function runFingerprintMigration({
           accountFingerprint: identity.accountFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: identity.fingerprintKeyVersion,
+          verificationStatus: "verified",
         },
         deleteFields,
       });
@@ -100,7 +117,7 @@ export async function runFingerprintMigration({
     operations.push({
       id,
       action: "needsReverification",
-      set: { status: "needsReverification" },
+      set: { verificationStatus: "needsReverification" },
       deleteFields: [],
     });
     accountReport.push({ id, status: dryRun ? "wouldRequireReverification" : "needsReverification" });
@@ -243,11 +260,15 @@ async function loadMigrationRecords(db) {
   };
 }
 
-async function writeBackup(data, backupDir) {
+export async function writeMigrationBackup(data, backupDir) {
   const destination = assertIgnoredBackupPath(backupDir);
   await mkdir(destination, { recursive: true });
   const backupFile = resolve(destination, "member-account-fingerprint-backup.json");
-  await writeFile(backupFile, `${JSON.stringify(serializeForBackup(data), null, 2)}\n`, "utf8");
+  await writeFile(
+    backupFile,
+    `${JSON.stringify(serializeForBackup(data), null, 2)}\n`,
+    { encoding: "utf8", flag: "wx" },
+  );
   return backupFile;
 }
 
@@ -281,7 +302,7 @@ async function main(argv) {
     dryRun: options.dryRun,
     deriveIdentity,
     backup: async (data) => {
-      backupFile = await writeBackup(data, options.backupDir);
+      backupFile = await writeMigrationBackup(data, options.backupDir);
     },
     update: createAccountUpdater(db, FieldValue),
   });

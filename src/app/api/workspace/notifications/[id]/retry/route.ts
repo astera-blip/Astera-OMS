@@ -62,6 +62,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json(sanitizeOwnerNotificationEvent(reviewed));
     }
 
+    const retrySnapshot = await db.collection("notificationEvents").doc(id).get();
+    if (!retrySnapshot.exists) {
+      throw new Error("notification_not_found");
+    }
+    const retryType = retrySnapshot.data()?.type;
+    if (retryType !== "order.created" && retryType !== "payment.confirmed") {
+      throw new Error("notification_retry_not_supported");
+    }
     const delivered = await attemptNotificationDelivery(db, id);
 
     return NextResponse.json({
@@ -79,6 +87,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ? 404
         : message === "notification_already_reviewed"
           ? 409
+          : message === "notification_retry_not_supported"
+            ? 400
           : message === "notification_outcome_not_supported"
             ? 400
         : 500;

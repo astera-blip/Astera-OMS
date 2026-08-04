@@ -9,6 +9,7 @@ import type {
 } from "@/lib/notification/events";
 
 export type MemberPaymentAccountStatus = "active" | "pendingDeletion" | "inactive";
+export type MemberPaymentAccountVerificationStatus = "verified" | "needsReverification";
 
 export type MemberPaymentAccountInput = {
   bankCode: string;
@@ -19,6 +20,7 @@ export type MemberPaymentAccount = AccountIdentity & {
   id: string;
   memberUid: string;
   status: MemberPaymentAccountStatus;
+  verificationStatus?: MemberPaymentAccountVerificationStatus;
   createdAt?: unknown;
   createdBy?: string;
   updatedAt?: unknown;
@@ -35,6 +37,7 @@ export type PublicMemberPaymentAccount = {
   accountNumberMasked: string;
   accountNumberLast5: string;
   status: MemberPaymentAccountStatus;
+  verificationStatus: MemberPaymentAccountVerificationStatus;
 };
 
 export type MemberPaymentAccountDuplicateReviewStatus = DuplicateAccountNotificationStatus;
@@ -90,11 +93,27 @@ export function normalizeMemberPaymentAccount(value: MemberPaymentAccount): Memb
     throw new Error("invalid_account_number_last5");
   }
 
+  const status = value.status === "active"
+    || value.status === "pendingDeletion"
+    || value.status === "inactive"
+    ? value.status
+    : "inactive";
+  const hasUsableFingerprint = typeof value.accountFingerprint === "string"
+    && value.accountFingerprint.length > 0
+    && value.fingerprintAlgorithm === "HMAC-SHA-256"
+    && Number.isSafeInteger(value.fingerprintKeyVersion)
+    && value.fingerprintKeyVersion > 0;
+  const verificationStatus = value.verificationStatus === "needsReverification"
+    || !hasUsableFingerprint
+    ? "needsReverification"
+    : "verified";
+
   return {
     ...value,
     bankCode: normalizeBankCode(value.bankCode),
     accountNumberLast5,
-    status: value.status === "inactive" || value.status === "pendingDeletion" ? value.status : "active",
+    status,
+    verificationStatus,
   };
 }
 
@@ -106,7 +125,15 @@ export function buildMemberPaymentAccountSnapshot(value: MemberPaymentAccount): 
     accountNumberMasked: maskMemberAccountNumber(normalized.accountNumberLast5),
     accountNumberLast5: normalized.accountNumberLast5,
     status: normalized.status,
+    verificationStatus: normalized.verificationStatus ?? "needsReverification",
   };
+}
+
+export function isMemberPaymentAccountUsableForPayment(
+  account: PublicMemberPaymentAccount,
+): boolean {
+  return account.status === "active"
+    && account.verificationStatus === "verified";
 }
 
 export function memberPaymentAccountErrorMessage(error: string): string {

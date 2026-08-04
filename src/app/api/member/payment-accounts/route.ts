@@ -87,6 +87,7 @@ export async function POST(request: Request) {
         ...identity,
         memberUid: claims.uid,
         status: "active" as const,
+        verificationStatus: "verified" as const,
         createdAt: FieldValue.serverTimestamp(),
         createdBy: claims.uid,
         updatedAt: FieldValue.serverTimestamp(),

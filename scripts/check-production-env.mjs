@@ -35,6 +35,13 @@ export function getMissingEnvironmentNames(env) {
 
 export function validateProductionEnvironment(env) {
   const issues = getMissingEnvironmentNames(env).map((name) => `${name}=missing`);
+  const projectId = String(env.GCP_PROJECT_ID ?? "").trim();
+  for (const name of ["GCP_KMS_HMAC_KEY_NAME", "GCP_KMS_REFUND_KEY_NAME"]) {
+    const keyName = String(env[name] ?? "").trim();
+    if (keyName && !isCryptoKeyNameForProject(keyName, projectId)) {
+      issues.push(`${name}=invalid`);
+    }
+  }
   const fingerprintKeyVersion = String(env.GCP_KMS_HMAC_KEY_VERSION ?? "").trim();
   if (
     fingerprintKeyVersion
@@ -48,6 +55,22 @@ export function validateProductionEnvironment(env) {
     issues.push("REFUND_RATE_LIMIT_HASH_SECRET=invalid");
   }
   return issues;
+}
+
+function isCryptoKeyNameForProject(keyName, projectId) {
+  const parts = keyName.split("/");
+  return Boolean(
+    projectId
+    && parts.length === 8
+    && parts[0] === "projects"
+    && parts[1] === projectId
+    && parts[2] === "locations"
+    && parts[3]
+    && parts[4] === "keyRings"
+    && parts[5]
+    && parts[6] === "cryptoKeys"
+    && parts[7],
+  );
 }
 
 export function assertProductionFlags(env) {

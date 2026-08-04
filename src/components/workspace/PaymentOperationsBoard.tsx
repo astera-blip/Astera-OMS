@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  isOwnerEmailNotification,
+  isOwnerJobFailureNotification,
+} from "@/lib/notification/events";
 import type {
   DuplicateAccountNotificationOutcome,
   OwnerDuplicateNotificationSnapshot,
@@ -262,7 +266,7 @@ export function PaymentOperationsBoard() {
 
       setNotificationEvents((current) =>
         current.map((item) => {
-          if (item.id !== event.id || isDuplicateNotification(item)) {
+          if (item.id !== event.id || !isOwnerEmailNotification(item)) {
             return item;
           }
           return {
@@ -468,7 +472,7 @@ export function PaymentOperationsBoard() {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold">Email 通知</h3>
+          <h3 className="text-lg font-semibold">營運與 Email 通知</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             訂單與付款交易會先成立；Email 失敗只更新通知狀態，不回滾交易。
           </p>
@@ -477,6 +481,21 @@ export function PaymentOperationsBoard() {
           ) : (
             <div className="mt-4 grid gap-3 text-sm">
               {notificationEvents.map((event) => {
+                if (isOwnerJobFailureNotification(event)) {
+                  return (
+                    <div key={event.id} className="rounded-2xl bg-rose-50 p-3">
+                      <p className="font-semibold text-rose-800">排程工作失敗</p>
+                      <p className="mt-1 text-slate-700">
+                        {event.job === "refundAccountCleanup" ? "退款帳號到期清理" : "指紋金鑰月報"}
+                        {" · "}
+                        {event.project}
+                      </p>
+                      <p className="mt-1 text-rose-700">
+                        代碼 {event.errorCode}；不提供 Email 重試，請檢查排程與監控告警。
+                      </p>
+                    </div>
+                  );
+                }
                 if (isDuplicateNotification(event)) {
                   return (
                     <div key={event.id} className="rounded-2xl bg-amber-100 p-3">

@@ -27,6 +27,13 @@ export function buildFingerprintKeyUsageReport({
     memberAccounts: [],
     paymentSnapshots: [],
   };
+  const documentStatistics = {
+    malformedMemberAccounts: 0,
+    malformedPaymentSnapshots: 0,
+    overdueMemberAccounts: 0,
+    overduePaymentSnapshots: 0,
+  };
+  const reportTimestamp = Date.parse(generatedAt);
   const ensureVersion = (version) => {
     if (!stats.has(version)) {
       stats.set(version, {
@@ -49,25 +56,36 @@ export function buildFingerprintKeyUsageReport({
 
   for (const account of memberAccounts) {
     const version = account?.fingerprintKeyVersion;
-    if (!Number.isSafeInteger(version) || version < 1) {
+    if (!hasUsableFingerprint(account)) {
       unclassifiedDocuments.memberAccounts.push(safeDocumentId(account?.id));
+      documentStatistics.malformedMemberAccounts += 1;
       continue;
     }
     const entry = ensureVersion(version);
     entry.memberAccountReferences += 1;
     recordReferenceTime(entry, referenceTime(account));
+    if (isOverdueReference(account, reportTimestamp)) {
+      documentStatistics.overdueMemberAccounts += 1;
+    }
   }
 
   for (const payment of payments) {
     const snapshot = payment?.memberPaymentAccount ?? payment;
     const version = snapshot?.fingerprintKeyVersion;
-    if (!Number.isSafeInteger(version) || version < 1) {
+    if (!hasUsableFingerprint(snapshot)) {
       unclassifiedDocuments.paymentSnapshots.push(safeDocumentId(payment?.id));
+      documentStatistics.malformedPaymentSnapshots += 1;
       continue;
     }
     const entry = ensureVersion(version);
     entry.paymentSnapshotReferences += 1;
     recordReferenceTime(entry, referenceTime(payment));
+    if (
+      isOverdueReference(payment, reportTimestamp)
+      || isOverdueReference(snapshot, reportTimestamp)
+    ) {
+      documentStatistics.overduePaymentSnapshots += 1;
+    }
   }
 
   const versions = [...stats.values()]
@@ -84,8 +102,24 @@ export function buildFingerprintKeyUsageReport({
     cadence: "monthly",
     versions,
     unclassifiedDocuments,
+    documentStatistics,
     autoDisabledVersions: [],
   };
+}
+
+function hasUsableFingerprint(value) {
+  return typeof value?.accountFingerprint === "string"
+    && value.accountFingerprint.length > 0
+    && value.fingerprintAlgorithm === "HMAC-SHA-256"
+    && Number.isSafeInteger(value.fingerprintKeyVersion)
+    && value.fingerprintKeyVersion > 0;
+}
+
+function isOverdueReference(record, reportTimestamp) {
+  const expiresAt = record?.fingerprintRetentionExpiresAt ?? record?.retentionExpiresAt;
+  return typeof expiresAt === "string"
+    && Number.isFinite(Date.parse(expiresAt))
+    && Date.parse(expiresAt) <= reportTimestamp;
 }
 
 function recordReferenceTime(entry, timestamp) {

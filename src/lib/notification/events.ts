@@ -8,6 +8,12 @@ export type DuplicateAccountNotificationOutcome =
 export type DuplicateAccountNotificationStatus =
   | "pendingReview"
   | DuplicateAccountNotificationOutcome;
+export type OwnerJobFailureJob =
+  | "refundAccountCleanup"
+  | "fingerprintKeyUsageReport";
+export type OwnerJobFailureErrorCode =
+  | "refundAccountCleanup_failed"
+  | "fingerprint_key_usage_report_failed";
 
 export type NotificationEvent = {
   id: string;
@@ -50,6 +56,22 @@ export type DuplicateAccountNotificationEvent = {
   reviewedBy?: string;
 };
 
+export type OwnerJobFailureNotificationEvent = {
+  id: string;
+  type: "owner.jobFailed";
+  audience: "owner";
+  status: "pendingReview";
+  payload: {
+    job: OwnerJobFailureJob;
+    project: string;
+    errorCode: OwnerJobFailureErrorCode;
+  };
+  createdAt: unknown;
+  createdBy: "system";
+  updatedAt: unknown;
+  updatedBy: "system";
+};
+
 export type OwnerEmailNotificationSnapshot = {
   id: string;
   type: NotificationEventType;
@@ -81,9 +103,22 @@ export type OwnerDuplicateNotificationSnapshot = {
   reviewedBy?: string;
 };
 
+export type OwnerJobFailureNotificationSnapshot = {
+  id: string;
+  type: "owner.jobFailed";
+  status: "pendingReview";
+  job: OwnerJobFailureJob;
+  project: string;
+  errorCode: OwnerJobFailureErrorCode;
+  createdAt: unknown;
+  updatedAt: unknown;
+  retrySupported: false;
+};
+
 export type OwnerNotificationSnapshot =
   | OwnerEmailNotificationSnapshot
-  | OwnerDuplicateNotificationSnapshot;
+  | OwnerDuplicateNotificationSnapshot
+  | OwnerJobFailureNotificationSnapshot;
 
 export function buildDuplicateAccountNotificationEvent(input: {
   id: string;
@@ -148,8 +183,26 @@ export function buildDuplicateAccountOutcomeTransition(
 }
 
 export function sanitizeOwnerNotificationEvent(
-  value: NotificationEvent | DuplicateAccountNotificationEvent | Record<string, unknown>,
+  value:
+    | NotificationEvent
+    | DuplicateAccountNotificationEvent
+    | OwnerJobFailureNotificationEvent
+    | Record<string, unknown>,
 ): OwnerNotificationSnapshot {
+  if (value.type === "owner.jobFailed") {
+    const event = value as OwnerJobFailureNotificationEvent;
+    return {
+      id: event.id,
+      type: "owner.jobFailed",
+      status: "pendingReview",
+      job: normalizeJobFailureJob(event.payload?.job),
+      project: normalizeJobFailureProject(event.payload?.project),
+      errorCode: normalizeJobFailureErrorCode(event.payload?.errorCode),
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      retrySupported: false,
+    };
+  }
   if (
     value.type === "memberPaymentAccount.exactDuplicate"
     || value.type === "memberPaymentAccount.last5Collision"
@@ -187,6 +240,36 @@ export function sanitizeOwnerNotificationEvent(
     message: event.message,
     ...(event.status === "failed" ? { deliveryIssue: "deliveryFailed" as const } : {}),
   };
+}
+
+export function isOwnerJobFailureNotification(
+  event: OwnerNotificationSnapshot,
+): event is OwnerJobFailureNotificationSnapshot {
+  return event.type === "owner.jobFailed";
+}
+
+export function isOwnerEmailNotification(
+  event: OwnerNotificationSnapshot,
+): event is OwnerEmailNotificationSnapshot {
+  return event.type === "order.created" || event.type === "payment.confirmed";
+}
+
+function normalizeJobFailureJob(value: unknown): OwnerJobFailureJob {
+  return value === "fingerprintKeyUsageReport"
+    ? "fingerprintKeyUsageReport"
+    : "refundAccountCleanup";
+}
+
+function normalizeJobFailureProject(value: unknown): string {
+  return typeof value === "string" && /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(value)
+    ? value
+    : "unknown-project";
+}
+
+function normalizeJobFailureErrorCode(value: unknown): OwnerJobFailureErrorCode {
+  return value === "fingerprint_key_usage_report_failed"
+    ? "fingerprint_key_usage_report_failed"
+    : "refundAccountCleanup_failed";
 }
 
 export function createOrderCreatedNotificationEvent(input: {

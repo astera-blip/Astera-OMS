@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
-import type { PublicMemberPaymentAccount } from "@/lib/payment/memberBankAccounts";
+import {
+  isMemberPaymentAccountUsableForPayment,
+  type PublicMemberPaymentAccount,
+} from "@/lib/payment/memberBankAccounts";
 import { paymentRequestStatusLabel } from "@/lib/storefront/customerLabels";
 
 export function PaymentRequestsBoard() {
@@ -57,7 +60,7 @@ export function PaymentRequestsBoard() {
         : { accounts: [] };
       const nextAccounts = Array.isArray(accountsPayload.accounts) ? accountsPayload.accounts : [];
       const nextMemberAccounts = Array.isArray(memberAccountsPayload.accounts)
-        ? memberAccountsPayload.accounts.filter((account) => account.status === "active")
+        ? memberAccountsPayload.accounts.filter(isMemberPaymentAccountUsableForPayment)
         : [];
       setRequests(nextRequests);
       setPaymentAccounts(nextAccounts);

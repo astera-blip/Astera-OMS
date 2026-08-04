@@ -26,4 +26,18 @@ describe("member payment account UI contract", () => {
     expect(board).toContain("member_payment_account_duplicate_review_pending");
     expect(board).toContain("帳戶仍已新增");
   });
+
+  it("does not offer accounts that require identity re-verification for payment reports", () => {
+    const paymentBoard = readFileSync(
+      "src/components/storefront/PaymentRequestsBoard.tsx",
+      "utf8",
+    );
+    const accountBoard = readFileSync(
+      "src/components/account/MemberPaymentAccountsBoard.tsx",
+      "utf8",
+    );
+
+    expect(paymentBoard).toContain("isMemberPaymentAccountUsableForPayment");
+    expect(accountBoard).toContain("需要重新驗證");
+  });
 });

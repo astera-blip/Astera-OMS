@@ -26,6 +26,7 @@ import { POST } from "@/app/api/payments/route";
 type StoredPaymentAccount = {
   memberUid: string;
   status: "active" | "inactive" | "pendingDeletion";
+  verificationStatus?: "verified" | "needsReverification";
   accountFingerprint: string | undefined;
   fingerprintKeyVersion: number | undefined;
 };
@@ -57,6 +58,7 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
             accountNumberLast5: "99999",
             currency: "TWD",
             status: "active",
+            verificationStatus: "verified",
           }),
         };
       }
@@ -234,6 +236,18 @@ describe("payment report member account snapshot", () => {
 
   it("rejects an inactive selected member account without creating a payment", async () => {
     const reporting = createPaymentReportFirestore({ status: "inactive" });
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const response = await POST(paymentReportRequest());
+
+    expect(response.status).toBe(400);
+    expect(reporting.set).not.toHaveBeenCalled();
+  });
+
+  it("rejects an active account that requires identity re-verification", async () => {
+    const reporting = createPaymentReportFirestore({
+      verificationStatus: "needsReverification",
+    });
     firestore.getAdminFirestore.mockReturnValue(reporting.db);
 
     const response = await POST(paymentReportRequest());

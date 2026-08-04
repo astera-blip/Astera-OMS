@@ -98,6 +98,10 @@ describe("production environment checker", () => {
     );
     environment.GCP_KMS_HMAC_KEY_VERSION = "7";
     environment.REFUND_RATE_LIMIT_HASH_SECRET = "stable-secret-at-least-thirty-two-characters";
+    environment.GCP_KMS_HMAC_KEY_NAME =
+      "projects/configured/locations/global/keyRings/account/cryptoKeys/fingerprint";
+    environment.GCP_KMS_REFUND_KEY_NAME =
+      "projects/configured/locations/asia-east1/keyRings/refund/cryptoKeys/account";
 
     expect(validateProductionEnvironment(environment)).toEqual([]);
     expect(validateProductionEnvironment({
@@ -108,6 +112,15 @@ describe("production environment checker", () => {
       ...environment,
       GCP_KMS_HMAC_KEY_VERSION: "latest",
     })).toContain("GCP_KMS_HMAC_KEY_VERSION=invalid");
+    expect(validateProductionEnvironment({
+      ...environment,
+      GCP_KMS_HMAC_KEY_NAME: "configured",
+    })).toContain("GCP_KMS_HMAC_KEY_NAME=invalid");
+    expect(validateProductionEnvironment({
+      ...environment,
+      GCP_KMS_REFUND_KEY_NAME:
+        "projects/another-project/locations/asia-east1/keyRings/refund/cryptoKeys/account",
+    })).toContain("GCP_KMS_REFUND_KEY_NAME=invalid");
   });
 
   it("allows absent OIDC resources to fall through to their create commands on Windows", () => {

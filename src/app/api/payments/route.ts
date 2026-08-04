@@ -119,7 +119,10 @@ export async function POST(request: Request) {
       if (memberAccount.memberUid !== claims.uid) {
         throw new Error("forbidden");
       }
-      if (memberAccount.status !== "active") {
+      if (
+        memberAccount.status !== "active"
+        || memberAccount.verificationStatus === "needsReverification"
+      ) {
         throw new Error("payment_account_member_inactive");
       }
       const receivingPaymentAccount = buildPaymentAccountSnapshot(receivingAccount);

@@ -123,6 +123,7 @@ describe("member payment account API contract", () => {
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
         status: "active",
+        verificationStatus: "verified",
       },
       warning: "member_payment_account_duplicate_review_pending",
     });
@@ -138,6 +139,7 @@ describe("member payment account API contract", () => {
       fingerprintKeyVersion: 7,
       memberUid: "member-new",
       status: "active",
+      verificationStatus: "verified",
       createdBy: "member-new",
       updatedBy: "member-new",
     });
@@ -301,6 +303,7 @@ describe("member payment account API contract", () => {
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
         status: "active",
+        verificationStatus: "verified",
       }],
     });
     expect(JSON.stringify(payload)).not.toContain("accountFingerprint");
@@ -347,6 +350,7 @@ describe("member payment account API contract", () => {
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
         status: "pendingDeletion",
+        verificationStatus: "verified",
       },
     });
     expect(update).toHaveBeenCalledWith(accountRef, expect.objectContaining({

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   buildDuplicateAccountNotificationEvent,
   buildDuplicateAccountOutcomeTransition,
@@ -6,6 +7,7 @@ import {
   createPaymentConfirmedNotificationEvent,
   markNotificationEventFailed,
   markNotificationEventSent,
+  isOwnerJobFailureNotification,
   sanitizeOwnerNotificationEvent,
 } from "../../src/lib/notification/events";
 import { POST as updateNotification } from "../../src/app/api/workspace/notifications/[id]/retry/route";
@@ -270,6 +272,42 @@ describe("notification events", () => {
       /ciphertext|canonical|fingerprint|accountNumberFull/i,
     );
   });
+
+  it("sanitizes a job failure through a fixed schema without private diagnostics", () => {
+    const snapshot = sanitizeOwnerNotificationEvent({
+      id: "job-failure-1",
+      type: "owner.jobFailed",
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        job: "refundAccountCleanup",
+        project: "astera-oms-prod",
+        errorCode: "refundAccountCleanup_failed",
+        rawError: "provider stack with full account",
+        accountFingerprint: "private-fingerprint",
+      },
+      createdAt: "2026-08-04T00:00:00.000Z",
+      updatedAt: "2026-08-04T00:00:00.000Z",
+      refundAccountCiphertext: "private-ciphertext",
+      canonicalInput: "private-canonical-input",
+    });
+
+    expect(snapshot).toEqual({
+      id: "job-failure-1",
+      type: "owner.jobFailed",
+      status: "pendingReview",
+      job: "refundAccountCleanup",
+      project: "astera-oms-prod",
+      errorCode: "refundAccountCleanup_failed",
+      createdAt: "2026-08-04T00:00:00.000Z",
+      updatedAt: "2026-08-04T00:00:00.000Z",
+      retrySupported: false,
+    });
+    expect(isOwnerJobFailureNotification(snapshot)).toBe(true);
+    expect(JSON.stringify(snapshot)).not.toMatch(
+      /full account|fingerprint|ciphertext|canonical|rawError|provider stack/i,
+    );
+  });
 });
 
 describe("Owner duplicate-account notification API", () => {
@@ -364,7 +402,16 @@ describe("Owner duplicate-account notification API", () => {
   });
 
   it("returns only safe allowlisted fields after an ordinary delivery retry", async () => {
-    notificationRoute.getAdminFirestore.mockReturnValue({ collection: vi.fn() });
+    notificationRoute.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({
+            exists: true,
+            data: () => ({ type: "order.created" }),
+          }),
+        })),
+      })),
+    });
     notificationRoute.attemptNotificationDelivery.mockResolvedValue({
       id: "notif-order",
       status: "failed",
@@ -388,6 +435,54 @@ describe("Owner duplicate-account notification API", () => {
       attemptCount: 3,
       deliveryIssue: "deliveryFailed",
     });
+  });
+
+  it("rejects retry for a job failure before calling email delivery", async () => {
+    notificationRoute.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({
+            exists: true,
+            data: () => ({
+              type: "owner.jobFailed",
+              payload: {
+                job: "refundAccountCleanup",
+                project: "astera-oms-prod",
+                errorCode: "refundAccountCleanup_failed",
+              },
+            }),
+          }),
+        })),
+      })),
+    });
+
+    const response = await updateNotification(
+      new Request("https://example.test/api/workspace/notifications/job-failure-1/retry", {
+        method: "POST",
+      }),
+      { params: Promise.resolve({ id: "job-failure-1" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "notification_retry_not_supported",
+    });
+    expect(notificationRoute.attemptNotificationDelivery).not.toHaveBeenCalled();
+  });
+
+  it("renders job failures as non-retryable Owner operational alerts", () => {
+    const board = readFileSync(
+      "src/components/workspace/PaymentOperationsBoard.tsx",
+      "utf8",
+    );
+    const jobBranch = board.slice(
+      board.indexOf("isOwnerJobFailureNotification(event)"),
+      board.indexOf("isDuplicateNotification(event)"),
+    );
+
+    expect(jobBranch).toContain("排程工作失敗");
+    expect(jobBranch).toContain("不提供 Email 重試");
+    expect(jobBranch).not.toContain("retryNotification");
   });
 });
 

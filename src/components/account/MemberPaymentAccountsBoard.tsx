@@ -150,7 +150,9 @@ export function MemberPaymentAccountsBoard() {
                   <h3 className="font-semibold">銀行代碼 {account.bankCode}</h3>
                   <p className="mt-1 text-sm text-[#6C6B70]">帳號 {account.accountNumberMasked}</p>
                 </div>
-                {account.status === "active" ? (
+                {account.verificationStatus === "needsReverification" ? (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">需要重新驗證</span>
+                ) : account.status === "active" ? (
                   <button type="button" onClick={() => void requestDeletion(account)} disabled={Boolean(pendingId)} className="min-h-11 rounded-full border border-[#DED7D6] px-4 text-sm font-semibold text-[#6C6B70] disabled:opacity-50">
                     {pendingId === account.id ? "送出中…" : "提出封存申請"}
                   </button>

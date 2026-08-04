@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMemberPaymentAccountSnapshot,
+  isMemberPaymentAccountUsableForPayment,
   maskMemberAccountNumber,
+  normalizeMemberPaymentAccount,
   normalizeMemberPaymentAccountInput,
   validateMemberPaymentAccountInput,
 } from "@/lib/payment/memberBankAccounts";
@@ -49,6 +51,7 @@ describe("member payment accounts", () => {
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
       status: "active",
+      verificationStatus: "verified",
     });
 
     expect(snapshot).toEqual({
@@ -57,9 +60,54 @@ describe("member payment accounts", () => {
       accountNumberMasked: "***56789",
       accountNumberLast5: "56789",
       status: "active",
+      verificationStatus: "verified",
     });
     expect(JSON.stringify(snapshot)).not.toContain("accountNumberFull");
     expect(JSON.stringify(snapshot)).not.toContain("accountFingerprint");
     expect(maskMemberAccountNumber("56789")).toBe("***56789");
+  });
+
+  it("fails closed for an unknown lifecycle and explicitly exposes re-verification", () => {
+    const normalized = normalizeMemberPaymentAccount({
+      id: "member-account-legacy",
+      memberUid: "member-1",
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: "",
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 0,
+      status: "needsReverification" as never,
+    });
+
+    expect(normalized.status).toBe("inactive");
+    expect(buildMemberPaymentAccountSnapshot(normalized)).toEqual({
+      id: "member-account-legacy",
+      bankCode: "012",
+      accountNumberMasked: "***56789",
+      accountNumberLast5: "56789",
+      status: "inactive",
+      verificationStatus: "needsReverification",
+    });
+  });
+
+  it("offers only active accounts with a verified identity for payment", () => {
+    const base = {
+      id: "member-account-1",
+      bankCode: "012",
+      accountNumberMasked: "***56789",
+      accountNumberLast5: "56789",
+      status: "active" as const,
+      verificationStatus: "verified" as const,
+    };
+
+    expect(isMemberPaymentAccountUsableForPayment(base)).toBe(true);
+    expect(isMemberPaymentAccountUsableForPayment({
+      ...base,
+      verificationStatus: "needsReverification",
+    })).toBe(false);
+    expect(isMemberPaymentAccountUsableForPayment({
+      ...base,
+      status: "inactive",
+    })).toBe(false);
   });
 });

@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   assertHmacKeyNameForProject,
   buildSafeMigrationOutput,
   parseMigrationArgs,
   runFingerprintMigration,
+  writeMigrationBackup,
 } from "../../scripts/migrate-member-account-fingerprints.mjs";
 import {
   buildExpiredRefundCleanupPlan,
@@ -54,15 +57,113 @@ describe("member account fingerprint migration", () => {
         accountFingerprint: "safe-fingerprint",
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
+        verificationStatus: "verified",
       },
       deleteFields: ["accountNumberFull"],
     });
     expect(result.operations).toContainEqual({
       id: "account-last-five",
       action: "needsReverification",
-      set: { status: "needsReverification" },
+      set: { verificationStatus: "needsReverification" },
       deleteFields: [],
     });
+  });
+
+  it.each(["inactive", "pendingDeletion", "archived"])(
+    "preserves the %s lifecycle while marking legacy identity for re-verification",
+    async (status) => {
+      const result = await runFingerprintMigration({
+        accounts: [{
+          id: `account-${status}`,
+          bankCode: "004",
+          accountNumberLast5: "56789",
+          status,
+        }],
+        payments: [],
+        dryRun: true,
+        deriveIdentity: vi.fn(),
+      });
+
+      expect(result.operations).toEqual([{
+        id: `account-${status}`,
+        action: "needsReverification",
+        set: { verificationStatus: "needsReverification" },
+        deleteFields: [],
+      }]);
+      expect(result.operations[0]?.set).not.toHaveProperty("status");
+    },
+  );
+
+  it("removes legacy plaintext from an already fingerprinted record without replacing its identity", async () => {
+    const deriveIdentity = vi.fn();
+    const result = await runFingerprintMigration({
+      accounts: [{
+        id: "account-protected",
+        bankCode: "004",
+        accountNumberFull: "sensitive-full-account",
+        accountNumberLast5: "56789",
+        accountFingerprint: "retained-fingerprint",
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 3,
+        status: "pendingDeletion",
+      }],
+      payments: [],
+      dryRun: true,
+      deriveIdentity,
+    });
+
+    expect(deriveIdentity).not.toHaveBeenCalled();
+    expect(result.operations).toEqual([{
+      id: "account-protected",
+      action: "removeLegacyPlaintext",
+      set: {},
+      deleteFields: ["accountNumberFull"],
+    }]);
+    expect(result.accountReport).toEqual([{
+      id: "account-protected",
+      status: "wouldRemoveLegacyPlaintext",
+      fingerprintKeyVersion: 3,
+    }]);
+  });
+
+  it("re-derives identity before deleting plaintext when existing fingerprint metadata is unusable", async () => {
+    const deriveIdentity = vi.fn().mockResolvedValue({
+      bankCode: "004",
+      accountNumberLast5: "56789",
+      accountFingerprint: "replacement-fingerprint",
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+    });
+    const result = await runFingerprintMigration({
+      accounts: [{
+        id: "account-invalid-fingerprint",
+        bankCode: "004",
+        accountNumberFull: "sensitive-full-account",
+        accountNumberLast5: "56789",
+        accountFingerprint: "legacy-unsupported-fingerprint",
+        fingerprintAlgorithm: "SHA-256",
+        fingerprintKeyVersion: 3,
+        status: "active",
+      }],
+      payments: [],
+      dryRun: true,
+      deriveIdentity,
+    });
+
+    expect(deriveIdentity).toHaveBeenCalledOnce();
+    expect(result.operations).toEqual([{
+      id: "account-invalid-fingerprint",
+      action: "deriveFingerprint",
+      set: {
+        bankCode: "004",
+        accountNumberLast5: "56789",
+        accountFingerprint: "replacement-fingerprint",
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 7,
+        verificationStatus: "verified",
+      },
+      deleteFields: ["accountNumberFull"],
+    }]);
   });
 
   it("keeps dry-run read-only and never includes full account input in its report", async () => {
@@ -199,6 +300,25 @@ describe("member account fingerprint migration", () => {
       "astera-oms-dev",
     )).toThrow("cloud_kms_mac_not_configured");
   });
+
+  it("refuses to overwrite an existing rollback backup", async () => {
+    const backupDir = resolve(
+      ".local-backups",
+      `fingerprint-test-${process.pid}-${Date.now()}`,
+    );
+    const backupFile = resolve(backupDir, "member-account-fingerprint-backup.json");
+    await mkdir(backupDir, { recursive: true });
+    await writeFile(backupFile, "original-backup\n", "utf8");
+    try {
+      await expect(writeMigrationBackup({
+        accounts: [],
+        payments: [],
+      }, backupDir)).rejects.toMatchObject({ code: "EEXIST" });
+      await expect(readFile(backupFile, "utf8")).resolves.toBe("original-backup\n");
+    } finally {
+      await rm(backupDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("refund account expiry cleanup", () => {
@@ -254,20 +374,40 @@ describe("monthly fingerprint key usage report", () => {
   it("counts member and payment references with earliest, latest, and unreferenced versions", () => {
     const report = buildFingerprintKeyUsageReport({
       memberAccounts: [
-        { id: "account-1", fingerprintKeyVersion: 2, createdAt: "2026-01-03T00:00:00.000Z" },
-        { id: "account-2", fingerprintKeyVersion: 2, createdAt: "2026-03-03T00:00:00.000Z" },
+        {
+          id: "account-1",
+          accountFingerprint: "fingerprint-account-1",
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 2,
+          createdAt: "2026-01-03T00:00:00.000Z",
+        },
+        {
+          id: "account-2",
+          accountFingerprint: "fingerprint-account-2",
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 2,
+          createdAt: "2026-03-03T00:00:00.000Z",
+        },
         { id: "account-unknown", createdAt: "2026-02-03T00:00:00.000Z" },
       ],
       payments: [
         {
           id: "payment-1",
           createdAt: "2026-02-03T00:00:00.000Z",
-          memberPaymentAccount: { fingerprintKeyVersion: 2 },
+          memberPaymentAccount: {
+            accountFingerprint: "fingerprint-payment-1",
+            fingerprintAlgorithm: "HMAC-SHA-256",
+            fingerprintKeyVersion: 2,
+          },
         },
         {
           id: "payment-2",
           createdAt: "2026-04-03T00:00:00.000Z",
-          memberPaymentAccount: { fingerprintKeyVersion: 3 },
+          memberPaymentAccount: {
+            accountFingerprint: "fingerprint-payment-2",
+            fingerprintAlgorithm: "HMAC-SHA-256",
+            fingerprintKeyVersion: 3,
+          },
         },
       ],
       knownKeyVersions: [1, 2, 3],
@@ -305,6 +445,78 @@ describe("monthly fingerprint key usage report", () => {
       paymentSnapshots: [],
     });
     expect(report.autoDisabledVersions).toEqual([]);
+    expect(JSON.stringify(report)).not.toContain("fingerprint-account");
+    expect(JSON.stringify(report)).not.toContain("fingerprint-payment");
+  });
+
+  it("classifies malformed identities separately and counts overdue references", () => {
+    const report = buildFingerprintKeyUsageReport({
+      memberAccounts: [
+        {
+          id: "account-overdue",
+          accountFingerprint: "valid-but-private",
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 2,
+          createdAt: "2025-01-01T00:00:00.000Z",
+          retentionExpiresAt: "2026-08-01T00:00:00.000Z",
+        },
+        {
+          id: "account-version-only",
+          fingerprintKeyVersion: 3,
+        },
+      ],
+      payments: [
+        {
+          id: "payment-fingerprint-only",
+          memberPaymentAccount: {
+            accountFingerprint: "missing-version",
+            fingerprintAlgorithm: "HMAC-SHA-256",
+          },
+        },
+        {
+          id: "payment-wrong-algorithm",
+          memberPaymentAccount: {
+            accountFingerprint: "private",
+            fingerprintAlgorithm: "SHA-256",
+            fingerprintKeyVersion: 4,
+          },
+        },
+      ],
+      knownKeyVersions: [2, 3, 4],
+      generatedAt: "2026-08-04T00:00:00.000Z",
+    });
+
+    expect(report.versions).toEqual([
+      expect.objectContaining({
+        fingerprintKeyVersion: 2,
+        memberAccountReferences: 1,
+        paymentSnapshotReferences: 0,
+        disposition: "retain",
+      }),
+      expect.objectContaining({
+        fingerprintKeyVersion: 3,
+        memberAccountReferences: 0,
+        paymentSnapshotReferences: 0,
+        disposition: "eligibleForEvaluation",
+      }),
+      expect.objectContaining({
+        fingerprintKeyVersion: 4,
+        memberAccountReferences: 0,
+        paymentSnapshotReferences: 0,
+        disposition: "eligibleForEvaluation",
+      }),
+    ]);
+    expect(report.unclassifiedDocuments).toEqual({
+      memberAccounts: ["account-version-only"],
+      paymentSnapshots: ["payment-fingerprint-only", "payment-wrong-algorithm"],
+    });
+    expect(report.documentStatistics).toEqual({
+      malformedMemberAccounts: 1,
+      malformedPaymentSnapshots: 2,
+      overdueMemberAccounts: 1,
+      overduePaymentSnapshots: 0,
+    });
+    expect(JSON.stringify(report)).not.toMatch(/valid-but-private|missing-version|private/);
   });
 
   it("requires an exact project confirmation", () => {
