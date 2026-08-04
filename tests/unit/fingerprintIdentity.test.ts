@@ -16,6 +16,7 @@ describe("usable fingerprint identity", () => {
     ["malformed Base64", "*".repeat(44)],
     ["wrong decoded length", "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=="],
     ["surrounding whitespace", ` ${validFingerprint}`],
+    ["trailing newline", `${validFingerprint}\n`],
     ["noncanonical pad bits", `${validFingerprint.slice(0, -2)}B=`],
   ])("rejects %s", (_label, accountFingerprint) => {
     expect(isUsableFingerprintIdentity({

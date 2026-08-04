@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   deriveAccountIdentity,
   normalizeAccountNumber,
@@ -7,6 +7,9 @@ import {
   verifyAccountIdentity,
   type CloudKmsMacClient,
 } from "@/lib/payment/accountIdentity";
+
+const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+const differentValidFingerprint = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
 
 const fakeMacClient = (latestKeyVersion = 9): CloudKmsMacClient => ({
   async signCanonicalAccount(canonical, keyVersion) {
@@ -53,25 +56,60 @@ describe("bank account identity", () => {
     const client: CloudKmsMacClient = {
       async signCanonicalAccount(canonical, keyVersion) {
         calls.push({ canonical, keyVersion });
-        return { mac: "fingerprint-base64", keyVersion: 7 };
+        return { mac: validFingerprint, keyVersion: 7 };
       },
     };
 
     await expect(deriveAccountIdentity({ bankCode: "０１２", accountNumber: "００１２-３４ ５６７８９" }, client)).resolves.toEqual({
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: "fingerprint-base64",
+      accountFingerprint: validFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
     });
     expect(calls).toEqual([{ canonical: "astera:bank-account:v1|012|00123456789", keyVersion: undefined }]);
   });
 
+  it.each([
+    ["malformed Base64", "not-base64", 7],
+    ["wrong decoded length", "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ==", 7],
+    ["invalid key version", validFingerprint, 0],
+  ])("rejects a derived identity with %s", async (_label, mac, keyVersion) => {
+    const client: CloudKmsMacClient = {
+      async signCanonicalAccount() {
+        return { mac, keyVersion };
+      },
+    };
+
+    await expect(deriveAccountIdentity(
+      { bankCode: "012", accountNumber: "00123456789" },
+      client,
+    )).rejects.toThrow("invalid_account_fingerprint");
+  });
+
+  it("rejects a malformed expected identity before signing", async () => {
+    const client: CloudKmsMacClient = {
+      signCanonicalAccount: vi.fn(),
+    };
+
+    await expect(verifyAccountIdentity({
+      bankCode: "012",
+      accountNumber: "00123456789",
+    }, {
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: "not-base64",
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 3,
+    }, client)).resolves.toBe(false);
+    expect(client.signCanonicalAccount).not.toHaveBeenCalled();
+  });
+
   it("verifies with the payment snapshot key version without mutating the expected record", async () => {
     const expected = {
       bankCode: "012",
       accountNumberLast5: "56789",
-      accountFingerprint: "wrong-fingerprint",
+      accountFingerprint: validFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256" as const,
       fingerprintKeyVersion: 3,
     };
@@ -80,7 +118,7 @@ describe("bank account identity", () => {
     const client: CloudKmsMacClient = {
       async signCanonicalAccount(canonical, keyVersion) {
         calls.push({ canonical, keyVersion });
-        return { mac: "matching-fingerprint", keyVersion: keyVersion ?? 0 };
+        return { mac: differentValidFingerprint, keyVersion: keyVersion ?? 0 };
       },
     };
 

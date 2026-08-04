@@ -119,7 +119,7 @@ describe("member account fingerprint migration", () => {
     expect(result.operations).toEqual([{
       id: "account-protected",
       action: "removeLegacyPlaintext",
-      set: {},
+      set: { verificationStatus: "verified" },
       deleteFields: ["accountNumberFull"],
     }]);
     expect(result.accountReport).toEqual([{
@@ -127,6 +127,31 @@ describe("member account fingerprint migration", () => {
       status: "wouldRemoveLegacyPlaintext",
       fingerprintKeyVersion: 3,
     }]);
+  });
+
+  it("backfills verified status for a valid pre-status identity without changing lifecycle", async () => {
+    const result = await runFingerprintMigration({
+      accounts: [{
+        id: "account-pre-verification-status",
+        bankCode: "004",
+        accountNumberLast5: "56789",
+        accountFingerprint: validFingerprint,
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 3,
+        status: "pendingDeletion",
+      }],
+      payments: [],
+      dryRun: true,
+      deriveIdentity: vi.fn(),
+    });
+
+    expect(result.operations).toEqual([{
+      id: "account-pre-verification-status",
+      action: "backfillVerificationStatus",
+      set: { verificationStatus: "verified" },
+      deleteFields: [],
+    }]);
+    expect(result.operations[0]?.set).not.toHaveProperty("status");
   });
 
   it("re-derives identity before deleting plaintext when existing fingerprint metadata is unusable", async () => {

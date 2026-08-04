@@ -193,6 +193,37 @@ describe("member payment account API contract", () => {
     );
   });
 
+  it.each([
+    ["malformed Base64", "not-base64", 7],
+    ["wrong decoded length", "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ==", 7],
+    ["invalid key version", currentFingerprint, 0],
+  ])("does not write an account or notification when KMS returns %s", async (
+    _label,
+    mac,
+    keyVersion,
+  ) => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
+    kms.signCanonicalAccount.mockResolvedValue({ mac, keyVersion });
+    const registration = createRegistrationFirestore({});
+    firestore.getAdminFirestore.mockReturnValue(registration.db);
+
+    const response = await POST(new Request(
+      "https://example.test/api/member/payment-accounts",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          bankCode: "012",
+          accountNumberFull: "00123456789",
+        }),
+      },
+    ));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: "internal_error" });
+    expect(registration.set).not.toHaveBeenCalled();
+  });
+
   it("allows a last-five collision and creates a non-blocking Owner review event", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
     kms.signCanonicalAccount.mockImplementation(async (_canonical: string, keyVersion?: number) => ({

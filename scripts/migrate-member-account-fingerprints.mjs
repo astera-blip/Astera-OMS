@@ -63,16 +63,25 @@ export async function runFingerprintMigration({
     const deleteFields = FULL_ACCOUNT_FIELDS.filter((field) =>
       Object.prototype.hasOwnProperty.call(account, field));
     if (isUsableFingerprintIdentity(account)) {
-      if (deleteFields.length > 0) {
+      const verificationStatusMissing =
+        !Object.prototype.hasOwnProperty.call(account, "verificationStatus");
+      if (deleteFields.length > 0 || verificationStatusMissing) {
+        const action = deleteFields.length > 0
+          ? "removeLegacyPlaintext"
+          : "backfillVerificationStatus";
         operations.push({
           id,
-          action: "removeLegacyPlaintext",
-          set: {},
+          action,
+          set: verificationStatusMissing
+            ? { verificationStatus: "verified" }
+            : {},
           deleteFields,
         });
         accountReport.push({
           id,
-          status: dryRun ? "wouldRemoveLegacyPlaintext" : "legacyPlaintextRemoved",
+          status: deleteFields.length > 0
+            ? dryRun ? "wouldRemoveLegacyPlaintext" : "legacyPlaintextRemoved"
+            : dryRun ? "wouldBackfillVerificationStatus" : "verificationStatusBackfilled",
           fingerprintKeyVersion: account.fingerprintKeyVersion,
         });
       } else {

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { CloudKmsMacClient } from "@/lib/security/cloudKmsMac";
+import { isUsableFingerprintIdentity } from "@/lib/payment/fingerprintIdentity.mjs";
 
 export type { CloudKmsMacClient } from "@/lib/security/cloudKmsMac";
 
@@ -52,13 +53,17 @@ export async function deriveAccountIdentity(
   const accountNumber = normalizeAccountNumber(input.accountNumber);
   const signed = await macClient.signCanonicalAccount(toCanonicalAccount(bankCode, accountNumber));
 
-  return {
+  const identity: AccountIdentity = {
     bankCode,
     accountNumberLast5: accountNumber.slice(-5),
     accountFingerprint: signed.mac,
     fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: signed.keyVersion,
   };
+  if (!isUsableFingerprintIdentity(identity)) {
+    throw new Error("invalid_account_fingerprint");
+  }
+  return identity;
 }
 
 export async function verifyAccountIdentity(
@@ -66,7 +71,7 @@ export async function verifyAccountIdentity(
   expected: AccountIdentity,
   macClient: CloudKmsMacClient,
 ): Promise<boolean> {
-  if (expected.fingerprintAlgorithm !== "HMAC-SHA-256" || !Number.isSafeInteger(expected.fingerprintKeyVersion)) {
+  if (!isUsableFingerprintIdentity(expected)) {
     return false;
   }
 
@@ -76,6 +81,13 @@ export async function verifyAccountIdentity(
     toCanonicalAccount(bankCode, accountNumber),
     expected.fingerprintKeyVersion,
   );
+  if (!isUsableFingerprintIdentity({
+    accountFingerprint: signed.mac,
+    fingerprintAlgorithm: "HMAC-SHA-256",
+    fingerprintKeyVersion: signed.keyVersion,
+  }) || signed.keyVersion !== expected.fingerprintKeyVersion) {
+    return false;
+  }
   const actualMac = Buffer.from(signed.mac, "base64");
   const expectedMac = Buffer.from(expected.accountFingerprint, "base64");
 
