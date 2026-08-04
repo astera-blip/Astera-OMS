@@ -418,7 +418,7 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(publicDb, "productsPublic/prod_003")));
   });
 
-  it("keeps notification events owner-readable and denies client writes", async () => {
+  it("keeps notification events behind Owner Server APIs", async () => {
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
@@ -458,7 +458,7 @@ describe("Day 1 Firestore rules", () => {
       });
     });
 
-    await assertSucceeds(getDoc(doc(ownerDb, "notificationEvents/notif_order_001")));
+    await assertFails(getDoc(doc(ownerDb, "notificationEvents/notif_order_001")));
     await assertFails(getDoc(doc(memberDb, "notificationEvents/notif_order_001")));
   });
 
@@ -772,9 +772,12 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(publicDb, "socialLinks/lineCommunity")));
   });
 
-  it("denies client cancellation request writes while preserving owner reads", async () => {
+  it("denies every Client SDK role access to cancellation requests that may contain ciphertext", async () => {
+    const anonymousDb = testEnv.unauthenticatedContext().firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
-    const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
+    const helperDb = testEnv
+      .authenticatedContext("helper-a", { role: "helper" })
+      .firestore();
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
@@ -793,7 +796,7 @@ describe("Day 1 Firestore rules", () => {
     );
 
     await assertFails(
-      setDoc(doc(otherMemberDb, "cancellationRequests/cancel-b"), {
+      setDoc(doc(helperDb, "cancellationRequests/cancel-b"), {
         id: "cancel-b",
         orderId: "order-a",
         orderItemIds: ["item-a"],
@@ -801,7 +804,7 @@ describe("Day 1 Firestore rules", () => {
         reason: "不需要了",
         status: "pending",
         createdAt: serverTimestamp(),
-        createdBy: "member-b",
+        createdBy: "helper-a",
       }),
     );
 
@@ -813,12 +816,25 @@ describe("Day 1 Firestore rules", () => {
         memberUid: "member-a",
         reason: "不需要了",
         status: "pending",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+        refundAccountCiphertext: "kms-ciphertext",
+        refundEncryptionKeyVersion: 4,
+        refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
         createdAt: serverTimestamp(),
         createdBy: "member-a",
       });
     });
 
-    await assertSucceeds(getDoc(doc(ownerDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(anonymousDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(memberDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(helperDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(ownerDb, "cancellationRequests/cancel-a")));
+    await assertFails(
+      setDoc(doc(ownerDb, "cancellationRequests/cancel-a"), {
+        status: "approved",
+      }, { merge: true }),
+    );
   });
 
   it("keeps member private notes owner-readable and denies client writes", async () => {

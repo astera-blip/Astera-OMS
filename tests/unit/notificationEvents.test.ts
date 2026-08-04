@@ -1,12 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildDuplicateAccountNotificationEvent,
+  buildDuplicateAccountOutcomeTransition,
   createOrderCreatedNotificationEvent,
   createPaymentConfirmedNotificationEvent,
   markNotificationEventFailed,
   markNotificationEventSent,
+  sanitizeOwnerNotificationEvent,
 } from "../../src/lib/notification/events";
+import { POST as updateNotification } from "../../src/app/api/workspace/notifications/[id]/retry/route";
+
+const notificationRoute = vi.hoisted(() => ({
+  getAdminFirestore: vi.fn(),
+  requireFirebaseUser: vi.fn(),
+  isOwnerClaim: vi.fn(),
+  attemptNotificationDelivery: vi.fn(),
+}));
+
+vi.mock("@/lib/firebase/admin", () => ({
+  getAdminFirestore: notificationRoute.getAdminFirestore,
+}));
+
+vi.mock("@/lib/firebase/serverAuth", () => ({
+  requireFirebaseUser: notificationRoute.requireFirebaseUser,
+  isOwnerClaim: notificationRoute.isOwnerClaim,
+}));
+
+vi.mock("@/lib/notification/delivery", () => ({
+  attemptNotificationDelivery: notificationRoute.attemptNotificationDelivery,
+}));
 
 describe("notification events", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it("creates a pending Resend order-created notification event", () => {
     expect(
       createOrderCreatedNotificationEvent({
@@ -116,5 +143,270 @@ describe("notification events", () => {
       providerMessageId: "resend_msg_001",
     });
     expect(sent).not.toHaveProperty("lastError");
+  });
+
+  it("builds a duplicate-account event with only account IDs and masked identity metadata", () => {
+    const event = buildDuplicateAccountNotificationEvent({
+      id: "duplicate-1",
+      type: "memberPaymentAccount.last5Collision",
+      accountIds: ["account-old", "account-new"],
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      actorUid: "member-a",
+      createdAt: "2026-08-04T00:00:00.000Z",
+    });
+
+    expect(event).toEqual({
+      id: "duplicate-1",
+      type: "memberPaymentAccount.last5Collision",
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        accountIds: ["account-old", "account-new"],
+        bankCode: "012",
+        accountNumberLast5: "56789",
+      },
+      createdAt: "2026-08-04T00:00:00.000Z",
+      createdBy: "member-a",
+      updatedAt: "2026-08-04T00:00:00.000Z",
+      updatedBy: "member-a",
+    });
+    expect(JSON.stringify(event)).not.toMatch(
+      /accountNumberFull|accountFingerprint|canonical|ciphertext|encryptionKey/i,
+    );
+  });
+
+  it.each(["confirmedDifferent", "confirmedDuplicate"] as const)(
+    "creates an immutable duplicate outcome transition for %s",
+    (outcome) => {
+      const original = buildDuplicateAccountNotificationEvent({
+        id: "duplicate-1",
+        type: "memberPaymentAccount.exactDuplicate",
+        accountIds: ["account-old", "account-new"],
+        bankCode: "012",
+        accountNumberLast5: "56789",
+        actorUid: "member-a",
+        createdAt: "2026-08-04T00:00:00.000Z",
+      });
+
+      const transition = buildDuplicateAccountOutcomeTransition(original, {
+        outcome,
+        actorUid: "owner-a",
+        actedAt: "2026-08-04T00:05:00.000Z",
+      });
+
+      expect(transition.eventUpdate).toEqual({
+        status: outcome,
+        outcome,
+        reviewedAt: "2026-08-04T00:05:00.000Z",
+        reviewedBy: "owner-a",
+        updatedAt: "2026-08-04T00:05:00.000Z",
+        updatedBy: "owner-a",
+      });
+      expect(transition.audit).toEqual({
+        action: "memberPaymentAccount.duplicateReviewed",
+        actorUid: "owner-a",
+        targetType: "notificationEvent",
+        targetId: "duplicate-1",
+        result: outcome,
+        createdAt: "2026-08-04T00:05:00.000Z",
+      });
+      expect(original.status).toBe("pendingReview");
+      expect(transition).not.toHaveProperty("memberPaymentAccountUpdate");
+    },
+  );
+
+  it("sanitizes Owner notification lists without provider diagnostics or private duplicate fields", () => {
+    const emailSnapshot = sanitizeOwnerNotificationEvent({
+      ...createOrderCreatedNotificationEvent({
+        id: "notif-order",
+        memberUid: "member-a",
+        recipientEmail: "member@example.com",
+        orderId: "order-a",
+        paymentRequestId: "request-a",
+        createdAt: "2026-08-04T00:00:00.000Z",
+      }),
+      status: "failed",
+      lastError: "raw provider response with Bearer secret",
+      providerMessageId: "provider-message-id",
+      deliveryLockId: "private-lock",
+      deliveryLockUntil: "2026-08-04T00:10:00.000Z",
+    });
+    const duplicateSnapshot = sanitizeOwnerNotificationEvent({
+      ...buildDuplicateAccountNotificationEvent({
+        id: "duplicate-1",
+        type: "memberPaymentAccount.exactDuplicate",
+        accountIds: ["account-old", "account-new"],
+        bankCode: "012",
+        accountNumberLast5: "56789",
+        actorUid: "member-a",
+        createdAt: "2026-08-04T00:00:00.000Z",
+      }),
+      unexpectedCiphertext: "kms-ciphertext",
+      canonicalInput: "astera:bank-account:v1|012|00123456789",
+    });
+
+    expect(emailSnapshot).toMatchObject({
+      id: "notif-order",
+      type: "order.created",
+      status: "failed",
+      deliveryIssue: "deliveryFailed",
+    });
+    expect(emailSnapshot).not.toHaveProperty("provider");
+    expect(emailSnapshot).not.toHaveProperty("lastError");
+    expect(emailSnapshot).not.toHaveProperty("providerMessageId");
+    expect(emailSnapshot).not.toHaveProperty("deliveryLockId");
+    expect(duplicateSnapshot).toEqual({
+      id: "duplicate-1",
+      type: "memberPaymentAccount.exactDuplicate",
+      status: "pendingReview",
+      accountIds: ["account-old", "account-new"],
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      createdAt: "2026-08-04T00:00:00.000Z",
+      updatedAt: "2026-08-04T00:00:00.000Z",
+    });
+    expect(JSON.stringify(duplicateSnapshot)).not.toMatch(
+      /ciphertext|canonical|fingerprint|accountNumberFull/i,
+    );
+  });
+});
+
+describe("Owner duplicate-account notification API", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    notificationRoute.requireFirebaseUser.mockResolvedValue({ uid: "owner-a", role: "owner" });
+    notificationRoute.isOwnerClaim.mockReturnValue(true);
+  });
+
+  it("records an Owner outcome as an event transition plus immutable audit without touching accounts", async () => {
+    const event = buildDuplicateAccountNotificationEvent({
+      id: "duplicate-1",
+      type: "memberPaymentAccount.exactDuplicate",
+      accountIds: ["account-old", "account-new"],
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      actorUid: "member-a",
+      createdAt: "2026-08-04T00:00:00.000Z",
+    });
+    const refs: string[] = [];
+    const eventUpdate = vi.fn();
+    const auditCreate = vi.fn();
+    const db = {
+      collection: vi.fn((name: string) => {
+        refs.push(name);
+        return {
+          doc: vi.fn((id = `generated-${name}`) => ({ collection: name, id })),
+        };
+      }),
+      runTransaction: vi.fn(async (callback: (transaction: unknown) => unknown) =>
+        callback({
+          get: vi.fn().mockResolvedValue({
+            exists: true,
+            data: () => event,
+          }),
+          update: eventUpdate,
+          create: auditCreate,
+        })),
+    };
+    notificationRoute.getAdminFirestore.mockReturnValue(db);
+
+    const response = await updateNotification(
+      new Request("https://example.test/api/workspace/notifications/duplicate-1/retry", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ outcome: "confirmedDuplicate" }),
+      }),
+      { params: Promise.resolve({ id: "duplicate-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id: "duplicate-1",
+      status: "confirmedDuplicate",
+      outcome: "confirmedDuplicate",
+    });
+    expect(eventUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "notificationEvents", id: "duplicate-1" }),
+      expect.objectContaining({
+        status: "confirmedDuplicate",
+        outcome: "confirmedDuplicate",
+        reviewedBy: "owner-a",
+      }),
+    );
+    expect(auditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "auditLogs" }),
+      expect.objectContaining({
+        action: "memberPaymentAccount.duplicateReviewed",
+        actorUid: "owner-a",
+        targetId: "duplicate-1",
+        result: "confirmedDuplicate",
+      }),
+    );
+    expect(refs).not.toContain("memberPaymentAccounts");
+  });
+
+  it("requires the Owner custom claim for duplicate outcomes", async () => {
+    notificationRoute.requireFirebaseUser.mockResolvedValue({ uid: "helper-a", role: "helper" });
+    notificationRoute.isOwnerClaim.mockReturnValue(false);
+
+    const response = await updateNotification(
+      new Request("https://example.test/api/workspace/notifications/duplicate-1/retry", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ outcome: "confirmedDifferent" }),
+      }),
+      { params: Promise.resolve({ id: "duplicate-1" }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(notificationRoute.getAdminFirestore).not.toHaveBeenCalled();
+  });
+});
+
+describe("Owner notification list API", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    notificationRoute.requireFirebaseUser.mockResolvedValue({ uid: "owner-a", role: "owner" });
+    notificationRoute.isOwnerClaim.mockReturnValue(true);
+  });
+
+  it("returns an allowlisted list through the custom-claim protected Server API", async () => {
+    notificationRoute.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({
+        get: vi.fn().mockResolvedValue({
+          docs: [{
+            id: "notif-order",
+            data: () => ({
+              ...createOrderCreatedNotificationEvent({
+                id: "notif-order",
+                memberUid: "member-a",
+                recipientEmail: "member@example.com",
+                orderId: "order-a",
+                paymentRequestId: "request-a",
+                createdAt: "2026-08-04T00:00:00.000Z",
+              }),
+              status: "failed",
+              lastError: "raw provider response",
+              providerMessageId: "provider-id",
+            }),
+          }],
+        }),
+      })),
+    });
+    const { GET } = await import("../../src/app/api/workspace/notifications/route");
+
+    const response = await GET(new Request("https://example.test/api/workspace/notifications"));
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.notifications).toEqual([
+      expect.objectContaining({
+        id: "notif-order",
+        status: "failed",
+        deliveryIssue: "deliveryFailed",
+      }),
+    ]);
+    expect(JSON.stringify(payload)).not.toMatch(/raw provider response|provider-id|lastError/);
   });
 });

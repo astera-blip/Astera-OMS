@@ -3,6 +3,10 @@ import {
   normalizeBankCode,
   type AccountIdentity,
 } from "@/lib/payment/accountIdentity";
+import type {
+  DuplicateAccountNotificationEvent,
+  DuplicateAccountNotificationStatus,
+} from "@/lib/notification/events";
 
 export type MemberPaymentAccountStatus = "active" | "pendingDeletion" | "inactive";
 
@@ -33,27 +37,8 @@ export type PublicMemberPaymentAccount = {
   status: MemberPaymentAccountStatus;
 };
 
-export type MemberPaymentAccountDuplicateReviewStatus =
-  | "pendingReview"
-  | "confirmedDifferent"
-  | "confirmedDuplicate";
-
-export type MemberPaymentAccountDuplicateNotification = {
-  id: string;
-  type:
-    | "memberPaymentAccount.exactDuplicate"
-    | "memberPaymentAccount.last5Collision";
-  audience: "owner";
-  status: MemberPaymentAccountDuplicateReviewStatus;
-  payload: {
-    accountIds: string[];
-    accountNumberMasked: string;
-  };
-  createdAt?: unknown;
-  createdBy: string;
-  updatedAt?: unknown;
-  updatedBy: string;
-};
+export type MemberPaymentAccountDuplicateReviewStatus = DuplicateAccountNotificationStatus;
+export type MemberPaymentAccountDuplicateNotification = DuplicateAccountNotificationEvent;
 
 export type NormalizedMemberPaymentAccountInput = {
   bankCode: string;

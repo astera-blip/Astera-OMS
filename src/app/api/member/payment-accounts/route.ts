@@ -5,12 +5,12 @@ import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { deriveAccountIdentity, verifyAccountIdentity } from "@/lib/payment/accountIdentity";
 import {
   buildMemberPaymentAccountSnapshot,
-  maskMemberAccountNumber,
   memberPaymentAccountErrorMessage,
   validateMemberPaymentAccountInput,
   type MemberPaymentAccount,
   type MemberPaymentAccountDuplicateNotification,
 } from "@/lib/payment/memberBankAccounts";
+import { buildDuplicateAccountNotificationEvent } from "@/lib/notification/events";
 import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
 
 const collectionName = "memberPaymentAccounts";
@@ -106,20 +106,16 @@ export async function POST(request: Request) {
           continue;
         }
         const notificationRef = db.collection("notificationEvents").doc();
-        const notification: MemberPaymentAccountDuplicateNotification = {
+        const notification: MemberPaymentAccountDuplicateNotification =
+          buildDuplicateAccountNotificationEvent({
           id: notificationRef.id,
           type: group.type,
-          audience: "owner",
-          status: "pendingReview",
-          payload: {
-            accountIds: [...new Set([...group.accountIds, ref.id])],
-            accountNumberMasked: maskMemberAccountNumber(identity.accountNumberLast5),
-          },
+          accountIds: [...new Set([...group.accountIds, ref.id])],
+          bankCode: identity.bankCode,
+          accountNumberLast5: identity.accountNumberLast5,
+          actorUid: claims.uid,
           createdAt: FieldValue.serverTimestamp(),
-          createdBy: claims.uid,
-          updatedAt: FieldValue.serverTimestamp(),
-          updatedBy: claims.uid,
-        };
+        });
         transaction.set(notificationRef, notification);
       }
 

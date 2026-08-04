@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { NotificationEvent } from "@/lib/notification/events";
+import type {
+  DuplicateAccountNotificationOutcome,
+  OwnerDuplicateNotificationSnapshot,
+  OwnerEmailNotificationSnapshot,
+  OwnerNotificationSnapshot,
+} from "@/lib/notification/events";
 import type { OrderBundle } from "@/lib/order/checkout";
 import { getPaymentAccountLast5 } from "@/lib/payment/manualBankTransfer";
 import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
@@ -12,7 +17,7 @@ export function PaymentOperationsBoard() {
   const [orders, setOrders] = useState<OrderBundle[]>([]);
   const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
   const [payments, setPayments] = useState<LocalPayment[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEvent[]>([]);
+  const [notificationEvents, setNotificationEvents] = useState<OwnerNotificationSnapshot[]>([]);
   const [selectedPaymentId, setSelectedPaymentId] = useState("");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -47,23 +52,34 @@ export function PaymentOperationsBoard() {
       }
 
       setStatus("loading");
-      const [{ collection, getDocs }, { db }, { listAllOrders }, { listAllPaymentRequests, listAllPayments }] = await Promise.all([
-        import("firebase/firestore"),
+      const [{ auth, db }, { listAllOrders }, { listAllPaymentRequests, listAllPayments }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/order/repository"),
         import("@/lib/payment/repository"),
       ]);
-      const [firestoreOrders, firestoreRequests, firestorePayments, notificationSnapshot] = await Promise.all([
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error("missing_token");
+      }
+      const [firestoreOrders, firestoreRequests, firestorePayments, notificationResponse] = await Promise.all([
         listAllOrders(db),
         listAllPaymentRequests(db),
         listAllPayments(db),
-        getDocs(collection(db, "notificationEvents")),
+        fetch("/api/workspace/notifications", {
+          headers: { authorization: `Bearer ${token}` },
+        }),
       ]);
+      if (!notificationResponse.ok) {
+        throw new Error("notification_list_failed");
+      }
+      const notificationPayload = await notificationResponse.json() as {
+        notifications?: OwnerNotificationSnapshot[];
+      };
 
       setOrders(firestoreOrders);
       setRequests(firestoreRequests);
       setPayments(firestorePayments);
-      setNotificationEvents(notificationSnapshot.docs.map((document) => document.data() as NotificationEvent));
+      setNotificationEvents(notificationPayload.notifications ?? []);
       setSelectedPaymentId(firestorePayments.find((payment) => payment.status === "pendingReview")?.id ?? firestorePayments[0]?.id ?? "");
       setStatus("ready");
     }
@@ -221,7 +237,7 @@ export function PaymentOperationsBoard() {
     }
   }
 
-  async function retryNotification(event: NotificationEvent) {
+  async function retryNotification(event: OwnerEmailNotificationSnapshot) {
     try {
       const { auth } = await import("@/lib/firebase/client");
       const token = await auth.currentUser?.getIdToken();
@@ -235,31 +251,69 @@ export function PaymentOperationsBoard() {
         headers: { authorization: `Bearer ${token}` },
       });
 
-      const payload = (await response.json().catch(() => null)) as Partial<NotificationEvent> & { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        status?: "pending" | "sent" | "failed";
+        attemptCount?: number;
+        error?: string;
+      } | null;
       if (!response.ok || !payload) {
         throw new Error(payload?.error ?? "retry_failed");
       }
 
       setNotificationEvents((current) =>
-        current.map((item) =>
-          item.id === event.id
-            ? {
-                ...item,
-                status: payload.status ?? item.status,
-                attemptCount: payload.attemptCount ?? item.attemptCount,
-                ...(payload.providerMessageId ? { providerMessageId: payload.providerMessageId } : {}),
-                ...(payload.lastError ? { lastError: payload.lastError } : {}),
-              }
-            : item,
-        ),
+        current.map((item) => {
+          if (item.id !== event.id || isDuplicateNotification(item)) {
+            return item;
+          }
+          return {
+            ...item,
+            status: payload.status ?? item.status,
+            attemptCount: payload.attemptCount ?? item.attemptCount,
+          };
+        }),
       );
       setMessage(
         payload.status === "sent"
           ? `通知 ${event.id} 已送出。`
-          : `通知 ${event.id} 尚未送出：${payload.lastError ?? "請確認 Resend 設定。"}`,
+          : `通知 ${event.id} 尚未送出，請確認寄送設定。`,
       );
     } catch {
       setMessage("通知重試失敗，請稍後再試。");
+    }
+  }
+
+  async function reviewDuplicateNotification(
+    eventId: string,
+    outcome: DuplicateAccountNotificationOutcome,
+  ) {
+    try {
+      const { auth } = await import("@/lib/firebase/client");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        setMessage("請重新登入後再處理帳戶提醒。");
+        return;
+      }
+      const response = await fetch(`/api/workspace/notifications/${eventId}/retry`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ outcome }),
+      });
+      if (!response.ok) {
+        throw new Error("duplicate_review_failed");
+      }
+      const payload = await response.json() as OwnerNotificationSnapshot;
+      setNotificationEvents((current) =>
+        current.map((event) => event.id === eventId ? payload : event));
+      setMessage(
+        outcome === "confirmedDuplicate"
+          ? "已記錄為重複帳戶；帳戶狀態未自動變更。"
+          : "已記錄為不同帳戶。",
+      );
+    } catch {
+      setMessage("帳戶提醒處理失敗，請稍後再試。");
     }
   }
 
@@ -422,36 +476,74 @@ export function PaymentOperationsBoard() {
             <p className="mt-4 text-sm text-slate-600">目前沒有通知事件。</p>
           ) : (
             <div className="mt-4 grid gap-3 text-sm">
-              {notificationEvents.map((event) => (
-                <div key={event.id} className="rounded-2xl bg-slate-50 p-3">
-                  <p className="font-semibold">
-                    {event.type === "order.created" ? "訂單成立通知" : "付款確認通知"}
-                  </p>
-                  <p className="mt-1 text-slate-600">
-                    {event.status === "pending"
-                      ? "等待寄送"
-                      : event.status === "sent"
-                        ? "已寄送"
-                        : "寄送失敗"}
-                    {" · 嘗試次數 "}
-                    {event.attemptCount}
-                    {" · "}
-                    {event.recipientEmail}
-                  </p>
-                  {event.lastError ? (
-                    <p className="mt-1 text-rose-700">{event.lastError}</p>
-                  ) : null}
-                  {event.status !== "sent" ? (
-                    <button
-                      type="button"
-                      onClick={() => void retryNotification(event)}
-                      className="mt-3 rounded-full border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
-                    >
-                      重試寄送
-                    </button>
-                  ) : null}
-                </div>
-              ))}
+              {notificationEvents.map((event) => {
+                if (isDuplicateNotification(event)) {
+                  return (
+                    <div key={event.id} className="rounded-2xl bg-amber-100 p-3">
+                      <p className="font-semibold">可能重複匯款帳戶</p>
+                      <p className="mt-1 text-slate-700">
+                        銀行 {event.bankCode} · 末五碼 {event.accountNumberLast5}
+                      </p>
+                      <p className="mt-1 break-all text-slate-600">
+                        帳戶 ID：{event.accountIds.join("、")}
+                      </p>
+                      {event.status === "pendingReview" ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void reviewDuplicateNotification(event.id, "confirmedDifferent")}
+                            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-medium"
+                          >
+                            確認為不同帳戶
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void reviewDuplicateNotification(event.id, "confirmedDuplicate")}
+                            className="rounded-full border border-amber-400 bg-white px-3 py-2 text-xs font-medium"
+                          >
+                            確認為重複帳戶
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs font-medium text-amber-800">
+                          {event.status === "confirmedDuplicate" ? "已確認重複" : "已確認不同"}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={event.id} className="rounded-2xl bg-slate-50 p-3">
+                    <p className="font-semibold">
+                      {event.type === "order.created" ? "訂單成立通知" : "付款確認通知"}
+                    </p>
+                    <p className="mt-1 text-slate-600">
+                      {event.status === "pending"
+                        ? "等待寄送"
+                        : event.status === "sent"
+                          ? "已寄送"
+                          : "寄送失敗"}
+                      {" · 嘗試次數 "}
+                      {event.attemptCount}
+                      {" · "}
+                      {event.recipientEmail}
+                    </p>
+                    {event.deliveryIssue ? (
+                      <p className="mt-1 text-rose-700">寄送失敗，詳細資訊僅保留於伺服器紀錄。</p>
+                    ) : null}
+                    {event.status !== "sent" ? (
+                      <button
+                        type="button"
+                        onClick={() => void retryNotification(event)}
+                        className="mt-3 rounded-full border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700"
+                      >
+                        重試寄送
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -467,4 +559,11 @@ function OwnerOnlyMessage({ text }: { text: string }) {
       <p className="mt-2 text-sm text-slate-600">{text}</p>
     </section>
   );
+}
+
+function isDuplicateNotification(
+  event: OwnerNotificationSnapshot,
+): event is OwnerDuplicateNotificationSnapshot {
+  return event.type === "memberPaymentAccount.exactDuplicate"
+    || event.type === "memberPaymentAccount.last5Collision";
 }

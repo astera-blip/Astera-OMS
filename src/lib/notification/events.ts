@@ -1,4 +1,13 @@
 export type NotificationEventType = "order.created" | "payment.confirmed";
+export type DuplicateAccountNotificationType =
+  | "memberPaymentAccount.exactDuplicate"
+  | "memberPaymentAccount.last5Collision";
+export type DuplicateAccountNotificationOutcome =
+  | "confirmedDifferent"
+  | "confirmedDuplicate";
+export type DuplicateAccountNotificationStatus =
+  | "pendingReview"
+  | DuplicateAccountNotificationOutcome;
 
 export type NotificationEvent = {
   id: string;
@@ -21,6 +30,164 @@ export type NotificationEvent = {
   deliveryLockUntil?: string;
   message: string;
 };
+
+export type DuplicateAccountNotificationEvent = {
+  id: string;
+  type: DuplicateAccountNotificationType;
+  audience: "owner";
+  status: DuplicateAccountNotificationStatus;
+  payload: {
+    accountIds: string[];
+    bankCode: string;
+    accountNumberLast5: string;
+  };
+  createdAt: unknown;
+  createdBy: string;
+  updatedAt: unknown;
+  updatedBy: string;
+  outcome?: DuplicateAccountNotificationOutcome;
+  reviewedAt?: unknown;
+  reviewedBy?: string;
+};
+
+export type OwnerEmailNotificationSnapshot = {
+  id: string;
+  type: NotificationEventType;
+  status: NotificationEvent["status"];
+  memberUid: string;
+  recipientEmail: string;
+  orderId: string;
+  orderNumber?: string;
+  paymentRequestId: string;
+  paymentId?: string;
+  createdAt: unknown;
+  attemptCount: number;
+  lastAttemptAt?: unknown;
+  message: string;
+  deliveryIssue?: "deliveryFailed";
+};
+
+export type OwnerDuplicateNotificationSnapshot = {
+  id: string;
+  type: DuplicateAccountNotificationType;
+  status: DuplicateAccountNotificationStatus;
+  accountIds: string[];
+  bankCode: string;
+  accountNumberLast5: string;
+  createdAt: unknown;
+  updatedAt: unknown;
+  outcome?: DuplicateAccountNotificationOutcome;
+  reviewedAt?: unknown;
+  reviewedBy?: string;
+};
+
+export type OwnerNotificationSnapshot =
+  | OwnerEmailNotificationSnapshot
+  | OwnerDuplicateNotificationSnapshot;
+
+export function buildDuplicateAccountNotificationEvent(input: {
+  id: string;
+  type: DuplicateAccountNotificationType;
+  accountIds: string[];
+  bankCode: string;
+  accountNumberLast5: string;
+  actorUid: string;
+  createdAt: unknown;
+}): DuplicateAccountNotificationEvent {
+  if (!/^\d{3}$/.test(input.bankCode) || !/^\d{5}$/.test(input.accountNumberLast5)) {
+    throw new Error("invalid_duplicate_account_identity");
+  }
+
+  return {
+    id: input.id,
+    type: input.type,
+    audience: "owner",
+    status: "pendingReview",
+    payload: {
+      accountIds: [...new Set(input.accountIds)],
+      bankCode: input.bankCode,
+      accountNumberLast5: input.accountNumberLast5,
+    },
+    createdAt: input.createdAt,
+    createdBy: input.actorUid,
+    updatedAt: input.createdAt,
+    updatedBy: input.actorUid,
+  };
+}
+
+export function buildDuplicateAccountOutcomeTransition(
+  event: DuplicateAccountNotificationEvent,
+  input: {
+    outcome: DuplicateAccountNotificationOutcome;
+    actorUid: string;
+    actedAt: string;
+  },
+) {
+  if (event.status !== "pendingReview") {
+    throw new Error("notification_already_reviewed");
+  }
+
+  return {
+    eventUpdate: {
+      status: input.outcome,
+      outcome: input.outcome,
+      reviewedAt: input.actedAt,
+      reviewedBy: input.actorUid,
+      updatedAt: input.actedAt,
+      updatedBy: input.actorUid,
+    },
+    audit: {
+      action: "memberPaymentAccount.duplicateReviewed" as const,
+      actorUid: input.actorUid,
+      targetType: "notificationEvent" as const,
+      targetId: event.id,
+      result: input.outcome,
+      createdAt: input.actedAt,
+    },
+  };
+}
+
+export function sanitizeOwnerNotificationEvent(
+  value: NotificationEvent | DuplicateAccountNotificationEvent | Record<string, unknown>,
+): OwnerNotificationSnapshot {
+  if (
+    value.type === "memberPaymentAccount.exactDuplicate"
+    || value.type === "memberPaymentAccount.last5Collision"
+  ) {
+    const event = value as DuplicateAccountNotificationEvent;
+    return {
+      id: event.id,
+      type: event.type,
+      status: event.status,
+      accountIds: [...event.payload.accountIds],
+      bankCode: event.payload.bankCode,
+      accountNumberLast5: event.payload.accountNumberLast5,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+      ...(event.outcome ? { outcome: event.outcome } : {}),
+      ...(event.reviewedAt ? { reviewedAt: event.reviewedAt } : {}),
+      ...(event.reviewedBy ? { reviewedBy: event.reviewedBy } : {}),
+    };
+  }
+
+  const event = value as NotificationEvent;
+  return {
+    id: event.id,
+    type: event.type,
+    status: event.status,
+    memberUid: event.memberUid,
+    recipientEmail: event.recipientEmail,
+    orderId: event.orderId,
+    ...(event.orderNumber ? { orderNumber: event.orderNumber } : {}),
+    paymentRequestId: event.paymentRequestId,
+    ...(event.paymentId ? { paymentId: event.paymentId } : {}),
+    createdAt: event.createdAt,
+    attemptCount: event.attemptCount,
+    ...(event.lastAttemptAt ? { lastAttemptAt: event.lastAttemptAt } : {}),
+    message: event.message,
+    ...(event.status === "failed" ? { deliveryIssue: "deliveryFailed" as const } : {}),
+  };
+}
 
 export function createOrderCreatedNotificationEvent(input: {
   id: string;

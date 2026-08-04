@@ -154,7 +154,8 @@ describe("member payment account API contract", () => {
       status: "pendingReview",
       payload: {
         accountIds: ["account-old-match", "account-new"],
-        accountNumberMasked: "***56789",
+        bankCode: "012",
+        accountNumberLast5: "56789",
       },
       createdBy: "member-new",
       updatedBy: "member-new",
@@ -170,7 +171,8 @@ describe("member payment account API contract", () => {
       status: "pendingReview",
       payload: {
         accountIds: ["account-same-last5", "account-new"],
-        accountNumberMasked: "***56789",
+        bankCode: "012",
+        accountNumberLast5: "56789",
       },
     });
     expect(JSON.stringify(collisionEventWrite)).not.toContain("accountNumberFull");
@@ -226,7 +228,8 @@ describe("member payment account API contract", () => {
       status: "pendingReview",
       payload: {
         accountIds: ["account-same-last5", "account-new"],
-        accountNumberMasked: "***56789",
+        bankCode: "012",
+        accountNumberLast5: "56789",
       },
     });
     expect(JSON.stringify(collisionEventWrite)).not.toContain("accountNumberFull");

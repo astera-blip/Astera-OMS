@@ -192,7 +192,10 @@ function createPaidCancellationFirestore(options: {
 }
 
 describe("refund account protected APIs", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.REFUND_RATE_LIMIT_HASH_SECRET = "task-5-regression-test-secret-at-least-32-bytes";
+  });
 
   it("allows only an Owner claim to reveal the unexpired full account", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "owner-a", role: "owner" });
@@ -636,6 +639,9 @@ describe("refund account protected APIs", () => {
     firestore.getAdminFirestore.mockReturnValue({
       collection: vi.fn((name: string) => ({
         doc: vi.fn((id: string) => refs[`${name}/${id}`]),
+        where: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({ docs: [] }),
+        })),
       })),
       runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
     });
@@ -732,6 +738,9 @@ describe("refund account protected APIs", () => {
     firestore.getAdminFirestore.mockReturnValue({
       collection: vi.fn((name: string) => ({
         doc: vi.fn(() => name === "payments" ? paymentRef : requestRef),
+        where: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({ docs: [] }),
+        })),
       })),
       runTransaction: vi.fn(async (callback: (value: never) => unknown) => callback(transaction as never)),
     });
@@ -935,13 +944,17 @@ describe("refund account protected APIs", () => {
       cancellationRequests: [{
         id: "cancel-private",
         orderId: "order-paid",
+        orderItemIds: ["item-paid"],
         memberUid: "member-a",
+        reason: "paid cancellation",
         status: "pending",
         refundBankCode: "012",
         refundAccountLast5: "56789",
         refundAccountCiphertext: "ciphertext-secret",
         refundEncryptionKeyVersion: 4,
         refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+        createdAt: "2026-08-04T00:00:00.000Z",
+        createdBy: "member-a",
       }],
     };
     firestore.getAdminFirestore.mockReturnValue({

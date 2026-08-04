@@ -192,11 +192,38 @@ function normalizeCancellationRequestRecord(
 export function sanitizeCancellationRequest(
   record: CancellationRequestRecord,
 ): CancellationRequestRecord {
-  const safeRecord = { ...record };
-  delete safeRecord.refundAccountCiphertext;
-  delete safeRecord.refundEncryptionKeyVersion;
-  delete safeRecord.refundAccountExpiresAt;
-  return safeRecord;
+  return {
+    id: record.id,
+    orderId: record.orderId,
+    orderItemIds: [...record.orderItemIds],
+    memberUid: record.memberUid,
+    reason: record.reason,
+    status: record.status,
+    createdAt: record.createdAt,
+    createdBy: record.createdBy,
+    ...(record.reviewedAt !== undefined ? { reviewedAt: record.reviewedAt } : {}),
+    ...(record.reviewedBy !== undefined ? { reviewedBy: record.reviewedBy } : {}),
+    ...(record.reviewNote !== undefined ? { reviewNote: record.reviewNote } : {}),
+    ...(record.refundAmountTwd !== undefined ? { refundAmountTwd: record.refundAmountTwd } : {}),
+    ...(record.refundCompletedAt !== undefined
+      ? { refundCompletedAt: record.refundCompletedAt }
+      : {}),
+    ...(record.refundReference !== undefined ? { refundReference: record.refundReference } : {}),
+    ...(record.targetPaymentId !== undefined ? { targetPaymentId: record.targetPaymentId } : {}),
+    ...(record.targetPaymentRequestId !== undefined
+      ? { targetPaymentRequestId: record.targetPaymentRequestId }
+      : {}),
+    ...(record.refundRequestedAmountTwd !== undefined
+      ? { refundRequestedAmountTwd: record.refundRequestedAmountTwd }
+      : {}),
+    ...(record.refundItemAllocations !== undefined
+      ? { refundItemAllocations: record.refundItemAllocations.map((item) => ({ ...item })) }
+      : {}),
+    ...(record.refundBankCode !== undefined ? { refundBankCode: record.refundBankCode } : {}),
+    ...(record.refundAccountLast5 !== undefined
+      ? { refundAccountLast5: record.refundAccountLast5 }
+      : {}),
+  };
 }
 
 function normalizeFirestoreTimestamp(value: unknown): string {

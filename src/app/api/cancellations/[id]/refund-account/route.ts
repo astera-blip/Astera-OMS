@@ -7,7 +7,11 @@ import { normalizeAccountNumber, normalizeBankCode } from "@/lib/payment/account
 import type { LocalPayment } from "@/lib/payment/manualBankTransfer";
 import { encryptRefundAccount } from "@/lib/payment/refundAccountVault";
 import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
-import { appendRefundVerificationFailure } from "@/lib/order/refundVerificationAttempts";
+import {
+  appendRefundVerificationFailure,
+  buildRefundVerificationScopes,
+  readRefundVerificationCooldown,
+} from "@/lib/order/refundVerificationAttempts";
 
 type RefundAccountResubmissionRequest = Omit<CancellationRequestRecord, "status"> & {
   status: "needsReverification";
@@ -50,6 +54,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (payment.memberUid !== claims.uid || payment.status !== "confirmed") {
       throw new Error("forbidden");
     }
+    const verificationScopes = buildRefundVerificationScopes({
+      requestId: id,
+      memberUid: claims.uid,
+      requestIp: getRequestIp(request),
+    });
+    const cooldown = await readRefundVerificationCooldown({
+      db,
+      scopes: verificationScopes,
+    });
+    if (cooldown.limited) {
+      throw new Error("refund_account_rate_limited");
+    }
     const macClient = new CloudKmsMac();
     const verification = await verifyRefundAccountForPayment({
       refundBankCode,
@@ -66,10 +82,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         appendRefundVerificationFailure({
           transaction,
           db,
-          macClient,
-          requestId: id,
-          memberUid: claims.uid,
-          requestIp: getRequestIp(request),
+          scopes: verificationScopes,
           verification: verification === "needsReverification"
             ? "needsReverification"
             : "mismatch",

@@ -20,7 +20,11 @@ import type {
 } from "@/lib/payment/manualBankTransfer";
 import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
 import { encryptRefundAccount } from "@/lib/payment/refundAccountVault";
-import { appendRefundVerificationFailure } from "@/lib/order/refundVerificationAttempts";
+import {
+  appendRefundVerificationFailure,
+  buildRefundVerificationScopes,
+  readRefundVerificationCooldownInTransaction,
+} from "@/lib/order/refundVerificationAttempts";
 
 type CancellationRequestBody = {
   orderId?: string;
@@ -98,6 +102,19 @@ export async function POST(request: Request) {
         ) {
           throw new Error("forbidden");
         }
+        const verificationScopes = buildRefundVerificationScopes({
+          requestId,
+          memberUid: claims.uid,
+          requestIp,
+        });
+        const cooldown = await readRefundVerificationCooldownInTransaction({
+          transaction,
+          db,
+          scopes: verificationScopes,
+        });
+        if (cooldown.limited) {
+          return { error: "refund_account_rate_limited" };
+        }
         const macClient = new CloudKmsMac();
         const verification = await verifyRefundAccountForPayment({
           refundBankCode,
@@ -109,10 +126,7 @@ export async function POST(request: Request) {
           const rateLimited = await appendRefundVerificationFailure({
             transaction,
             db,
-            macClient,
-            requestId,
-            memberUid: claims.uid,
-            requestIp,
+            scopes: verificationScopes,
             verification,
           });
           return { error: rateLimited ? "refund_account_rate_limited" : "refund_account_mismatch" };
@@ -225,6 +239,19 @@ export async function POST(request: Request) {
           throw new Error("refund_payment_allocation_exceeded");
         }
 
+        const verificationScopes = buildRefundVerificationScopes({
+          requestId,
+          memberUid: claims.uid,
+          requestIp,
+        });
+        const cooldown = await readRefundVerificationCooldownInTransaction({
+          transaction,
+          db,
+          scopes: verificationScopes,
+        });
+        if (cooldown.limited) {
+          return { error: "refund_account_rate_limited" };
+        }
         const macClient = new CloudKmsMac();
         const verification = await verifyRefundAccountForPayment({
           refundBankCode,
@@ -236,10 +263,7 @@ export async function POST(request: Request) {
           const rateLimited = await appendRefundVerificationFailure({
             transaction,
             db,
-            macClient,
-            requestId,
-            memberUid: claims.uid,
-            requestIp,
+            scopes: verificationScopes,
             verification,
           });
           return {

@@ -27,16 +27,28 @@ export function OrderOperationsBoard() {
       }
 
       setStatus("loading");
-      const [{ db }, { listAllOrders, listCancellationRequests }] = await Promise.all([
+      const [{ auth, db }, { listAllOrders }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/order/repository"),
       ]);
-      const [nextOrders, nextCancellationRequests] = await Promise.all([
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error("missing_token");
+      }
+      const [nextOrders, cancellationResponse] = await Promise.all([
         listAllOrders(db),
-        listCancellationRequests(db),
+        fetch("/api/workspace/cancellations", {
+          headers: { authorization: `Bearer ${token}` },
+        }),
       ]);
+      if (!cancellationResponse.ok) {
+        throw new Error("cancellation_list_failed");
+      }
+      const cancellationPayload = await cancellationResponse.json() as {
+        requests?: CancellationRequestRecord[];
+      };
       setOrders(nextOrders);
-      setCancellationRequests(nextCancellationRequests);
+      setCancellationRequests(cancellationPayload.requests ?? []);
       setStatus("ready");
     }
 
