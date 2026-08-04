@@ -1,9 +1,16 @@
+import { createHmac } from "node:crypto";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 const useEmulatedAuth = process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true";
 const password = "Password123!";
+const memberAccountFingerprint = createHmac(
+  "sha256",
+  "e2e-fingerprint-key-version-7",
+)
+  .update("astera:bank-account:v1|012|00123412345")
+  .digest("base64");
 
 test("member checkout splits by campaign and payment/cancellation APIs preserve ledger state", async ({
   request,
@@ -130,6 +137,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
         bankCode: string;
         accountNumberLast5: string;
         accountFingerprint: string;
+        fingerprintAlgorithm: string;
         fingerprintKeyVersion: number;
       };
       manualFingerprintReviewRequired?: boolean;
@@ -140,7 +148,8 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect(paymentPayload.payment.memberPaymentAccount).toEqual({
     bankCode: "012",
     accountNumberLast5: "12345",
-    accountFingerprint: "e2e-member-account-fingerprint",
+    accountFingerprint: memberAccountFingerprint,
+    fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: 7,
   });
   expect(paymentPayload.payment.manualFingerprintReviewRequired).toBe(false);
@@ -174,7 +183,8 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect(paymentAfterReverse.data()?.memberPaymentAccount).toEqual({
     bankCode: "012",
     accountNumberLast5: "12345",
-    accountFingerprint: "e2e-member-account-fingerprint",
+    accountFingerprint: memberAccountFingerprint,
+    fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: 7,
   });
 
@@ -244,25 +254,46 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect(exactConfirmResponse.ok()).toBe(true);
 
   const paidItems = await listOrderItems(orderForPaidCancellation.orderId);
-  const paidCancelResponse = await request.post("/api/cancellations", {
-    headers: authorized(memberToken),
-    data: {
-      orderId: orderForPaidCancellation.orderId,
-      orderItemIds: paidItems.map((item) => item.id),
-      reason: "E2E 已付款取消",
-      idempotencyKey: `e2e_paid_cancel_request_${runKey}`,
-    },
+  const paidCancelRequestId = `cancel_seeded_refund_${runKey}`;
+  const refundAccountExpiresAt = new Date(
+    Date.now() + 14 * 24 * 60 * 60 * 1000 - 60_000,
+  ).toISOString();
+  await Promise.all(paidItems.map((item) =>
+    db.collection("orderItems").doc(item.id).update({
+      status: "cancelRequested",
+      updatedAt: new Date(),
+      updatedBy: "member-e2e",
+    })));
+  await db.collection("cancellationRequests").doc(paidCancelRequestId).set({
+    id: paidCancelRequestId,
+    orderId: orderForPaidCancellation.orderId,
+    orderItemIds: paidItems.map((item) => item.id),
+    memberUid: "member-e2e",
+    reason: "E2E 已付款取消",
+    targetPaymentId: exactPayment.payment.id,
+    targetPaymentRequestId: orderForPaidCancellation.paymentRequestId,
+    refundRequestedAmountTwd: orderForPaidCancellation.totalTwd,
+    refundItemAllocations: paidItems.map((item) => ({
+      orderItemId: item.id,
+      amountTwd: orderForPaidCancellation.totalTwd,
+    })),
+    refundBankCode: "012",
+    refundAccountLast5: "12345",
+    refundAccountCiphertext: Buffer.from("kms-encrypted-e2e-refund-account").toString("base64"),
+    refundEncryptionKeyVersion: 4,
+    refundAccountExpiresAt,
+    status: "pending",
+    createdAt: new Date(),
+    createdBy: "member-e2e",
   });
-  expect(paidCancelResponse.ok()).toBe(true);
-  const paidCancel = await paidCancelResponse.json() as {
-    requestId: string;
-    directlyCancelledItemIds: string[];
-    pendingReviewItemIds: string[];
-  };
-  expect(paidCancel.directlyCancelledItemIds).toEqual([]);
-  expect(paidCancel.pendingReviewItemIds).toEqual(paidItems.map((item) => item.id));
+  const pendingCancellation = await db.collection("cancellationRequests")
+    .doc(paidCancelRequestId)
+    .get();
+  expect(pendingCancellation.data()?.refundAccountExpiresAt).toBe(refundAccountExpiresAt);
+  expect(Date.parse(refundAccountExpiresAt) - Date.now())
+    .toBeLessThanOrEqual(14 * 24 * 60 * 60 * 1000);
 
-  const reviewResponse = await request.post(`/api/workspace/cancellations/${paidCancel.requestId}/review`, {
+  const reviewResponse = await request.post(`/api/workspace/cancellations/${paidCancelRequestId}/review`, {
     headers: authorized(ownerToken),
     data: {
       status: "approved",
@@ -275,9 +306,25 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect(reviewResponse.ok()).toBe(true);
   expect(await reviewResponse.json()).toMatchObject({
     status: "approved",
-    orderStatus: "cancelled",
+    orderStatus: "refunded",
     amountTwd: 0,
   });
+  const [reviewedCancellation, refundedOrder, refundAdjustment, refundAudit] = await Promise.all([
+    db.collection("cancellationRequests").doc(paidCancelRequestId).get(),
+    db.collection("orders").doc(orderForPaidCancellation.orderId).get(),
+    db.collection("paymentAllocations").doc(`adj_refund_${paidCancelRequestId}`).get(),
+    db.collection("auditLogs").doc(`audit_refund_${paidCancelRequestId}`).get(),
+  ]);
+  expect(reviewedCancellation.data()).not.toHaveProperty("refundAccountCiphertext");
+  expect(reviewedCancellation.data()).not.toHaveProperty("refundEncryptionKeyVersion");
+  expect(reviewedCancellation.data()).not.toHaveProperty("refundAccountExpiresAt");
+  expect(refundedOrder.data()?.status).toBe("refunded");
+  expect(refundAdjustment.data()).toMatchObject({
+    paymentId: exactPayment.payment.id,
+    kind: "adjustment",
+    amountTwd: -orderForPaidCancellation.totalTwd,
+  });
+  expect(refundAudit.exists).toBe(true);
 });
 
 function getAdminDb() {

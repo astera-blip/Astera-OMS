@@ -1,9 +1,14 @@
+import { createHmac } from "node:crypto";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 const projectId = "demo-astera-oms";
 const password = "Password123!";
+const fingerprintKeyVersion = 7;
+const fingerprintKey = "e2e-fingerprint-key-version-7";
+const exactAccountNumber = "00123456789";
+const collisionAccountNumber = "00999956789";
 
 export default async function globalSetup() {
   if (process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS !== "true") {
@@ -41,6 +46,12 @@ export default async function globalSetup() {
       displayName: "Member Duplicate E2E",
       role: "member",
     }),
+    seedUser(auth, {
+      uid: "helper-e2e",
+      email: "helper-e2e@example.test",
+      displayName: "Helper E2E",
+      role: "helper",
+    }),
   ]);
 
   await Promise.all([
@@ -74,6 +85,16 @@ export default async function globalSetup() {
       createdAt: new Date(),
       updatedAt: new Date(),
     }),
+    db.collection("members").doc("helper-e2e").set({
+      uid: "helper-e2e",
+      email: "helper-e2e@example.test",
+      displayName: "Helper E2E",
+      communityId: "helper-e2e",
+      mobilePhone: "0933333333",
+      completedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
   ]);
 
   await Promise.all([
@@ -95,15 +116,39 @@ export default async function globalSetup() {
       memberUid: "member-e2e",
       bankCode: "012",
       accountNumberLast5: "12345",
-      accountFingerprint: "e2e-member-account-fingerprint",
+      accountFingerprint: fingerprintFor("012", "00123412345"),
       fingerprintAlgorithm: "HMAC-SHA-256",
-      fingerprintKeyVersion: 7,
+      fingerprintKeyVersion,
+      verificationStatus: "verified",
       status: "active",
       createdAt: new Date(),
       createdBy: "system",
       updatedAt: new Date(),
       updatedBy: "system",
     }),
+    db.collection("memberPaymentAccounts").doc("member-a-exact-e2e").set(
+      accountFixture("member-a-exact-e2e", "member-e2e", exactAccountNumber),
+    ),
+    db.collection("memberPaymentAccounts").doc("member-b-exact-e2e").set(
+      accountFixture("member-b-exact-e2e", "member-duplicate-e2e", exactAccountNumber),
+    ),
+    db.collection("memberPaymentAccounts").doc("member-b-collision-e2e").set(
+      accountFixture("member-b-collision-e2e", "member-duplicate-e2e", collisionAccountNumber),
+    ),
+    db.collection("notificationEvents").doc("member-account-exact-duplicate-e2e").set(
+      duplicateNotificationFixture(
+        "member-account-exact-duplicate-e2e",
+        "memberPaymentAccount.exactDuplicate",
+        ["member-a-exact-e2e", "member-b-exact-e2e"],
+      ),
+    ),
+    db.collection("notificationEvents").doc("member-account-last5-collision-e2e").set(
+      duplicateNotificationFixture(
+        "member-account-last5-collision-e2e",
+        "memberPaymentAccount.last5Collision",
+        ["member-a-exact-e2e", "member-b-collision-e2e"],
+      ),
+    ),
     db.collection("productsInternal").doc("prod_e2e_flow").set({
       id: "prod_e2e_flow",
       sku: "AST-P999001",
@@ -185,7 +230,7 @@ export default async function globalSetup() {
 
 async function seedUser(
   auth: ReturnType<typeof getAuth>,
-  input: { uid: string; email: string; displayName: string; role: "owner" | "member" },
+  input: { uid: string; email: string; displayName: string; role: "owner" | "helper" | "member" },
 ) {
   try {
     await auth.updateUser(input.uid, {
@@ -206,4 +251,50 @@ async function seedUser(
   }
 
   await auth.setCustomUserClaims(input.uid, { role: input.role });
+}
+
+function accountFixture(id: string, memberUid: string, accountNumber: string) {
+  return {
+    id,
+    memberUid,
+    bankCode: "012",
+    accountNumberLast5: accountNumber.slice(-5),
+    accountFingerprint: fingerprintFor("012", accountNumber),
+    fingerprintAlgorithm: "HMAC-SHA-256",
+    fingerprintKeyVersion,
+    verificationStatus: "verified",
+    status: "active",
+    createdAt: new Date(),
+    createdBy: "system",
+    updatedAt: new Date(),
+    updatedBy: "system",
+  };
+}
+
+function fingerprintFor(bankCode: string, accountNumber: string) {
+  return createHmac("sha256", fingerprintKey)
+    .update(`astera:bank-account:v1|${bankCode}|${accountNumber}`)
+    .digest("base64");
+}
+
+function duplicateNotificationFixture(
+  id: string,
+  type: "memberPaymentAccount.exactDuplicate" | "memberPaymentAccount.last5Collision",
+  accountIds: string[],
+) {
+  return {
+    id,
+    type,
+    audience: "owner",
+    status: "pendingReview",
+    payload: {
+      accountIds,
+      bankCode: "012",
+      accountNumberLast5: exactAccountNumber.slice(-5),
+    },
+    createdAt: new Date(),
+    createdBy: "system",
+    updatedAt: new Date(),
+    updatedBy: "system",
+  };
 }

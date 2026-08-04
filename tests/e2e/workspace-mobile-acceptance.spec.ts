@@ -13,7 +13,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
   await page.getByLabel("Email").fill("owner-e2e@example.test");
   await page.getByLabel("Password").fill("Password123!");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Operations Workspace" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
 
   for (const path of [
     "/workspace/products",
@@ -23,7 +23,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
     "/workspace/content",
   ]) {
     await page.goto(path);
-    await expect(page.getByRole("heading", { name: "Operations Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
     const hasOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
@@ -41,4 +41,36 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
     classificationHasOverflow,
     "Classification management should fit the Pixel 7 viewport",
   ).toBe(false);
+});
+
+test("helper mobile workspace hides high-risk payment, member, and audit navigation", async ({
+  page,
+}, testInfo) => {
+  test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-mobile", "Pixel 7 acceptance only.");
+
+  await page.goto("/e2e-auth?next=/workspace");
+  await page.getByLabel("Email").fill("helper-e2e@example.test");
+  await page.getByLabel("Password").fill("Password123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "商品 Products" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "訂單 Orders" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "會員 Members" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "付款 Payments" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "稽核紀錄 Audit Logs" })).toHaveCount(0);
+});
+
+test("member mobile session cannot enter the workspace", async ({ page }, testInfo) => {
+  test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-mobile", "Pixel 7 acceptance only.");
+
+  await page.goto("/e2e-auth?next=/workspace");
+  await page.getByLabel("Email").fill("member-e2e@example.test");
+  await page.getByLabel("Password").fill("Password123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
+  await expect(page.getByText("請使用 owner 或 helper 帳號進入工作區。")).toBeVisible();
 });
