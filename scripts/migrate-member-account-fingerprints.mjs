@@ -174,6 +174,24 @@ function mapFullWidthDigits(value) {
     String.fromCharCode(digit.charCodeAt(0) - 0xFEE0));
 }
 
+export function assertHmacKeyNameForProject(keyName, project) {
+  const parts = typeof keyName === "string" ? keyName.split("/") : [];
+  if (
+    parts.length !== 8
+    || parts[0] !== "projects"
+    || parts[1] !== project
+    || parts[2] !== "locations"
+    || !parts[3]
+    || parts[4] !== "keyRings"
+    || !parts[5]
+    || parts[6] !== "cryptoKeys"
+    || !parts[7]
+  ) {
+    throw new Error("cloud_kms_mac_not_configured");
+  }
+  return keyName;
+}
+
 async function createKmsIdentityDeriver(project) {
   const keyName = process.env.GCP_KMS_HMAC_KEY_NAME?.trim();
   const keyVersion = Number(process.env.GCP_KMS_HMAC_KEY_VERSION);
@@ -181,10 +199,10 @@ async function createKmsIdentityDeriver(project) {
     !keyName
     || !Number.isSafeInteger(keyVersion)
     || keyVersion < 1
-    || !keyName.includes(`/projects/${project}/`)
   ) {
     throw new Error("cloud_kms_mac_not_configured");
   }
+  assertHmacKeyNameForProject(keyName, project);
   const { KeyManagementServiceClient } = await import("@google-cloud/kms");
   const kms = new KeyManagementServiceClient({ projectId: project });
   return async ({ bankCode, accountNumber }) => {

@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { assertHmacKeyNameForProject } from "./migrate-member-account-fingerprints.mjs";
 
 export function parseKeyUsageArgs(argv) {
   const values = parseNamedArgs(argv);
@@ -148,9 +149,10 @@ async function loadUsageData(db) {
 
 async function listKnownKeyVersions(project) {
   const keyName = process.env.GCP_KMS_HMAC_KEY_NAME?.trim();
-  if (!keyName || !keyName.includes(`/projects/${project}/`)) {
+  if (!keyName) {
     throw new Error("cloud_kms_mac_not_configured");
   }
+  assertHmacKeyNameForProject(keyName, project);
   const { KeyManagementServiceClient } = await import("@google-cloud/kms");
   const kms = new KeyManagementServiceClient({ projectId: project });
   const [versions] = await kms.listCryptoKeyVersions({ parent: keyName });

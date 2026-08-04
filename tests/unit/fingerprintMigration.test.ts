@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  assertHmacKeyNameForProject,
   buildSafeMigrationOutput,
   parseMigrationArgs,
   runFingerprintMigration,
@@ -186,6 +187,17 @@ describe("member account fingerprint migration", () => {
       "--confirm-project", "astera-oms-dev",
       "--apply",
     ])).toThrow("project_confirmation_mismatch");
+  });
+
+  it("accepts only a complete HMAC key resource in the confirmed project", () => {
+    const keyName =
+      "projects/astera-oms-prod/locations/global/keyRings/account/cryptoKeys/fingerprint";
+
+    expect(assertHmacKeyNameForProject(keyName, "astera-oms-prod")).toBe(keyName);
+    expect(() => assertHmacKeyNameForProject(
+      keyName,
+      "astera-oms-dev",
+    )).toThrow("cloud_kms_mac_not_configured");
   });
 });
 
