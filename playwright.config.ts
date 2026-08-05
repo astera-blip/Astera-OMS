@@ -24,7 +24,7 @@ export default defineConfig({
     : {
         command: "npm.cmd run dev",
         url: "http://127.0.0.1:3000",
-        reuseExistingServer: true,
+        reuseExistingServer: !useFirebaseEmulators,
         timeout: 120_000,
         env: process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true"
           ? {
@@ -35,6 +35,8 @@ export default defineConfig({
               FIREBASE_STORAGE_EMULATOR_HOST: "127.0.0.1:9199",
               GCLOUD_PROJECT: "demo-astera-oms",
               GOOGLE_CLOUD_PROJECT: "demo-astera-oms",
+              REFUND_RATE_LIMIT_HASH_SECRET:
+                "e2e-refund-rate-limit-secret-32-characters",
             }
           : undefined,
       },

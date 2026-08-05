@@ -6,9 +6,11 @@ import { getFirestore } from "firebase-admin/firestore";
 const projectId = "demo-astera-oms";
 const password = "Password123!";
 const fingerprintKeyVersion = 7;
-const fingerprintKey = "e2e-fingerprint-key-version-7";
+const fingerprintKeys = new Map([
+  [3, "e2e-fingerprint-key-version-3"],
+  [7, "e2e-fingerprint-key-version-7"],
+]);
 const exactAccountNumber = "00123456789";
-const collisionAccountNumber = "00999956789";
 
 export default async function globalSetup() {
   if (process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS !== "true") {
@@ -127,27 +129,7 @@ export default async function globalSetup() {
       updatedBy: "system",
     }),
     db.collection("memberPaymentAccounts").doc("member-a-exact-e2e").set(
-      accountFixture("member-a-exact-e2e", "member-e2e", exactAccountNumber),
-    ),
-    db.collection("memberPaymentAccounts").doc("member-b-exact-e2e").set(
-      accountFixture("member-b-exact-e2e", "member-duplicate-e2e", exactAccountNumber),
-    ),
-    db.collection("memberPaymentAccounts").doc("member-b-collision-e2e").set(
-      accountFixture("member-b-collision-e2e", "member-duplicate-e2e", collisionAccountNumber),
-    ),
-    db.collection("notificationEvents").doc("member-account-exact-duplicate-e2e").set(
-      duplicateNotificationFixture(
-        "member-account-exact-duplicate-e2e",
-        "memberPaymentAccount.exactDuplicate",
-        ["member-a-exact-e2e", "member-b-exact-e2e"],
-      ),
-    ),
-    db.collection("notificationEvents").doc("member-account-last5-collision-e2e").set(
-      duplicateNotificationFixture(
-        "member-account-last5-collision-e2e",
-        "memberPaymentAccount.last5Collision",
-        ["member-a-exact-e2e", "member-b-collision-e2e"],
-      ),
+      accountFixture("member-a-exact-e2e", "member-e2e", exactAccountNumber, 3),
     ),
     db.collection("productsInternal").doc("prod_e2e_flow").set({
       id: "prod_e2e_flow",
@@ -253,15 +235,20 @@ async function seedUser(
   await auth.setCustomUserClaims(input.uid, { role: input.role });
 }
 
-function accountFixture(id: string, memberUid: string, accountNumber: string) {
+function accountFixture(
+  id: string,
+  memberUid: string,
+  accountNumber: string,
+  keyVersion = fingerprintKeyVersion,
+) {
   return {
     id,
     memberUid,
     bankCode: "012",
     accountNumberLast5: accountNumber.slice(-5),
-    accountFingerprint: fingerprintFor("012", accountNumber),
+    accountFingerprint: fingerprintFor("012", accountNumber, keyVersion),
     fingerprintAlgorithm: "HMAC-SHA-256",
-    fingerprintKeyVersion,
+    fingerprintKeyVersion: keyVersion,
     verificationStatus: "verified",
     status: "active",
     createdAt: new Date(),
@@ -271,30 +258,16 @@ function accountFixture(id: string, memberUid: string, accountNumber: string) {
   };
 }
 
-function fingerprintFor(bankCode: string, accountNumber: string) {
-  return createHmac("sha256", fingerprintKey)
+function fingerprintFor(
+  bankCode: string,
+  accountNumber: string,
+  keyVersion = fingerprintKeyVersion,
+) {
+  const key = fingerprintKeys.get(keyVersion);
+  if (!key) {
+    throw new Error("unknown_e2e_fingerprint_key");
+  }
+  return createHmac("sha256", key)
     .update(`astera:bank-account:v1|${bankCode}|${accountNumber}`)
     .digest("base64");
-}
-
-function duplicateNotificationFixture(
-  id: string,
-  type: "memberPaymentAccount.exactDuplicate" | "memberPaymentAccount.last5Collision",
-  accountIds: string[],
-) {
-  return {
-    id,
-    type,
-    audience: "owner",
-    status: "pendingReview",
-    payload: {
-      accountIds,
-      bankCode: "012",
-      accountNumberLast5: exactAccountNumber.slice(-5),
-    },
-    createdAt: new Date(),
-    createdBy: "system",
-    updatedAt: new Date(),
-    updatedBy: "system",
-  };
 }

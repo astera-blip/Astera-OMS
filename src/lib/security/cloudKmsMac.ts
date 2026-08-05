@@ -1,4 +1,9 @@
 import { KeyManagementServiceClient } from "@google-cloud/kms";
+import {
+  createEmulatorKmsMacSigner,
+  emulatorKmsMacConfig,
+  isEmulatorKmsProviderEnabled,
+} from "@/lib/security/emulatorKmsProvider";
 
 export type CloudKmsMacClient = {
   signCanonicalAccount(canonical: string, keyVersion?: number): Promise<{ mac: string; keyVersion: number }>;
@@ -16,7 +21,10 @@ export class CloudKmsMac implements CloudKmsMacClient {
   private readonly config: CloudKmsMacConfig;
   private readonly kms: KmsMacSigner;
 
-  constructor(config = getCloudKmsMacConfig(), kms = new KeyManagementServiceClient({ projectId: config.projectId })) {
+  constructor(
+    config = getCloudKmsMacConfig(),
+    kms = createKmsMacSigner(config),
+  ) {
     this.config = config;
     this.kms = kms;
   }
@@ -46,6 +54,9 @@ export class CloudKmsMac implements CloudKmsMacClient {
 }
 
 export function getCloudKmsMacConfig(env: NodeJS.ProcessEnv = process.env): CloudKmsMacConfig {
+  if (isEmulatorKmsProviderEnabled(env)) {
+    return emulatorKmsMacConfig(env);
+  }
   const projectId = env.GCP_PROJECT_ID?.trim();
   const keyName = env.GCP_KMS_HMAC_KEY_NAME?.trim();
   const keyVersion = Number(env.GCP_KMS_HMAC_KEY_VERSION);
@@ -55,6 +66,13 @@ export function getCloudKmsMacConfig(env: NodeJS.ProcessEnv = process.env): Clou
   }
 
   return { projectId, keyName, keyVersion };
+}
+
+function createKmsMacSigner(config: CloudKmsMacConfig): KmsMacSigner {
+  if (isEmulatorKmsProviderEnabled()) {
+    return createEmulatorKmsMacSigner() as KmsMacSigner;
+  }
+  return new KeyManagementServiceClient({ projectId: config.projectId });
 }
 
 function keyVersionFromResourceName(resourceName: string | null | undefined): number | undefined {

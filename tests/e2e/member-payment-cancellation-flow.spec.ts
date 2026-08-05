@@ -17,6 +17,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
 }, testInfo) => {
   test.setTimeout(90_000);
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-desktop", "Server API flow runs once.");
 
   const db = getAdminDb();
   const runKey = `${testInfo.project.name}_${Date.now()}`
@@ -254,44 +255,105 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect(exactConfirmResponse.ok()).toBe(true);
 
   const paidItems = await listOrderItems(orderForPaidCancellation.orderId);
-  const paidCancelRequestId = `cancel_seeded_refund_${runKey}`;
-  const refundAccountExpiresAt = new Date(
-    Date.now() + 14 * 24 * 60 * 60 * 1000 - 60_000,
-  ).toISOString();
-  await Promise.all(paidItems.map((item) =>
-    db.collection("orderItems").doc(item.id).update({
-      status: "cancelRequested",
-      updatedAt: new Date(),
-      updatedBy: "member-e2e",
-    })));
-  await db.collection("cancellationRequests").doc(paidCancelRequestId).set({
-    id: paidCancelRequestId,
-    orderId: orderForPaidCancellation.orderId,
-    orderItemIds: paidItems.map((item) => item.id),
-    memberUid: "member-e2e",
-    reason: "E2E 已付款取消",
-    targetPaymentId: exactPayment.payment.id,
-    targetPaymentRequestId: orderForPaidCancellation.paymentRequestId,
-    refundRequestedAmountTwd: orderForPaidCancellation.totalTwd,
-    refundItemAllocations: paidItems.map((item) => ({
-      orderItemId: item.id,
-      amountTwd: orderForPaidCancellation.totalTwd,
-    })),
-    refundBankCode: "012",
-    refundAccountLast5: "12345",
-    refundAccountCiphertext: Buffer.from("kms-encrypted-e2e-refund-account").toString("base64"),
-    refundEncryptionKeyVersion: 4,
-    refundAccountExpiresAt,
-    status: "pending",
-    createdAt: new Date(),
-    createdBy: "member-e2e",
+  const mismatchAuditsBefore = await db.collection("auditLogs")
+    .where("action", "==", "refund.account.mismatch")
+    .get();
+  const mismatchStatuses: number[] = [];
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const mismatchResponse = await request.post("/api/cancellations", {
+      headers: {
+        ...authorized(memberToken),
+        "x-forwarded-for": "203.0.113.27",
+      },
+      data: {
+        orderId: orderForPaidCancellation.orderId,
+        orderItemIds: paidItems.map((item) => item.id),
+        reason: "E2E 錯誤退款帳戶",
+        idempotencyKey: `e2e_refund_mismatch_${runKey}`,
+        targetPaymentId: exactPayment.payment.id,
+        refundBankCode: "012",
+        refundAccountNumberFull: "00999912345",
+      },
+    });
+    mismatchStatuses.push(mismatchResponse.status());
+    expect(JSON.stringify(await mismatchResponse.json()))
+      .not.toContain("00999912345");
+  }
+  expect(mismatchStatuses).toEqual([400, 400, 400, 400, 400, 429]);
+
+  const [mismatchAuditsAfter, allocationsAfterMismatch] = await Promise.all([
+    db.collection("auditLogs")
+      .where("action", "==", "refund.account.mismatch")
+      .get(),
+    db.collection("paymentAllocations")
+      .where("paymentId", "==", exactPayment.payment.id)
+      .get(),
+  ]);
+  expect(mismatchAuditsAfter.size - mismatchAuditsBefore.size).toBe(5);
+  expect(allocationsAfterMismatch.docs
+    .filter((snapshot) => snapshot.data().kind === "adjustment")).toHaveLength(0);
+  expect(JSON.stringify(mismatchAuditsAfter.docs.map((snapshot) => snapshot.data())))
+    .not.toMatch(/00999912345|accountNumber|fingerprint|ciphertext/i);
+
+  const paidCancelResponse = await request.post("/api/cancellations", {
+    headers: {
+      ...authorized(memberToken),
+      "x-forwarded-for": "203.0.113.28",
+    },
+    data: {
+      orderId: orderForPaidCancellation.orderId,
+      orderItemIds: paidItems.map((item) => item.id),
+      reason: "E2E 已付款取消",
+      idempotencyKey: `e2e_paid_cancel_request_${runKey}`,
+      targetPaymentId: exactPayment.payment.id,
+      refundBankCode: "012",
+      refundAccountNumberFull: "00123412345",
+    },
   });
+  expect(paidCancelResponse.ok()).toBe(true);
+  const paidCancel = await paidCancelResponse.json() as {
+    requestId: string;
+    directlyCancelledItemIds: string[];
+    pendingReviewItemIds: string[];
+  };
+  expect(paidCancel.directlyCancelledItemIds).toEqual([]);
+  expect(paidCancel.pendingReviewItemIds).toEqual(paidItems.map((item) => item.id));
+  expect(JSON.stringify(paidCancel)).not.toContain("00123412345");
+  const paidCancelRequestId = paidCancel.requestId;
+
   const pendingCancellation = await db.collection("cancellationRequests")
     .doc(paidCancelRequestId)
     .get();
-  expect(pendingCancellation.data()?.refundAccountExpiresAt).toBe(refundAccountExpiresAt);
+  const refundAccountExpiresAt = String(
+    pendingCancellation.data()?.refundAccountExpiresAt ?? "",
+  );
+  expect(pendingCancellation.data()).toMatchObject({
+    refundBankCode: "012",
+    refundAccountLast5: "12345",
+    refundEncryptionKeyVersion: 4,
+  });
+  expect(pendingCancellation.data()).not.toHaveProperty("refundAccountNumberFull");
+  expect(Date.parse(refundAccountExpiresAt) - Date.now()).toBeGreaterThan(0);
   expect(Date.parse(refundAccountExpiresAt) - Date.now())
     .toBeLessThanOrEqual(14 * 24 * 60 * 60 * 1000);
+
+  const revealResponse = await request.get(
+    `/api/workspace/cancellations/${paidCancelRequestId}/refund-account`,
+    { headers: authorized(ownerToken) },
+  );
+  expect(revealResponse.ok()).toBe(true);
+  await expect(revealResponse.json()).resolves.toEqual({
+    refundAccount: {
+      bankCode: "012",
+      accountNumberFull: "00123412345",
+      expiresAt: refundAccountExpiresAt,
+    },
+  });
+  const revealAudits = await db.collection("auditLogs")
+    .where("targetId", "==", paidCancelRequestId)
+    .get();
+  expect(revealAudits.docs.map((snapshot) => snapshot.data().action))
+    .toContain("refund.account.revealed");
 
   const reviewResponse = await request.post(`/api/workspace/cancellations/${paidCancelRequestId}/review`, {
     headers: authorized(ownerToken),

@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import {
@@ -11,13 +11,9 @@ import {
 import { buildMemberPaymentAccountSnapshot } from "@/lib/payment/memberBankAccounts";
 import { buildMemberPaymentAccountIdentitySnapshot } from "@/lib/payment/manualBankTransfer";
 import { verifyRefundAccountForPayment } from "@/lib/order/cancellation";
-import {
-  appendRefundVerificationFailure,
-  buildRefundVerificationScopes,
-  readRefundVerificationCooldown,
-} from "@/lib/order/refundVerificationAttempts";
 
 const useEmulatedAuth = process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true";
+const password = "Password123!";
 const exactAccountNumber = "00123456789";
 const collisionAccountNumber = "00999956789";
 const fakeKeys = new Map([
@@ -25,73 +21,110 @@ const fakeKeys = new Map([
   [7, "e2e-fingerprint-key-version-7"],
 ]);
 
-test("seeds labeled owner, helper, member A, and member B account identities", async () => {
+test("member API registers cross-version exact duplicates and last-five collisions without exposing full accounts", async ({
+  request,
+}, testInfo) => {
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-desktop", "Server API flow runs once.");
 
   const db = getAdminDb();
-  const snapshots = await Promise.all([
-    db.collection("memberPaymentAccounts").doc("member-a-exact-e2e").get(),
-    db.collection("memberPaymentAccounts").doc("member-b-exact-e2e").get(),
-    db.collection("memberPaymentAccounts").doc("member-b-collision-e2e").get(),
+  const [memberToken, ownerToken] = await Promise.all([
+    signIn(request, "member-duplicate-e2e@example.test"),
+    signIn(request, "owner-e2e@example.test"),
   ]);
-
-  expect(snapshots.every((snapshot) => snapshot.exists)).toBe(true);
-  const [memberA, memberBExact, memberBCollision] = snapshots.map(
-    (snapshot) => snapshot.data() as Record<string, unknown>,
-  );
-  expect(memberA.accountFingerprint).toBe(memberBExact.accountFingerprint);
-  expect(memberA.accountFingerprint).not.toBe(memberBCollision.accountFingerprint);
-  expect(memberA).toMatchObject({
-    bankCode: "012",
-    accountNumberLast5: "56789",
-    fingerprintAlgorithm: "HMAC-SHA-256",
-    fingerprintKeyVersion: 7,
+  const exactResponse = await request.post("/api/member/payment-accounts", {
+    headers: authorized(memberToken),
+    data: {
+      bankCode: "012",
+      accountNumberFull: exactAccountNumber,
+    },
   });
-  for (const account of [memberA, memberBExact, memberBCollision]) {
-    expect(account).not.toHaveProperty("accountNumberFull");
-  }
-});
+  expect(exactResponse.status()).toBe(201);
+  const exactPayload = await exactResponse.json() as {
+    account: Record<string, unknown>;
+    warning?: string;
+  };
+  expect(exactPayload).toMatchObject({
+    account: {
+      bankCode: "012",
+      accountNumberMasked: "***56789",
+      accountNumberLast5: "56789",
+      verificationStatus: "verified",
+    },
+    warning: "member_payment_account_duplicate_review_pending",
+  });
+  expect(JSON.stringify(exactPayload)).not.toMatch(
+    /00123456789|accountNumberFull|accountFingerprint|canonical/i,
+  );
 
-test("member binding output and duplicate notifications never expose the full account", async () => {
-  test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  const collisionResponse = await request.post("/api/member/payment-accounts", {
+    headers: authorized(memberToken),
+    data: {
+      bankCode: "012",
+      accountNumberFull: collisionAccountNumber,
+    },
+  });
+  expect(collisionResponse.status()).toBe(201);
+  const collisionPayload = await collisionResponse.json() as {
+    account: Record<string, unknown>;
+    warning?: string;
+  };
+  expect(collisionPayload.warning).toBe("member_payment_account_duplicate_review_pending");
+  expect(JSON.stringify(collisionPayload)).not.toMatch(
+    /00999956789|accountNumberFull|accountFingerprint|canonical/i,
+  );
 
-  const db = getAdminDb();
-  const [accountSnapshot, exactEvent, collisionEvent] = await Promise.all([
-    db.collection("memberPaymentAccounts").doc("member-a-exact-e2e").get(),
-    db.collection("notificationEvents").doc("member-account-exact-duplicate-e2e").get(),
-    db.collection("notificationEvents").doc("member-account-last5-collision-e2e").get(),
+  const [storedAccounts, ownerNotificationsResponse] = await Promise.all([
+    db.collection("memberPaymentAccounts")
+      .where("memberUid", "==", "member-duplicate-e2e")
+      .get(),
+    request.get("/api/workspace/notifications", {
+      headers: authorized(ownerToken),
+    }),
   ]);
-  const storedAccount = {
-    id: accountSnapshot.id,
-    ...accountSnapshot.data(),
+  expect(storedAccounts.size).toBe(2);
+  const storedRecords = storedAccounts.docs.map((snapshot) => snapshot.data());
+  expect(storedRecords.map((record) => record.fingerprintKeyVersion))
+    .toEqual([7, 7]);
+  expect(storedRecords.every((record) =>
+    !("accountNumberFull" in record)
+    && record.accountNumberLast5 === "56789"
+    && typeof record.accountFingerprint === "string")).toBe(true);
+
+  expect(ownerNotificationsResponse.ok()).toBe(true);
+  const ownerNotifications = await ownerNotificationsResponse.json() as {
+    notifications: Array<{ type: string; status: string; accountIds: string[] }>;
+  };
+  expect(ownerNotifications.notifications).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      type: "memberPaymentAccount.exactDuplicate",
+      status: "pendingReview",
+    }),
+    expect.objectContaining({
+      type: "memberPaymentAccount.last5Collision",
+      status: "pendingReview",
+    }),
+  ]));
+  expect(JSON.stringify(ownerNotifications)).not.toMatch(
+    /00123456789|00999956789|accountNumberFull|accountFingerprint|canonical/i,
+  );
+
+  const memberA = await db.collection("memberPaymentAccounts")
+    .doc("member-a-exact-e2e")
+    .get();
+  expect(memberA.data()?.fingerprintKeyVersion).toBe(3);
+  expect(storedRecords.map((record) => record.accountFingerprint))
+    .not.toContain(memberA.data()?.accountFingerprint);
+  const publicAccount = buildMemberPaymentAccountSnapshot({
+    id: storedAccounts.docs[0].id,
+    ...storedAccounts.docs[0].data(),
   } as AccountIdentity & {
     id: string;
     memberUid: string;
     status: "active";
     verificationStatus: "verified";
-  };
-  const publicAccount = buildMemberPaymentAccountSnapshot(storedAccount);
-
-  expect(publicAccount).toEqual({
-    id: "member-a-exact-e2e",
-    bankCode: "012",
-    accountNumberMasked: "***56789",
-    accountNumberLast5: "56789",
-    status: "active",
-    verificationStatus: "verified",
   });
-  expect(JSON.stringify({
-    account: publicAccount,
-    notifications: [exactEvent.data(), collisionEvent.data()],
-  })).not.toMatch(/00123456789|00999956789|accountNumberFull|accountFingerprint|canonical/i);
-  expect(exactEvent.data()).toMatchObject({
-    type: "memberPaymentAccount.exactDuplicate",
-    status: "pendingReview",
-  });
-  expect(collisionEvent.data()).toMatchObject({
-    type: "memberPaymentAccount.last5Collision",
-    status: "pendingReview",
-  });
+  expect(publicAccount.accountNumberMasked).toBe("***56789");
 });
 
 test("new identities use the latest key while refunds verify the payment snapshot version", async () => {
@@ -146,49 +179,69 @@ test("new identities use the latest key while refunds verify the payment snapsho
   )).resolves.toBe(true);
 });
 
-test("refund mismatches are audited and become rate limited without creating an adjustment", async () => {
+test("helper and member tokens are denied by high-risk APIs while Owner reads succeed", async ({
+  request,
+}, testInfo) => {
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-desktop", "Server API flow runs once.");
 
-  const db = getAdminDb();
-  const now = new Date("2026-08-04T00:00:00.000Z");
-  const scopes = buildRefundVerificationScopes({
-    requestId: `cancel-mismatch-${Date.now()}`,
-    memberUid: "member-e2e",
-    requestIp: "203.0.113.7",
-  }, "e2e-refund-rate-limit-secret-32-characters");
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const limitedBeforeWrite = await db.runTransaction((transaction) =>
-      appendRefundVerificationFailure({
-        transaction,
-        db,
-        scopes,
-        verification: "mismatch",
-        now: new Date(now.getTime() + attempt),
-      }));
-    expect(limitedBeforeWrite).toBe(false);
+  const [helperToken, memberToken, ownerToken] = await Promise.all([
+    signIn(request, "helper-e2e@example.test"),
+    signIn(request, "member-e2e@example.test"),
+    signIn(request, "owner-e2e@example.test"),
+  ]);
+  for (const token of [helperToken, memberToken]) {
+    const responses = await Promise.all([
+      request.get("/api/workspace/notifications", {
+        headers: authorized(token),
+      }),
+      request.get("/api/workspace/audit-logs", {
+        headers: authorized(token),
+      }),
+      request.put("/api/workspace/member-private-notes", {
+        headers: authorized(token),
+        data: {
+          uid: "member-e2e",
+          riskState: "watch",
+          internalNote: "must not be written",
+        },
+      }),
+      request.post("/api/workspace/payments/forbidden-e2e/confirm", {
+        headers: authorized(token),
+        data: { reason: "must not confirm" },
+      }),
+      request.post("/api/workspace/payments/forbidden-e2e/reverse", {
+        headers: authorized(token),
+        data: { reason: "must not reverse" },
+      }),
+      request.post("/api/workspace/cancellations/forbidden-e2e/review", {
+        headers: authorized(token),
+        data: {
+          status: "approved",
+          reviewNote: "must not refund",
+          refundAmountTwd: 1,
+          refundCompletedAt: "2026-08-04",
+          refundReference: "forbidden",
+        },
+      }),
+      request.get("/api/workspace/cancellations/forbidden-e2e/refund-account", {
+        headers: authorized(token),
+      }),
+    ]);
+    expect(responses.map((response) => response.status()))
+      .toEqual([403, 403, 403, 403, 403, 403, 403]);
   }
 
-  await expect(readRefundVerificationCooldown({
-    db,
-    scopes,
-    now: new Date(now.getTime() + 10),
-  })).resolves.toMatchObject({
-    limited: true,
-    scope: "request",
-  });
-  const [audits, adjustments] = await Promise.all([
-    db.collection("auditLogs")
-      .where("requestScopeHash", "==", scopes.requestScopeHash)
-      .get(),
-    db.collection("paymentAllocations")
-      .where("paymentId", "==", "cancel-mismatch-e2e")
-      .get(),
+  const [ownerNotifications, ownerAuditLogs] = await Promise.all([
+    request.get("/api/workspace/notifications", {
+      headers: authorized(ownerToken),
+    }),
+    request.get("/api/workspace/audit-logs", {
+      headers: authorized(ownerToken),
+    }),
   ]);
-  expect(audits.size).toBe(5);
-  expect(adjustments.empty).toBe(true);
-  expect(JSON.stringify(audits.docs.map((document) => document.data())))
-    .not.toMatch(/00123456789|00999956789|accountNumber|fingerprint|ciphertext/i);
+  expect(ownerNotifications.ok()).toBe(true);
+  expect(ownerAuditLogs.ok()).toBe(true);
 });
 
 function getAdminDb() {
@@ -197,6 +250,30 @@ function getAdminDb() {
   }
 
   return getFirestore();
+}
+
+async function signIn(request: APIRequestContext, email: string) {
+  const response = await request.post(
+    "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-api-key",
+    {
+      data: {
+        email,
+        password,
+        returnSecureToken: true,
+      },
+    },
+  );
+  expect(response.ok()).toBe(true);
+  const payload = await response.json() as { idToken?: string };
+  expect(payload.idToken).toBeTruthy();
+  return payload.idToken!;
+}
+
+function authorized(token: string) {
+  return {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
 }
 
 class FakeKmsMac implements CloudKmsMacClient {

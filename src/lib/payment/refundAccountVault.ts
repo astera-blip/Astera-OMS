@@ -2,6 +2,10 @@ import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeAccountNumber, normalizeBankCode } from "@/lib/payment/accountIdentity";
+import {
+  createEmulatorRefundKmsClient,
+  isEmulatorKmsProviderEnabled,
+} from "@/lib/security/emulatorKmsProvider";
 
 type RefundVaultRecord = {
   refundBankCode?: unknown;
@@ -11,7 +15,9 @@ type RefundVaultRecord = {
   status?: unknown;
 };
 
-let kmsClient: KeyManagementServiceClient | undefined;
+type RefundKmsClient = Pick<KeyManagementServiceClient, "encrypt" | "decrypt">;
+
+let kmsClient: RefundKmsClient | undefined;
 
 export type EncryptedRefundAccountFields = {
   refundAccountCiphertext: string;
@@ -157,6 +163,9 @@ function deletedVaultFields() {
 }
 
 function getKmsClient() {
+  if (isEmulatorKmsProviderEnabled()) {
+    return createEmulatorRefundKmsClient() as RefundKmsClient;
+  }
   kmsClient ??= new KeyManagementServiceClient({ projectId: getProjectId() });
   return kmsClient;
 }
@@ -171,6 +180,9 @@ function getProjectId() {
 }
 
 function getRefundKeyName() {
+  if (isEmulatorKmsProviderEnabled()) {
+    return "projects/demo-astera-oms/locations/asia-east1/keyRings/e2e/cryptoKeys/refund-account";
+  }
   const keyName = process.env.GCP_KMS_REFUND_KEY_NAME?.trim();
   if (!keyName || !/\/cryptoKeys\/[^/]+$/.test(keyName)) {
     throw new Error("refund_account_kms_not_configured");

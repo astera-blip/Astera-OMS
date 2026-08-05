@@ -55,11 +55,17 @@ test("helper mobile workspace hides high-risk payment, member, and audit navigat
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "商品 Products" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "訂單 Orders" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "會員 Members" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "付款 Payments" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "稽核紀錄 Audit Logs" })).toHaveCount(0);
+  const workspaceNavigation = page.getByRole("navigation");
+  await expect(workspaceNavigation.getByRole("link", { name: "商品 Products" }))
+    .toBeVisible();
+  await expect(workspaceNavigation.getByRole("link", { name: "訂單 Orders" }))
+    .toBeVisible();
+  await expect(workspaceNavigation.getByRole("link", { name: "會員 Members" }))
+    .toHaveCount(0);
+  await expect(workspaceNavigation.getByRole("link", { name: "付款 Payments" }))
+    .toHaveCount(0);
+  await expect(workspaceNavigation.getByRole("link", { name: "稽核紀錄 Audit Logs" }))
+    .toHaveCount(0);
 });
 
 test("member mobile session cannot enter the workspace", async ({ page }, testInfo) => {

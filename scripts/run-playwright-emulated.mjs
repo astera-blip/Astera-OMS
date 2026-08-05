@@ -24,6 +24,7 @@ const env = {
   FIREBASE_STORAGE_EMULATOR_HOST: "127.0.0.1:9199",
   GCLOUD_PROJECT: "demo-astera-oms",
   GOOGLE_CLOUD_PROJECT: "demo-astera-oms",
+  REFUND_RATE_LIMIT_HASH_SECRET: "e2e-refund-rate-limit-secret-32-characters",
 };
 
 const child = spawn(process.execPath, [playwrightCli, "test", ...process.argv.slice(2)], {
