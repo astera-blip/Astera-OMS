@@ -912,8 +912,9 @@ project principal-set binding, and only the three existing Firestore/Firebase Au
 viewer/Storage object-viewer project roles. The provider maps the Vercel project
 claim but has no independent attribute condition; binding scope is the enforcement
 point. Only Monitoring API is enabled. KMS, Run, Scheduler, Cloud Build, and
-Artifact Registry APIs are disabled, so planned KMS resources, accounts,
-repository, service, and jobs are absent or not enumerable. The named policy was
+Artifact Registry APIs are disabled, so planned KMS resources, repository,
+service, and jobs are unverified while API disabled. Only the Worker/Scheduler
+service-account list reads can establish absence. The named policy was
 not listed; email-channel state is unverified because the local beta read command
 is unavailable and no component install was attempted.
 
@@ -926,3 +927,35 @@ destroying a KMS version referenced by a fingerprint or payment snapshot. Docker
 build verification remains parked because Docker is unavailable locally; CI or a
 Docker-capable host must run `docker build -f ops/security-worker/Dockerfile -t
 astera-security-worker:test .`.
+
+### Review correction — do not waive the WIF Provider condition
+
+This correction supersedes the earlier scope and resource-presence interpretation.
+The empty Provider `attributeCondition` is a load-bearing BLOCKER: do not grant
+KMS permissions or execute security `--apply`. The exact Vercel `principalSet`
+binding remains mandatory as a second layer and cannot substitute for a Provider
+condition. Local `gcloud iam workload-identity-pools providers update-oidc --help`
+verified CEL over `assertion` as the supported condition syntax. An authorized
+remediation must set and then read back (not executed here):
+
+```text
+gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --format="value(attributeCondition)"
+```
+
+KMS is unblocked only after review confirms this read-back and the original exact
+principal set. Fixed identifiers: project `astera-oms-prod`, number
+`1032606875618`, region `asia-east1`, ring `astera-oms-security`, keys
+`member-account-fingerprint` / `refund-account-vault`, Vercel SA
+`astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`, Worker SA
+`astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`, Scheduler SA
+`astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com`, repository
+`astera-ops`, Cloud Run `astera-security-worker`, Scheduler
+`astera-refund-vault-cleanup-daily` (daily 03:30 Asia/Taipei) and
+`astera-fingerprint-key-report-monthly` (day 1 monthly 04:00 Asia/Taipei), and
+policy `Astera Security Worker non-2xx or timeout` to `astera.0920@gmail.com`.
+
+For disabled APIs, planned resource state is **unverified while API disabled**;
+it must not be documented as confirmed absent. Only the successful Worker and
+Scheduler service-account list reads found no matches. The next apply command is
+BLOCKED pending tested Provider-condition remediation and review.

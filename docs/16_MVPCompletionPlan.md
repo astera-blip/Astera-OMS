@@ -998,7 +998,7 @@ and verify profile, cart, and Owner Product writes.
   The provider maps the Vercel project claim but has no independent attribute
   condition; the exact principal-set binding remains the effective restriction.
 - Monitoring API is enabled. KMS, Run, Scheduler, Cloud Build, and Artifact
-  Registry are disabled; planned resources are absent or not enumerable. No named
+  Registry are disabled; planned resources are unverified while API disabled. No named
   Monitoring policy was listed. The email channel remains unverified because the
   local read-only gcloud beta command is unavailable; no install was attempted.
 - Two Software KMS active versions cost roughly USD 0.12/month before
@@ -1011,3 +1011,34 @@ and verify profile, cart, and Owner Product writes.
   -t astera-security-worker:test .` requires CI or a Docker-capable host.
 - Exact next mutation, not executed: `node scripts/setup-production-security.mjs
   --project astera-oms-prod --confirm-project astera-oms-prod --apply`.
+
+### Review correction — WIF condition blocks KMS rollout
+
+This correction supersedes the prior interpretation of the empty Provider
+condition and planned-resource presence. Empty `attributeCondition` is a
+load-bearing BLOCKER: do not grant KMS permissions or run security `--apply`.
+The exact Vercel `principalSet` remains required as a second layer, not a waiver.
+Local gcloud help verifies `update-oidc --attribute-condition` accepts CEL over
+`assertion`; an authorized remediation must set and read back:
+
+```text
+gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --format="value(attributeCondition)"
+```
+
+Review must confirm that condition and the expected principal set before KMS is
+unblocked. Fixed identifiers: project/number `astera-oms-prod` / `1032606875618`;
+region `asia-east1`; ring `astera-oms-security`; keys
+`member-account-fingerprint` and `refund-account-vault`; Vercel/Worker/Scheduler
+SAs `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`,
+`astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`, and
+`astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com`; repository
+`astera-ops`; Cloud Run `astera-security-worker`; jobs
+`astera-refund-vault-cleanup-daily` (daily 03:30 Asia/Taipei) and
+`astera-fingerprint-key-report-monthly` (day 1 monthly 04:00 Asia/Taipei); and
+policy `Astera Security Worker non-2xx or timeout` to `astera.0920@gmail.com`.
+
+Where APIs are disabled, every planned resource is **unverified while API
+disabled**, not confirmed absent. Only the two service-account list results are
+absent. The next security `--apply` remains BLOCKED pending the tested
+Provider-condition remediation and review.

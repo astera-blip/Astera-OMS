@@ -161,8 +161,9 @@ Vercel-project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ` principal-set binding matched.
 The provider maps `attribute.project_id` from the assertion but has no separate
 `attributeCondition`; the verified principal-set binding is the scope enforcement.
 Only Monitoring API is enabled; KMS, Run, Scheduler, Cloud Build, and Artifact
-Registry APIs are disabled. Thus planned KMS resources, accounts, repository,
-service, and jobs are absent or not enumerable. No named Monitoring policy was
+Registry APIs are disabled. Thus planned KMS resources, repository, service, and
+jobs are unverified while API disabled; only the IAM service-account lists can
+establish absence. No named Monitoring policy was
 listed; the email channel was not verified because local gcloud lacks the optional
 beta channel command and no component was installed.
 
@@ -177,3 +178,40 @@ astera-security-worker:test .` cannot run locally without Docker.
 
 Next mutation, not executed:
 `node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply`.
+
+### Review correction — WIF condition is a BLOCKER
+
+This correction supersedes the preceding preflight interpretation of Provider
+scope and resource presence. The empty Provider `attributeCondition` is a
+load-bearing BLOCKER: do not grant any KMS permission or run the security
+`--apply` command while it is empty. The matching `principalSet` binding remains
+required as a second layer; it does not waive the Provider condition requirement.
+
+gcloud `update-oidc --help` confirms that `--attribute-condition` accepts a CEL
+boolean expression over `assertion`. Before KMS rollout, an authorized change
+must set and then read back exactly this condition (these commands are remediation
+instructions, not executed here):
+
+```text
+gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --format="value(attributeCondition)"
+```
+
+Review must confirm the read-back condition and the existing exact principal set
+before unblocking KMS. Fixed identifiers: project `astera-oms-prod` / number
+`1032606875618`, region `asia-east1`, ring `astera-oms-security`, keys
+`member-account-fingerprint` and `refund-account-vault`, Vercel SA
+`astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`, Worker SA
+`astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`, Scheduler SA
+`astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com`, repository
+`astera-ops`, Cloud Run service `astera-security-worker`, jobs
+`astera-refund-vault-cleanup-daily` (daily 03:30 Asia/Taipei) and
+`astera-fingerprint-key-report-monthly` (day 1 monthly 04:00 Asia/Taipei), and
+Monitoring policy `Astera Security Worker non-2xx or timeout` to email
+`astera.0920@gmail.com`.
+
+For every disabled API, all planned resource state is **unverified while API
+disabled**, not confirmed absent. Only the Worker and Scheduler service-account
+lists returned no match through an enabled IAM API. The security `--apply`
+command remains BLOCKED pending the tested Provider-condition remediation and
+review.
