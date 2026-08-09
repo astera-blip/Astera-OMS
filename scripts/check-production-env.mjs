@@ -23,18 +23,22 @@ export const productionEnvironmentNames = [
   "RESEND_REPLY_TO_EMAIL",
 ];
 
-export function formatEnvironmentReport(env) {
-  return productionEnvironmentNames
+export const productionSecurityEnvironmentNames = productionEnvironmentNames
+  .filter((name) => !name.startsWith("RESEND_"));
+
+export function formatEnvironmentReport(env, scope = "default") {
+  return getEnvironmentNamesForScope(scope)
     .map((name) => `${name}=${String(env[name] ?? "").trim() ? "configured" : "missing"}`)
     .join("\n");
 }
 
-export function getMissingEnvironmentNames(env) {
-  return productionEnvironmentNames.filter((name) => !String(env[name] ?? "").trim());
+export function getMissingEnvironmentNames(env, scope = "default") {
+  return getEnvironmentNamesForScope(scope)
+    .filter((name) => !String(env[name] ?? "").trim());
 }
 
-export function validateProductionEnvironment(env) {
-  const issues = getMissingEnvironmentNames(env).map((name) => `${name}=missing`);
+export function validateProductionEnvironment(env, scope = "default") {
+  const issues = getMissingEnvironmentNames(env, scope).map((name) => `${name}=missing`);
   const projectIds = [
     env.GOOGLE_CLOUD_PROJECT,
     env.GCP_PROJECT_ID,
@@ -63,7 +67,58 @@ export function validateProductionEnvironment(env) {
   if (rateLimitSecret && rateLimitSecret.length < 32) {
     issues.push("REFUND_RATE_LIMIT_HASH_SECRET=invalid");
   }
+  if (scope === "security") validateSecurityResourceIdentity(env, issues);
   return issues;
+}
+
+export function parseProductionEnvironmentArgs(argv) {
+  let scope = "default";
+  let strict = false;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === "--strict") {
+      if (strict) throw new Error("invalid_arguments");
+      strict = true;
+      continue;
+    }
+    if (token !== "--scope" || scope !== "default") {
+      throw new Error("invalid_arguments");
+    }
+    const value = argv[index + 1];
+    if (value !== "security") throw new Error("invalid_environment_scope");
+    scope = value;
+    index += 1;
+  }
+  return { scope, strict };
+}
+
+function getEnvironmentNamesForScope(scope) {
+  if (scope === "default") return productionEnvironmentNames;
+  if (scope === "security") return productionSecurityEnvironmentNames;
+  throw new Error("invalid_environment_scope");
+}
+
+function validateSecurityResourceIdentity(env, issues) {
+  const exactValues = {
+    GOOGLE_CLOUD_PROJECT: "astera-oms-prod",
+    GCP_PROJECT_ID: "astera-oms-prod",
+    GCP_PROJECT_NUMBER: "1032606875618",
+    GCP_WORKLOAD_IDENTITY_POOL_ID: "vercel-oidc",
+    GCP_WORKLOAD_IDENTITY_PROVIDER_ID: "vercel",
+    GCP_SERVICE_ACCOUNT_EMAIL:
+      "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+    GCP_WORKLOAD_IDENTITY_AUDIENCE:
+      "//iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/providers/vercel",
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: "astera-oms-prod",
+    GCP_KMS_HMAC_KEY_NAME:
+      "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint",
+    GCP_KMS_REFUND_KEY_NAME:
+      "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault",
+  };
+  for (const [name, expected] of Object.entries(exactValues)) {
+    const value = String(env[name] ?? "").trim();
+    if (value && value !== expected) issues.push(`${name}=invalid`);
+  }
 }
 
 function isCryptoKeyNameForProject(keyName, projectId) {
@@ -97,9 +152,13 @@ export function assertProductionFlags(env) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    const options = parseProductionEnvironmentArgs(process.argv.slice(2));
     assertProductionFlags(process.env);
-    console.log(formatEnvironmentReport(process.env));
-    if (process.argv.includes("--strict") && validateProductionEnvironment(process.env).length > 0) {
+    console.log(formatEnvironmentReport(process.env, options.scope));
+    if (
+      options.strict
+      && validateProductionEnvironment(process.env, options.scope).length > 0
+    ) {
       throw new Error("production_environment_incomplete");
     }
   } catch (error) {

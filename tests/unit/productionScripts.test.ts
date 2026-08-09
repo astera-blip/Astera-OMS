@@ -4,6 +4,8 @@ import {
   assertProductionFlags,
   formatEnvironmentReport,
   getMissingEnvironmentNames,
+  parseProductionEnvironmentArgs,
+  productionEnvironmentNames,
   validateProductionEnvironment,
 } from "../../scripts/check-production-env.mjs";
 import {
@@ -127,6 +129,46 @@ describe("production environment checker", () => {
       GOOGLE_CLOUD_PROJECT: "astera-oms-prod",
       GCP_PROJECT_ID: "demo-astera-oms",
     })).toContain("PROJECT_ID_ALIASES=conflict");
+  });
+
+  it("supports a strict security scope without weakening the default Resend gate", () => {
+    const environment = Object.fromEntries(
+      productionEnvironmentNames
+        .filter((name) => !name.startsWith("RESEND_"))
+        .map((name) => [name, "configured"]),
+    );
+    environment.GCP_KMS_HMAC_KEY_VERSION = "1";
+    environment.REFUND_RATE_LIMIT_HASH_SECRET = "stable-secret-at-least-thirty-two-characters";
+    environment.GCP_KMS_HMAC_KEY_NAME =
+      "projects/configured/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint";
+    environment.GCP_KMS_REFUND_KEY_NAME =
+      "projects/configured/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault";
+    Object.assign(environment, {
+      GOOGLE_CLOUD_PROJECT: "astera-oms-prod",
+      GCP_PROJECT_ID: "astera-oms-prod",
+      GCP_PROJECT_NUMBER: "1032606875618",
+      GCP_WORKLOAD_IDENTITY_POOL_ID: "vercel-oidc",
+      GCP_WORKLOAD_IDENTITY_PROVIDER_ID: "vercel",
+      GCP_SERVICE_ACCOUNT_EMAIL:
+        "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+      GCP_WORKLOAD_IDENTITY_AUDIENCE:
+        "//iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/providers/vercel",
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "astera-oms-prod",
+      GCP_KMS_HMAC_KEY_NAME:
+        "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint",
+      GCP_KMS_REFUND_KEY_NAME:
+        "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault",
+    });
+
+    expect(parseProductionEnvironmentArgs(["--scope", "security", "--strict"]))
+      .toEqual({ scope: "security", strict: true });
+    expect(getMissingEnvironmentNames(environment, "security")).toEqual([]);
+    expect(validateProductionEnvironment(environment, "security")).toEqual([]);
+    expect(getMissingEnvironmentNames(environment)).toEqual([
+      "RESEND_API_KEY",
+      "RESEND_FROM_EMAIL",
+      "RESEND_REPLY_TO_EMAIL",
+    ]);
   });
 
   it.each([
