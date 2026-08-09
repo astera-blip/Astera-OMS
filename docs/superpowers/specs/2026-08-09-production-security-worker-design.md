@@ -1,8 +1,8 @@
 # Astera OMS Production Security Worker Design
 
-**Date:** 2026-08-09  
-**Status:** Approved design pending implementation-plan review  
-**Scope:** Production KMS, Vercel Workload Identity, refund-vault governance jobs.  
+**Date:** 2026-08-09
+**Status:** Approved design pending implementation-plan review
+**Scope:** Production KMS, Vercel Workload Identity, refund-vault governance jobs.
 
 ## Goal
 
