@@ -363,6 +363,124 @@ describe("refund account protected APIs", () => {
     await expect(response.json()).resolves.toEqual({ error: "idempotency_conflict" });
   });
 
+  it("returns idempotent success when replaying the complete original mixed cancellation selection", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kmsMac.signCanonicalAccount.mockResolvedValue({
+      mac: validHistoricalFingerprint,
+      keyVersion: 3,
+    });
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "bWl4ZWQtY2lwaGVydGV4dA==",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-23T00:00:00.000Z",
+    });
+    const fake = createPaidCancellationFirestore({
+      items: [
+        {
+          id: "item-unpaid",
+          orderId: "order-paid",
+          memberUid: "member-a",
+          quantity: 1,
+          status: "awaitingPayment",
+          snapshot: { unitPriceTwd: 200 },
+        },
+        {
+          id: "item-paid",
+          orderId: "order-paid",
+          memberUid: "member-a",
+          quantity: 1,
+          status: "paid",
+          snapshot: { unitPriceTwd: 400 },
+        },
+      ],
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+    const request = () => new Request("https://example.test/api/cancellations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId: "order-paid",
+        orderItemIds: ["item-unpaid", "item-paid"],
+        reason: "mixed cancellation",
+        idempotencyKey: "mixed-replay",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountNumberFull: "00123456789",
+      }),
+    });
+
+    const initialResponse = await createCancellation(request());
+    const replayResponse = await createCancellation(request());
+
+    expect(initialResponse.status).toBe(200);
+    expect(replayResponse.status).toBe(200);
+    await expect(replayResponse.json()).resolves.toEqual({
+      ok: true,
+      requestId: "cancel_mixed-replay",
+      alreadyExists: true,
+    });
+    expect(kmsMac.signCanonicalAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a replay that changes a mixed cancellation to only the paid subset", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kmsMac.signCanonicalAccount.mockResolvedValue({
+      mac: validHistoricalFingerprint,
+      keyVersion: 3,
+    });
+    vault.encryptRefundAccount.mockResolvedValue({
+      refundAccountCiphertext: "bWl4ZWQtY2lwaGVydGV4dA==",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-23T00:00:00.000Z",
+    });
+    const fake = createPaidCancellationFirestore({
+      items: [
+        {
+          id: "item-unpaid",
+          orderId: "order-paid",
+          memberUid: "member-a",
+          quantity: 1,
+          status: "awaitingPayment",
+          snapshot: { unitPriceTwd: 200 },
+        },
+        {
+          id: "item-paid",
+          orderId: "order-paid",
+          memberUid: "member-a",
+          quantity: 1,
+          status: "paid",
+          snapshot: { unitPriceTwd: 400 },
+        },
+      ],
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+    const submit = (orderItemIds: string[]) => createCancellation(new Request(
+      "https://example.test/api/cancellations",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: "order-paid",
+          orderItemIds,
+          reason: "mixed cancellation",
+          idempotencyKey: "mixed-subset",
+          targetPaymentId: "payment-original",
+          refundBankCode: "012",
+          refundAccountNumberFull: "00123456789",
+        }),
+      },
+    ));
+
+    const initialResponse = await submit(["item-unpaid", "item-paid"]);
+    const changedReplayResponse = await submit(["item-paid"]);
+
+    expect(initialResponse.status).toBe(200);
+    expect(changedReplayResponse.status).toBe(409);
+    await expect(changedReplayResponse.json()).resolves.toEqual({
+      error: "idempotency_conflict",
+    });
+  });
+
   it("verifies the specified historical payment and stores a 14-day vault entry", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({

@@ -196,6 +196,9 @@ export function sanitizeCancellationRequest(
     id: record.id,
     orderId: record.orderId,
     orderItemIds: [...record.orderItemIds],
+    ...(record.requestedOrderItemIds !== undefined
+      ? { requestedOrderItemIds: [...record.requestedOrderItemIds] }
+      : {}),
     memberUid: record.memberUid,
     reason: record.reason,
     status: record.status,

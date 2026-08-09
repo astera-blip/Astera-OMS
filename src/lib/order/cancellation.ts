@@ -13,6 +13,7 @@ export type CancellationRequestRecord = {
   id: string;
   orderId: string;
   orderItemIds: string[];
+  requestedOrderItemIds?: string[];
   memberUid: string;
   reason: string;
   status: "pending" | "approved" | "rejected";
@@ -154,6 +155,7 @@ export function createCancellationRequest(input: {
   id: string;
   orderId: string;
   orderItemIds: string[];
+  requestedOrderItemIds?: string[];
   memberUid: string;
   reason: string;
   targetPaymentId?: string;
@@ -169,6 +171,9 @@ export function createCancellationRequest(input: {
     id: input.id,
     orderId: input.orderId,
     orderItemIds: [...input.orderItemIds],
+    ...(input.requestedOrderItemIds
+      ? { requestedOrderItemIds: [...input.requestedOrderItemIds] }
+      : {}),
     memberUid: input.memberUid,
     reason: input.reason,
     ...(input.targetPaymentId ? { targetPaymentId: input.targetPaymentId } : {}),
