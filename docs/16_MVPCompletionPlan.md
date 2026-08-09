@@ -1022,8 +1022,8 @@ Local gcloud help verifies `update-oidc --attribute-condition` accepts CEL over
 `assertion`; an authorized remediation must set and read back:
 
 ```text
-gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
-gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel --project=astera-oms-prod --format="value(attributeCondition)"
+gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --format="value(attributeCondition)"
 ```
 
 Review must confirm that condition and the expected principal set before KMS is
@@ -1042,3 +1042,22 @@ Where APIs are disabled, every planned resource is **unverified while API
 disabled**, not confirmed absent. Only the two service-account list results are
 absent. The next security `--apply` remains BLOCKED pending the tested
 Provider-condition remediation and review.
+
+Fresh post-remediation readback is required before KMS/apply can proceed (not run
+here):
+
+```text
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --format="json(state,attributeMapping,attributeCondition)"
+gcloud iam service-accounts get-iam-policy astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com --project=astera-oms-prod --flatten="bindings[]" --filter="bindings.role=roles/iam.workloadIdentityUser AND bindings.members:principalSet://iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/attribute.project_id/prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ" --format="table(bindings.role,bindings.members)"
+```
+
+Review must prove together: Provider `ACTIVE`; mapping
+`attributeMapping.attribute.project_id == assertion.project_id`; exact condition
+`assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"`; and exactly
+`roles/iam.workloadIdentityUser` for the stated runtime-SA principal set. The
+exact inventory additionally includes Pool `vercel-oidc`, Provider `vercel`,
+Vercel project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, and API IDs
+`cloudkms.googleapis.com`, `run.googleapis.com`, `cloudscheduler.googleapis.com`,
+`cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and
+`monitoring.googleapis.com`. KMS and security `--apply` remain BLOCKED until all
+four fresh readbacks pass and are reviewed.
