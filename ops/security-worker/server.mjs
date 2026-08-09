@@ -26,7 +26,13 @@ export function createSecurityWorker({
   now = () => new Date(),
 } = {}) {
   return async (request, response) => {
-    const pathname = new URL(request.url ?? "/", "http://security-worker.local").pathname;
+    let pathname;
+    try {
+      pathname = new URL(request.url ?? "/", "http://security-worker.local").pathname;
+    } catch {
+      console.error("security_worker_invalid_request");
+      return sendJson(response, 400, { ok: false, error: "invalid_request" });
+    }
     if (pathname === "/healthz") {
       return request.method === "GET"
         ? sendJson(response, 200, { ok: true })

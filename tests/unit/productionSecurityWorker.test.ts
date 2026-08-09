@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { createConnection } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSecurityWorker } from "../../ops/security-worker/server.mjs";
 
@@ -174,6 +175,25 @@ describe("production security worker HTTP contract", () => {
     expect(response).toEqual({ status: 500, body: { ok: false, error: "security_worker_failed" } });
     expect(initializeDependencies).not.toHaveBeenCalled();
   });
+
+  it("rejects a malformed request target without exposing it or starting a job", async () => {
+    // Catches URL parsing errors that escape fixed worker error handling.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const initializeDependencies = vi.fn();
+    server = await startWorker(createSecurityWorker({
+      project: productionProject,
+      now: () => new Date("2026-08-09T00:00:00.000Z"),
+      initializeDependencies,
+    }));
+
+    const rawTarget = "http://[::1";
+    const response = await rawRequest(server, rawTarget);
+
+    expect(response).toEqual({ status: 400, body: { ok: false, error: "invalid_request" } });
+    expect(initializeDependencies).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith("security_worker_invalid_request");
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(rawTarget);
+  });
 });
 
 async function startWorker(listener: ReturnType<typeof createSecurityWorker>) {
@@ -199,6 +219,37 @@ async function request(
     body: init.body,
   });
   return { status: response.status, body: await response.json() };
+}
+
+async function rawRequest(worker: Server, target: string) {
+  const address = worker.address();
+  if (!address || typeof address === "string") throw new Error("test_server_address_missing");
+  return new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    const socket = createConnection({ host: "127.0.0.1", port: address.port });
+    let output = "";
+    socket.setTimeout(1_000, () => socket.destroy(new Error("raw_request_timeout")));
+    socket.on("connect", () => {
+      socket.write(`POST ${target} HTTP/1.1\r\nHost: security-worker.local\r\nConnection: close\r\n\r\n`);
+    });
+    socket.on("data", (chunk) => { output += chunk.toString(); });
+    socket.on("end", () => {
+      const separator = output.indexOf("\r\n\r\n");
+      const head = separator === -1 ? output : output.slice(0, separator);
+      const body = separator === -1 ? "" : output.slice(separator + 4);
+      const status = Number(head.match(/^HTTP\/1\.1 (\d{3})/)?.[1]);
+      try {
+        resolve({ status, body: JSON.parse(decodeChunkedBody(body)) });
+      } catch (error) {
+        reject(error);
+      }
+    });
+    socket.on("error", reject);
+  });
+}
+
+function decodeChunkedBody(body: string) {
+  const [, payload = ""] = body.match(/^[0-9a-f]+\r\n([\s\S]*)\r\n0\r\n\r\n$/i) ?? [];
+  return payload;
 }
 
 function createCleanupDb() {
