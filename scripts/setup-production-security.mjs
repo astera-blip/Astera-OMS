@@ -247,19 +247,22 @@ export function buildProductionSecurityCommands(config) {
       "--quiet",
     ]),
     step("prepareCloudRunDeployment", [
-      "services", "describe", "run.googleapis.com",
-      "--format=value(state)",
-      ...projectArgs,
+      "services", "list", "--enabled",
+      "--filter=config.name=run.googleapis.com",
+      "--format=json",
+      `--project=${PROJECT}`,
     ]),
     step("prepareSchedulerDeployment", [
-      "services", "describe", "cloudscheduler.googleapis.com",
-      "--format=value(state)",
-      ...projectArgs,
+      "services", "list", "--enabled",
+      "--filter=config.name=cloudscheduler.googleapis.com",
+      "--format=json",
+      `--project=${PROJECT}`,
     ]),
     step("prepareMonitoringDeployment", [
-      "services", "describe", "monitoring.googleapis.com",
-      "--format=value(state)",
-      ...projectArgs,
+      "services", "list", "--enabled",
+      "--filter=config.name=monitoring.googleapis.com",
+      "--format=json",
+      `--project=${PROJECT}`,
     ]),
   ];
   return Object.freeze(commands);
@@ -404,7 +407,7 @@ function shouldSkipCommand(name, state) {
 }
 
 function recordDiscovery(name, stdout, state) {
-  if (!name.startsWith("discover")) return;
+  if (!name.startsWith("discover") && !name.startsWith("prepare")) return;
   const value = parseDiscoveryJson(stdout, name);
   switch (name) {
     case "discoverWifProvider":
@@ -469,6 +472,15 @@ function recordDiscovery(name, stdout, state) {
       state.artifactRepositoryExists = validateResourceList(value, name, (resource) =>
         resource?.name === artifactRepositoryName && resource?.format === "DOCKER");
       break;
+    case "prepareCloudRunDeployment":
+      validateEnabledDeploymentApi(value, name, "run.googleapis.com");
+      break;
+    case "prepareSchedulerDeployment":
+      validateEnabledDeploymentApi(value, name, "cloudscheduler.googleapis.com");
+      break;
+    case "prepareMonitoringDeployment":
+      validateEnabledDeploymentApi(value, name, "monitoring.googleapis.com");
+      break;
     default:
       throw new Error(`production_security_discovery_invalid:${name}`);
   }
@@ -491,6 +503,19 @@ function validateResourceList(value, name, isExact) {
     throw new Error(`production_security_resource_incompatible:${name}`);
   }
   return true;
+}
+
+function validateEnabledDeploymentApi(value, name, apiId) {
+  if (
+    !Array.isArray(value)
+    || value.length !== 1
+    || !isPlainObject(value[0])
+    || !isPlainObject(value[0].config)
+    || value[0].config.name !== apiId
+    || value[0].state !== "ENABLED"
+  ) {
+    throw new Error(`production_security_resource_incompatible:${name}`);
+  }
 }
 
 function validateWifProviderBase(value, name) {

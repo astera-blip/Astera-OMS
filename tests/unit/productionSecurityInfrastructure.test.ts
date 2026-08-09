@@ -336,27 +336,30 @@ describe("production security infrastructure", () => {
         name: "prepareCloudRunDeployment",
         command: "gcloud",
         args: [
-          "services", "describe", "run.googleapis.com",
-          "--format=value(state)",
-          "--project", "astera-oms-prod",
+          "services", "list", "--enabled",
+          "--filter=config.name=run.googleapis.com",
+          "--format=json",
+          "--project=astera-oms-prod",
         ],
       },
       {
         name: "prepareSchedulerDeployment",
         command: "gcloud",
         args: [
-          "services", "describe", "cloudscheduler.googleapis.com",
-          "--format=value(state)",
-          "--project", "astera-oms-prod",
+          "services", "list", "--enabled",
+          "--filter=config.name=cloudscheduler.googleapis.com",
+          "--format=json",
+          "--project=astera-oms-prod",
         ],
       },
       {
         name: "prepareMonitoringDeployment",
         command: "gcloud",
         args: [
-          "services", "describe", "monitoring.googleapis.com",
-          "--format=value(state)",
-          "--project", "astera-oms-prod",
+          "services", "list", "--enabled",
+          "--filter=config.name=monitoring.googleapis.com",
+          "--format=json",
+          "--project=astera-oms-prod",
         ],
       },
     ]);
@@ -507,6 +510,62 @@ describe("production security infrastructure", () => {
     expect(executedArgs.some((args) =>
       args.includes("--filter=email=astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com")))
       .toBe(false);
+  });
+
+  it("accepts exactly one enabled response for each deployment API preparation", () => {
+    const spawnSync = deploymentApiPreparationRunner();
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" })).not.toThrow();
+
+    const preparationFilters = spawnSync.mock.calls
+      .map(([, args]) => args as string[])
+      .filter((args) => args[0] === "services" && args[1] === "list")
+      .map((args) => args.find((arg) => arg.startsWith("--filter=config.name=")));
+    expect(preparationFilters).toEqual([
+      "--filter=config.name=run.googleapis.com",
+      "--filter=config.name=cloudscheduler.googleapis.com",
+      "--filter=config.name=monitoring.googleapis.com",
+    ]);
+  });
+
+  it.each([
+    ["empty array", []],
+    ["wrong API", [{ config: { name: "cloudscheduler.googleapis.com" }, state: "ENABLED" }]],
+    ["wrong state", [{ config: { name: "run.googleapis.com" }, state: "DISABLED" }]],
+    ["multiple results", [
+      { config: { name: "run.googleapis.com" }, state: "ENABLED" },
+      { config: { name: "run.googleapis.com" }, state: "ENABLED" },
+    ]],
+  ])("fails closed before the next preparation step for %s enabled API output", (_case, response) => {
+    const spawnSync = deploymentApiPreparationRunner({ "run.googleapis.com": response });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_resource_incompatible:prepareCloudRunDeployment");
+
+    const executedArgs = spawnSync.mock.calls.map(([, args]) => args as string[]);
+    expect(executedArgs.some((args) =>
+      args.includes("--filter=config.name=cloudscheduler.googleapis.com"))).toBe(false);
+    expect(executedArgs.some((args) =>
+      args.includes("--filter=config.name=monitoring.googleapis.com"))).toBe(false);
+  });
+
+  it("fails closed before the next preparation step for malformed enabled API JSON", () => {
+    const spawnSync = deploymentApiPreparationRunner({ "run.googleapis.com": "not-json" });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_discovery_invalid:prepareCloudRunDeployment");
+
+    expect(spawnSync.mock.calls.some(([, args]) =>
+      (args as string[]).includes("--filter=config.name=cloudscheduler.googleapis.com"))).toBe(false);
   });
 
   it("never gives the Scheduler service account a project-wide role", () => {
@@ -805,7 +864,12 @@ describe("production security infrastructure", () => {
           format: "DOCKER",
         }]);
       }
-      return { status: 0, stdout: "ENABLED\n", stderr: "" };
+      if (joined.includes("services list --enabled")) {
+        const filter = args.find((argument) => argument.startsWith("--filter=config.name="));
+        const apiId = filter?.slice("--filter=config.name=".length);
+        return successfulJson([{ config: { name: apiId }, state: "ENABLED" }]);
+      }
+      return { status: 0, stdout: "", stderr: "" };
     });
     const output: string[] = [];
 
@@ -875,6 +939,88 @@ function workerFirestorePolicyRunner(policy: unknown) {
     }
     if (joined.includes("projects add-iam-policy-binding")) {
       return { status: 7, stdout: "", stderr: "not printed" };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  });
+}
+
+function deploymentApiPreparationRunner(responses: Record<string, unknown> = {}) {
+  return vi.fn((_command: string, args: string[]) => {
+    const joined = args.join(" ");
+    if (joined.includes("providers describe")) {
+      return successfulJson(exactProvider(requiredWifCondition));
+    }
+    if (joined.includes("service-accounts get-iam-policy")) {
+      return successfulJson(exactRuntimeIamPolicy());
+    }
+    if (joined.includes("kms keyrings list")) {
+      return successfulJson([{
+        name: "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security",
+      }]);
+    }
+    if (joined.includes("kms keys list") && joined.includes("member-account-fingerprint")) {
+      return successfulJson([{
+        name: "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint",
+        purpose: "MAC",
+        versionTemplate: { algorithm: "HMAC_SHA256", protectionLevel: "SOFTWARE" },
+      }]);
+    }
+    if (joined.includes("kms keys list") && joined.includes("refund-account-vault")) {
+      return successfulJson([{
+        name: "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault",
+        purpose: "ENCRYPT_DECRYPT",
+        versionTemplate: {
+          algorithm: "GOOGLE_SYMMETRIC_ENCRYPTION",
+          protectionLevel: "SOFTWARE",
+        },
+      }]);
+    }
+    if (joined.includes("iam service-accounts list") && joined.includes("astera-security-worker@")) {
+      return successfulJson([{
+        email: "astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
+      }]);
+    }
+    if (joined.includes("projects get-iam-policy")) {
+      return successfulJson(exactWorkerFirestoreIamPolicy());
+    }
+    if (joined.includes("iam service-accounts list") && joined.includes("astera-security-scheduler@")) {
+      return successfulJson([{
+        email: "astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com",
+      }]);
+    }
+    if (joined.includes("get-iam-policy") && joined.includes("member-account-fingerprint")) {
+      return successfulJson({ bindings: [
+        {
+          role: "roles/cloudkms.signer",
+          members: ["serviceAccount:astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com"],
+        },
+        {
+          role: "roles/cloudkms.viewer",
+          members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com"],
+        },
+      ] });
+    }
+    if (joined.includes("get-iam-policy") && joined.includes("refund-account-vault")) {
+      return successfulJson({ bindings: [{
+        role: "roles/cloudkms.cryptoKeyEncrypterDecrypter",
+        members: ["serviceAccount:astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com"],
+      }] });
+    }
+    if (joined.includes("artifacts repositories list")) {
+      return successfulJson([{
+        name: "projects/astera-oms-prod/locations/asia-east1/repositories/astera-ops",
+        format: "DOCKER",
+      }]);
+    }
+    if (joined.includes("services list --enabled")) {
+      const filter = args.find((argument) => argument.startsWith("--filter=config.name="));
+      const apiId = filter?.slice("--filter=config.name=".length);
+      const response = apiId && Object.hasOwn(responses, apiId)
+        ? responses[apiId]
+        : [{ config: { name: apiId }, state: "ENABLED" }];
+      return typeof response === "string"
+        ? { status: 0, stdout: response, stderr: "" }
+        : successfulJson(response);
     }
     return { status: 0, stdout: "", stderr: "" };
   });
