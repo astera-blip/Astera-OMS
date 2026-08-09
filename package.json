@@ -20,6 +20,7 @@
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "production:env:check": "node scripts/check-production-env.mjs",
     "production:products:audit": "node scripts/audit-product-projection.mjs",
+    "production:products:sync": "node scripts/sync-product-projection.mjs",
     "production:smoke": "node scripts/smoke-production.mjs",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "admin:set-role": "node scripts/set-user-role.mjs",

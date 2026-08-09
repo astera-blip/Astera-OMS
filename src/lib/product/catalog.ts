@@ -1,5 +1,9 @@
 import type { AuditMetadata, PublishState } from "@/domain/common";
 import type { ProductImage } from "@/lib/product/images";
+import {
+  campaignDateTimeLocalToUtc,
+  parseCampaignDateTime,
+} from "@/lib/product/campaignDates";
 
 export type ProductClassificationKey = "company" | "artist" | "cp" | "brand" | "series";
 
@@ -193,8 +197,12 @@ export function normalizeProductDraft(
     status: campaign.status,
     ...(typeof campaign.salePriceTwd === "number" ? { salePriceTwd: campaign.salePriceTwd } : {}),
     requiresSupplement: campaign.requiresSupplement,
-    ...(campaign.startsAt?.trim() ? { startsAt: campaign.startsAt.trim() } : {}),
-    ...(campaign.endsAt?.trim() ? { endsAt: campaign.endsAt.trim() } : {}),
+    ...(campaign.startsAt?.trim()
+      ? { startsAt: normalizeCampaignDateTime(campaign.startsAt) }
+      : {}),
+    ...(campaign.endsAt?.trim()
+      ? { endsAt: normalizeCampaignDateTime(campaign.endsAt) }
+      : {}),
     ...(campaign.publicNotice?.trim() ? { publicNotice: campaign.publicNotice.trim() } : {}),
     ...(campaign.supplementNote?.trim() ? { supplementNote: campaign.supplementNote.trim() } : {}),
   }));
@@ -212,11 +220,11 @@ export function normalizeProductDraft(
     ) {
       fieldErrors.salePriceTwd = "活動價需為 0 以上的整數。";
     }
-    if (campaign.startsAt && !isDateTimeLocalValue(campaign.startsAt)) {
-      fieldErrors.startsAt = "開始時間格式需為 YYYY-MM-DDTHH:mm。";
+    if (campaign.startsAt && !isValidCampaignDateTime(campaign.startsAt)) {
+      fieldErrors.startsAt = "開始時間格式無效，請重新選擇時間。";
     }
-    if (campaign.endsAt && !isDateTimeLocalValue(campaign.endsAt)) {
-      fieldErrors.endsAt = "結單時間格式需為 YYYY-MM-DDTHH:mm。";
+    if (campaign.endsAt && !isValidCampaignDateTime(campaign.endsAt)) {
+      fieldErrors.endsAt = "結單時間格式無效，請重新選擇時間。";
     }
     if (campaign.startsAt && campaign.endsAt && campaign.startsAt >= campaign.endsAt) {
       fieldErrors.endsAt = "結單時間必須晚於開始時間。";
@@ -274,6 +282,7 @@ export function normalizeProductDraft(
 
 export function buildPublicProductProjection(
   record: ProductCatalogRecord,
+  now = new Date(),
 ): PublicProductProjection {
   const classifications = normalizeClassifications(record.product.classifications);
 
@@ -296,11 +305,11 @@ export function buildPublicProductProjection(
       productId: campaign.productId,
       title: campaign.title.trim(),
       saleType: campaign.saleType,
-      status: resolveCampaignStatus(campaign, new Date()),
+      status: resolveCampaignStatus(campaign, now),
       ...(typeof campaign.salePriceTwd === "number" ? { salePriceTwd: campaign.salePriceTwd } : {}),
       requiresSupplement: campaign.requiresSupplement,
-      ...(campaign.startsAt ? { startsAt: campaign.startsAt } : {}),
-      ...(campaign.endsAt ? { endsAt: campaign.endsAt } : {}),
+      ...(campaign.startsAt ? { startsAt: normalizeCampaignDateTime(campaign.startsAt) } : {}),
+      ...(campaign.endsAt ? { endsAt: normalizeCampaignDateTime(campaign.endsAt) } : {}),
       ...(campaign.publicNotice ? { publicNotice: campaign.publicNotice } : {}),
       ...(campaign.supplementNote ? { supplementNote: campaign.supplementNote } : {}),
     })),
@@ -423,8 +432,8 @@ export function resolveCampaignStatus(
   }
 
   const nowTime = now.getTime();
-  const startsAt = campaign.startsAt ? new Date(campaign.startsAt).getTime() : null;
-  const endsAt = campaign.endsAt ? new Date(campaign.endsAt).getTime() : null;
+  const startsAt = campaign.startsAt ? parseCampaignDateTime(campaign.startsAt).getTime() : null;
+  const endsAt = campaign.endsAt ? parseCampaignDateTime(campaign.endsAt).getTime() : null;
 
   if (startsAt !== null && Number.isFinite(startsAt) && startsAt > nowTime) {
     return "upcoming";
@@ -443,8 +452,24 @@ export function getEffectiveVariantPriceTwd(
   return typeof campaign?.salePriceTwd === "number" ? campaign.salePriceTwd : variant.priceTwd;
 }
 
-function isDateTimeLocalValue(value: string) {
-  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(value);
+function normalizeCampaignDateTime(value: string) {
+  const trimmed = value.trim();
+  try {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)
+      ? campaignDateTimeLocalToUtc(trimmed)
+      : parseCampaignDateTime(trimmed).toISOString();
+  } catch {
+    return trimmed;
+  }
+}
+
+function isValidCampaignDateTime(value: string) {
+  try {
+    parseCampaignDateTime(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function createProductSkuFromId(productId: string) {
