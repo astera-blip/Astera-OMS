@@ -1080,3 +1080,15 @@ four fresh readbacks pass and are reviewed.
 - The command must stop before API/KMS work unless readback verifies Provider
   `ACTIVE`, the exact mapping, exact Vercel-project condition, and exact
   `principalSet`. Docker build remains unverified because Docker CLI is absent.
+
+## 2026-08-09 Task 5 authorization retry status
+
+- A general user approval was received, but the managed safety review rejected the
+  Production command before execution because the approval did not explicitly list
+  the full multi-resource blast radius.
+- No Production mutation occurred. Task 5 remains in progress and Tasks 6–7 remain
+  pending.
+- Exact continuation: obtain explicit authorization for `astera-oms-prod` WIF
+  Provider condition, API enablement, KMS keys, Worker/Scheduler service accounts,
+  Worker `roles/datastore.user`, key-level KMS IAM, and Artifact Registry; then run
+  the already reviewed command without changing its arguments.

@@ -254,3 +254,15 @@ node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-p
 It must not continue to API/KMS work until readback proves Provider `ACTIVE`, the
 exact mapping, exact Vercel-project condition, and exact `principalSet`. Docker
 build remains unverified because Docker CLI is unavailable.
+
+### 2026-08-09 Task 5 apply authorization retry
+
+The user replied with a general approval, but the managed execution safety review
+rejected the live command before it started because the approval did not explicitly
+name the complete Production blast radius. No WIF, API, KMS, IAM, service-account,
+or Artifact Registry mutation occurred.
+
+The next attempt must use the same reviewed command only after the user explicitly
+authorizes changes to `astera-oms-prod` covering the WIF Provider condition, six
+approved APIs, both KMS keys, Worker and Scheduler service accounts, the Worker
+Firestore role, key-level KMS IAM, and the `astera-ops` Artifact Registry repository.

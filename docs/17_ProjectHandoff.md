@@ -997,3 +997,22 @@ node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-p
 The command will not proceed to API/KMS until readback verifies Provider `ACTIVE`,
 the exact mapping, exact Vercel-project condition, and exact `principalSet`.
 Docker build remains unverified because Docker CLI is absent.
+
+## 2026-08-09 Task 5 apply attempt blocked before mutation
+
+The managed execution safety review rejected the live apply before command startup.
+The user's brief approval did not explicitly enumerate the persistent Production
+changes. Therefore no WIF condition, API, KMS key, IAM binding, service account, or
+Artifact Registry resource was changed.
+
+Resume by obtaining explicit approval for the complete `astera-oms-prod` scope:
+WIF Provider condition, six approved APIs, two KMS keys, Worker and Scheduler
+service accounts, Worker Firestore role, key-level KMS IAM, and the `astera-ops`
+Artifact Registry repository. Then run exactly:
+
+```text
+node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+Do not bypass the managed safety review or split the operation into indirect
+commands to avoid the authorization gate.
