@@ -9,6 +9,11 @@ const KEY_RING = "astera-oms-security";
 const HMAC_KEY = "member-account-fingerprint";
 const REFUND_KEY = "refund-account-vault";
 const ARTIFACT_REPOSITORY = "astera-ops";
+const WIF_POOL = "vercel-oidc";
+const WIF_PROVIDER = "vercel";
+const WIF_PROJECT_ID = "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ";
+const WIF_ATTRIBUTE_CONDITION =
+  `assertion.project_id == "${WIF_PROJECT_ID}"`;
 const VERCEL_SERVICE_ACCOUNT =
   "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com";
 const WORKER_SERVICE_ACCOUNT =
@@ -22,6 +27,9 @@ const hmacKeyName = `${keyRingName}/cryptoKeys/${HMAC_KEY}`;
 const refundKeyName = `${keyRingName}/cryptoKeys/${REFUND_KEY}`;
 const artifactRepositoryName =
   `projects/${PROJECT}/locations/${REGION}/repositories/${ARTIFACT_REPOSITORY}`;
+const wifPrincipalSet =
+  `principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/`+
+  `workloadIdentityPools/${WIF_POOL}/attribute.project_id/${WIF_PROJECT_ID}`;
 
 export function parseProductionSecurityArgs(argv) {
   const values = {};
@@ -64,7 +72,29 @@ export function parseProductionSecurityArgs(argv) {
 export function buildProductionSecurityCommands(config) {
   assertFixedConfig(config);
   const projectArgs = ["--project", PROJECT];
+  const discoverWifProviderArgs = [
+    "iam", "workload-identity-pools", "providers", "describe", WIF_PROVIDER,
+    `--workload-identity-pool=${WIF_POOL}`,
+    "--location=global",
+    "--format=json(state,attributeMapping,attributeCondition)",
+    ...projectArgs,
+  ];
   const commands = [
+    step("discoverWifProvider", discoverWifProviderArgs),
+    step("updateWifProviderCondition", [
+      "iam", "workload-identity-pools", "providers", "update-oidc", WIF_PROVIDER,
+      `--workload-identity-pool=${WIF_POOL}`,
+      "--location=global",
+      `--attribute-condition=${WIF_ATTRIBUTE_CONDITION}`,
+      ...projectArgs,
+      "--quiet",
+    ]),
+    step("discoverVerifiedWifProvider", discoverWifProviderArgs),
+    step("discoverRuntimeServiceAccountIamPolicy", [
+      "iam", "service-accounts", "get-iam-policy", VERCEL_SERVICE_ACCOUNT,
+      "--format=json(bindings.role,bindings.members,bindings.condition)",
+      ...projectArgs,
+    ]),
     step("enableApis", [
       "services", "enable",
       "cloudkms.googleapis.com",
@@ -320,6 +350,9 @@ function assertFixedConfig(config) {
 }
 
 function shouldSkipCommand(name, state) {
+  if (name === "updateWifProviderCondition") {
+    return state.wifProviderConditionExact === true;
+  }
   const resourceChecks = {
     createKeyRing: "keyRingExists",
     createHmacKey: "hmacKeyExists",
@@ -357,6 +390,20 @@ function recordDiscovery(name, stdout, state) {
   if (!name.startsWith("discover")) return;
   const value = parseDiscoveryJson(stdout, name);
   switch (name) {
+    case "discoverWifProvider":
+      validateWifProviderBase(value, name);
+      state.wifProviderConditionExact =
+        value.attributeCondition === WIF_ATTRIBUTE_CONDITION;
+      break;
+    case "discoverVerifiedWifProvider":
+      validateWifProviderBase(value, name);
+      if (value.attributeCondition !== WIF_ATTRIBUTE_CONDITION) {
+        throw new Error(`production_security_resource_incompatible:${name}`);
+      }
+      break;
+    case "discoverRuntimeServiceAccountIamPolicy":
+      validateRuntimeServiceAccountIamPolicy(value, name);
+      break;
     case "discoverKeyRing":
       state.keyRingExists = validateResourceList(value, name, (resource) =>
         resource?.name === keyRingName);
@@ -424,6 +471,52 @@ function validateResourceList(value, name, isExact) {
     throw new Error(`production_security_resource_incompatible:${name}`);
   }
   return true;
+}
+
+function validateWifProviderBase(value, name) {
+  if (
+    !value
+    || typeof value !== "object"
+    || Array.isArray(value)
+    || value.state !== "ACTIVE"
+    || !value.attributeMapping
+    || typeof value.attributeMapping !== "object"
+    || Array.isArray(value.attributeMapping)
+    || value.attributeMapping["attribute.project_id"] !== "assertion.project_id"
+  ) {
+    throw new Error(`production_security_resource_incompatible:${name}`);
+  }
+}
+
+function validateRuntimeServiceAccountIamPolicy(value, name) {
+  if (!value || typeof value !== "object" || !Array.isArray(value.bindings)) {
+    throw new Error(`production_security_resource_incompatible:${name}`);
+  }
+  let expectedMemberCount = 0;
+  for (const binding of value.bindings) {
+    if (typeof binding?.role !== "string" || !Array.isArray(binding?.members)) {
+      throw new Error(`production_security_resource_incompatible:${name}`);
+    }
+    for (const member of binding.members) {
+      if (typeof member !== "string") {
+        throw new Error(`production_security_resource_incompatible:${name}`);
+      }
+      const isWorkloadIdentityPrincipalSet =
+        member.startsWith("principalSet://iam.googleapis.com/projects/")
+        && member.includes("/workloadIdentityPools/");
+      if (isWorkloadIdentityPrincipalSet && member !== wifPrincipalSet) {
+        throw new Error(`production_security_resource_incompatible:${name}`);
+      }
+      if (member !== wifPrincipalSet) continue;
+      if (binding.role !== "roles/iam.workloadIdentityUser" || binding.condition) {
+        throw new Error(`production_security_resource_incompatible:${name}`);
+      }
+      expectedMemberCount += 1;
+    }
+  }
+  if (expectedMemberCount !== 1) {
+    throw new Error(`production_security_resource_incompatible:${name}`);
+  }
 }
 
 function validateIamPolicy(value, name, allowedTargetRoles) {

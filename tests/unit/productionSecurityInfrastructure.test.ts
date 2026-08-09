@@ -26,6 +26,17 @@ const enableApisArgs = [
   "--project", "astera-oms-prod",
   "--quiet",
 ];
+const requiredWifCondition =
+  'assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"';
+const requiredPrincipalSet =
+  "principalSet://iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/attribute.project_id/prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ";
+const discoverWifProviderArgs = [
+  "iam", "workload-identity-pools", "providers", "describe", "vercel",
+  "--workload-identity-pool=vercel-oidc",
+  "--location=global",
+  "--format=json(state,attributeMapping,attributeCondition)",
+  "--project", "astera-oms-prod",
+];
 
 describe("production security infrastructure", () => {
   it("defaults to a dry run for the exact Production project and region", () => {
@@ -46,6 +57,50 @@ describe("production security infrastructure", () => {
     );
 
     expect(commands).toEqual([
+      {
+        name: "discoverWifProvider",
+        command: "gcloud",
+        args: [
+          "iam", "workload-identity-pools", "providers", "describe", "vercel",
+          "--workload-identity-pool=vercel-oidc",
+          "--location=global",
+          "--format=json(state,attributeMapping,attributeCondition)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "updateWifProviderCondition",
+        command: "gcloud",
+        args: [
+          "iam", "workload-identity-pools", "providers", "update-oidc", "vercel",
+          "--workload-identity-pool=vercel-oidc",
+          "--location=global",
+          "--attribute-condition=assertion.project_id == \"prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ\"",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverVerifiedWifProvider",
+        command: "gcloud",
+        args: [
+          "iam", "workload-identity-pools", "providers", "describe", "vercel",
+          "--workload-identity-pool=vercel-oidc",
+          "--location=global",
+          "--format=json(state,attributeMapping,attributeCondition)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "discoverRuntimeServiceAccountIamPolicy",
+        command: "gcloud",
+        args: [
+          "iam", "service-accounts", "get-iam-policy",
+          "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+          "--format=json(bindings.role,bindings.members,bindings.condition)",
+          "--project", "astera-oms-prod",
+        ],
+      },
       {
         name: "enableApis",
         command: "gcloud",
@@ -300,6 +355,7 @@ describe("production security infrastructure", () => {
     expect(spawnSync).not.toHaveBeenCalled();
     expect(output).toEqual([
       "mode=dry-run",
+      "action=updateWifProviderCondition",
       "action=enableApis",
       "action=createKeyRing",
       "action=createHmacKey",
@@ -328,15 +384,15 @@ describe("production security infrastructure", () => {
       spawnSync,
       log: (line) => output.push(line),
       platform: "linux",
-    })).toThrow("production_security_command_failed:enableApis");
+    })).toThrow("production_security_command_failed:discoverWifProvider");
 
     expect(spawnSync).toHaveBeenCalledTimes(1);
     expect(spawnSync).toHaveBeenCalledWith(
       "gcloud",
-      enableApisArgs,
+      discoverWifProviderArgs,
       expect.objectContaining({ shell: false }),
     );
-    expect(output).toEqual(["mode=apply", "action=enableApis"]);
+    expect(output).toEqual(["mode=apply", "action=discoverWifProvider"]);
   });
 
   it("launches gcloud.cmd through the validated Windows command processor", () => {
@@ -353,11 +409,11 @@ describe("production security infrastructure", () => {
         SystemRoot: "C:\\Windows",
         ComSpec: "C:\\Windows\\System32\\cmd.exe",
       },
-    })).toThrow("production_security_command_failed:enableApis");
+    })).toThrow("production_security_command_failed:discoverWifProvider");
 
     expect(spawnSync).toHaveBeenCalledWith(
       "C:\\Windows\\System32\\cmd.exe",
-      ["/d", "/s", "/c", "gcloud.cmd", ...enableApisArgs],
+      ["/d", "/s", "/c", "gcloud.cmd", ...discoverWifProviderArgs],
       expect.objectContaining({ shell: false }),
     );
   });
@@ -380,9 +436,161 @@ describe("production security infrastructure", () => {
     expect(spawnSync).not.toHaveBeenCalled();
   });
 
+  it("remediates a missing Provider condition, verifies it, and only then reaches API enablement", () => {
+    let providerReads = 0;
+    const spawnSync = vi.fn((_command: string, args: string[]) => {
+      const joined = args.join(" ");
+      if (joined.includes("providers describe")) {
+        providerReads += 1;
+        return successfulJson(exactProvider(
+          providerReads === 1 ? undefined : requiredWifCondition,
+        ));
+      }
+      if (joined.includes("providers update-oidc")) {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (joined.includes("service-accounts get-iam-policy")) {
+        return successfulJson(exactRuntimeIamPolicy());
+      }
+      return { status: 7, stdout: "", stderr: "not printed" };
+    });
+    const output: string[] = [];
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], {
+      spawnSync,
+      log: (line) => output.push(line),
+      platform: "linux",
+    })).toThrow("production_security_command_failed:enableApis");
+
+    expect(spawnSync.mock.calls.map(([, args]) => (args as string[]).slice(0, 5)))
+      .toEqual([
+        ["iam", "workload-identity-pools", "providers", "describe", "vercel"],
+        ["iam", "workload-identity-pools", "providers", "update-oidc", "vercel"],
+        ["iam", "workload-identity-pools", "providers", "describe", "vercel"],
+        [
+          "iam", "service-accounts", "get-iam-policy",
+          "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+          "--format=json(bindings.role,bindings.members,bindings.condition)",
+        ],
+        ["services", "enable", "cloudkms.googleapis.com", "run.googleapis.com", "cloudscheduler.googleapis.com"],
+      ]);
+    expect(output).toEqual([
+      "mode=apply",
+      "action=discoverWifProvider",
+      "action=updateWifProviderCondition",
+      "action=discoverVerifiedWifProvider",
+      "action=discoverRuntimeServiceAccountIamPolicy",
+      "action=enableApis",
+    ]);
+    expect(output.join("\n")).not.toContain(requiredPrincipalSet);
+  });
+
+  it("skips Provider mutation when the exact condition already exists", () => {
+    const spawnSync = vi.fn((_command: string, args: string[]) => {
+      const joined = args.join(" ");
+      if (joined.includes("providers describe")) {
+        return successfulJson(exactProvider(requiredWifCondition));
+      }
+      if (joined.includes("service-accounts get-iam-policy")) {
+        return successfulJson(exactRuntimeIamPolicy());
+      }
+      return { status: 7, stdout: "", stderr: "not printed" };
+    });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_command_failed:enableApis");
+
+    expect(spawnSync.mock.calls.some(([, args]) =>
+      (args as string[]).includes("update-oidc"))).toBe(false);
+    expect(spawnSync).toHaveBeenNthCalledWith(
+      4,
+      "gcloud",
+      enableApisArgs,
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it.each([
+    ["state", { ...exactProvider(), state: "DISABLED" }],
+    ["mapping", {
+      ...exactProvider(),
+      attributeMapping: { "attribute.project_id": "assertion.wrong" },
+    }],
+  ])("fails closed on incompatible initial Provider %s", (_case, provider) => {
+    const spawnSync = vi.fn(() => successfulJson(provider));
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_resource_incompatible:discoverWifProvider");
+
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when the post-update Provider readback is not exact", () => {
+    let providerReads = 0;
+    const spawnSync = vi.fn((_command: string, args: string[]) => {
+      if (args.includes("describe")) {
+        providerReads += 1;
+        return successfulJson(exactProvider(
+          providerReads === 1 ? undefined : "assertion.project_id == 'wrong'",
+        ));
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_resource_incompatible:discoverVerifiedWifProvider");
+
+    expect(spawnSync).toHaveBeenCalledTimes(3);
+    expect(spawnSync.mock.calls.some(([, args]) =>
+      (args as string[])[0] === "services")).toBe(false);
+  });
+
+  it.each([
+    ["missing", { bindings: [] }],
+    ["alternate", exactRuntimeIamPolicy([
+      requiredPrincipalSet,
+      "principalSet://iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/attribute.project_id/prj_other",
+    ])],
+  ])("fails closed on %s runtime-SA workload identity membership", (_case, policy) => {
+    const spawnSync = vi.fn((_command: string, args: string[]) => {
+      const joined = args.join(" ");
+      if (joined.includes("providers describe")) {
+        return successfulJson(exactProvider(requiredWifCondition));
+      }
+      return successfulJson(policy);
+    });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_resource_incompatible:discoverRuntimeServiceAccountIamPolicy");
+
+    expect(spawnSync.mock.calls.some(([, args]) =>
+      (args as string[])[0] === "services")).toBe(false);
+  });
+
   it("leaves exact existing resources and IAM bindings unchanged", () => {
     const spawnSync = vi.fn((_command: string, args: string[]) => {
       const joined = args.join(" ");
+      if (joined.includes("providers describe")) {
+        return successfulJson(exactProvider(requiredWifCondition));
+      }
+      if (joined.includes("service-accounts get-iam-policy")) {
+        return successfulJson(exactRuntimeIamPolicy());
+      }
       if (joined.includes("kms keyrings list")) {
         return successfulJson([{
           name: "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security",
@@ -460,4 +668,21 @@ describe("production security infrastructure", () => {
 
 function successfulJson(value: unknown) {
   return { status: 0, stdout: JSON.stringify(value), stderr: "" };
+}
+
+function exactProvider(attributeCondition?: string) {
+  return {
+    state: "ACTIVE",
+    attributeMapping: { "attribute.project_id": "assertion.project_id" },
+    ...(attributeCondition === undefined ? {} : { attributeCondition }),
+  };
+}
+
+function exactRuntimeIamPolicy(members = [requiredPrincipalSet]) {
+  return {
+    bindings: [{
+      role: "roles/iam.workloadIdentityUser",
+      members,
+    }],
+  };
 }
