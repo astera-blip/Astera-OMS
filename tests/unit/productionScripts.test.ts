@@ -11,7 +11,7 @@ import {
   parseProductionArgs,
 } from "../../scripts/audit-product-projection.mjs";
 import {
-  buildProjectionFromPublicDocument,
+  buildProductProjectionSyncPlan,
   parseSyncArgs,
 } from "../../scripts/sync-product-projection.mjs";
 import {
@@ -225,21 +225,68 @@ describe("product projection sync", () => {
     ])).toThrow("project_confirmation_required");
   });
 
-  it("rebuilds a public projection without private fields", () => {
-    const projection = buildProjectionFromPublicDocument("prod_1", {
-      name: "Public product",
-      publicDescription: "Description",
+  it("builds desired public projections from joined internal product records without private fields", () => {
+    const plan = buildProductProjectionSyncPlan([{
+      id: "prod_1",
+      name: "Internal product",
+      publicDescription: "Description from internal",
       publishState: "published",
       sku: "AST-P000001",
       internalNote: "private",
-      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500, sku: "AST-P000001-V001" }],
-      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
-    });
+      images: [{ objectPath: "product-images/prod_1/a.webp", sortOrder: 1, url: "https://cdn.example/a.webp", createdBy: "system" }],
+      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500, sku: "AST-P000001-V001", originalCost: 200 }],
+      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false, internalNote: "private" }],
+    }], []);
 
-    expect(projection).toEqual(expect.objectContaining({ id: "prod_1", name: "Public product" }));
-    expect(projection).not.toHaveProperty("sku");
-    expect(projection).not.toHaveProperty("internalNote");
-    expect(projection.variants[0]).not.toHaveProperty("sku");
+    expect(plan.desiredPublicProducts).toEqual([{
+      id: "prod_1",
+      name: "Internal product",
+      publicDescription: "Description from internal",
+      publishState: "published",
+      images: [{ objectPath: "product-images/prod_1/a.webp", sortOrder: 1, url: "https://cdn.example/a.webp" }],
+      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500 }],
+      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
+    }]);
+    expect(plan.operations).toEqual([{
+      type: "set",
+      id: "prod_1",
+      data: {
+        id: "prod_1",
+        name: "Internal product",
+        publicDescription: "Description from internal",
+        publishState: "published",
+        images: [{ objectPath: "product-images/prod_1/a.webp", sortOrder: 1, url: "https://cdn.example/a.webp" }],
+        variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500 }],
+        campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
+      },
+    }]);
+  });
+
+  it("sets missing or stale projections from internal records and deletes orphan public records", () => {
+    const plan = buildProductProjectionSyncPlan(
+      [
+        { id: "prod_1", name: "Fresh one", publicDescription: "Fresh description", publishState: "published", sku: "AST-P000001", variants: [], campaigns: [] },
+        { id: "prod_2", name: "Missing two", publicDescription: "Second description", publishState: "draft", sku: "AST-P000002", variants: [], campaigns: [] },
+      ],
+      [
+        { id: "prod_1", name: "Stale public name", publicDescription: "Stale", publishState: "archived", variants: [], campaigns: [] },
+        { id: "prod_orphan", name: "Orphan", publicDescription: "Orphan", publishState: "published", variants: [], campaigns: [] },
+      ],
+    );
+
+    expect(plan.operations).toEqual([
+      {
+        type: "set",
+        id: "prod_1",
+        data: { id: "prod_1", name: "Fresh one", publicDescription: "Fresh description", publishState: "published", variants: [], campaigns: [] },
+      },
+      {
+        type: "set",
+        id: "prod_2",
+        data: { id: "prod_2", name: "Missing two", publicDescription: "Second description", publishState: "draft", variants: [], campaigns: [] },
+      },
+      { type: "delete", id: "prod_orphan" },
+    ]);
   });
 
   it("keeps the audit script read-only while sync is the only writer", () => {

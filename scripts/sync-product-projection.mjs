@@ -7,6 +7,7 @@ import { auditProductProjection } from "./audit-product-projection.mjs";
 const PRIVATE_FIELDS = new Set([
   "sku",
   "internalNote",
+  "originalCost",
   "originalCosts",
   "cost",
   "createdBy",
@@ -49,9 +50,9 @@ function stripPrivateFields(value) {
   );
 }
 
-export function buildProjectionFromPublicDocument(id, data) {
+export function buildProjectionFromInternalProduct(data) {
   const projection = stripPrivateFields({
-    id,
+    id: data.id,
     name: data.name,
     publicDescription: data.publicDescription,
     publishState: data.publishState,
@@ -61,6 +62,21 @@ export function buildProjectionFromPublicDocument(id, data) {
     campaigns: Array.isArray(data.campaigns) ? data.campaigns : [],
   });
   return projection;
+}
+
+export function buildProductProjectionSyncPlan(internalProducts, publicProducts) {
+  const desiredPublicProducts = internalProducts.map(buildProjectionFromInternalProduct);
+  const internalIds = new Set(internalProducts.map((product) => product.id));
+
+  return {
+    desiredPublicProducts,
+    operations: [
+      ...desiredPublicProducts.map((data) => ({ type: "set", id: data.id, data })),
+      ...publicProducts
+        .filter((product) => !internalIds.has(product.id))
+        .map((product) => ({ type: "delete", id: product.id })),
+    ],
+  };
 }
 
 function serializeForBackup(value) {
@@ -101,15 +117,19 @@ async function createBackup(data, backupDir) {
   return backupFile;
 }
 
-async function syncProjection(db, publicProducts) {
+async function syncProjection(db, plan) {
   let batch = db.batch();
   let writes = 0;
-  for (const product of publicProducts) {
-    const ref = db.collection("productsPublic").doc(product.id);
-    batch.set(ref, {
-      ...buildProjectionFromPublicDocument(product.id, product),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+  for (const operation of plan.operations) {
+    const ref = db.collection("productsPublic").doc(operation.id);
+    if (operation.type === "set") {
+      batch.set(ref, {
+        ...operation.data,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      batch.delete(ref);
+    }
     writes += 1;
     if (writes % 450 === 0) {
       await batch.commit();
@@ -129,10 +149,11 @@ async function main(argv) {
   const app = getApps()[0] ?? initializeApp({ credential: applicationDefault(), projectId: project });
   const db = getFirestore(app);
   const data = await readProductionData(db);
-  const report = auditProductProjection(data.internalProducts, data.publicProducts);
+  const plan = buildProductProjectionSyncPlan(data.internalProducts, data.publicProducts);
+  const report = auditProductProjection(data.internalProducts, plan.desiredPublicProducts);
   if (!report.ok) throw new Error(`projection_audit_failed:${JSON.stringify(report.issues)}`);
   const backupFile = await createBackup(data, backupDir);
-  const writes = await syncProjection(db, data.publicProducts);
+  const writes = await syncProjection(db, plan);
   console.log(JSON.stringify({ ok: true, project, backupFile, writes, audit: report }, null, 2));
 }
 
