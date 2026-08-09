@@ -14,6 +14,7 @@ import {
 } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { resolveFirebaseProjectId } from "@/lib/firebase/projectEnvironment";
 
 let adminApp: App | null = null;
 let usingVercelOidc = false;
@@ -99,11 +100,7 @@ function refreshVercelOidcSubjectToken() {
 }
 
 function getProjectId() {
-  return process.env.GOOGLE_CLOUD_PROJECT
-    ?? process.env.GCP_PROJECT_ID
-    ?? process.env.GCLOUD_PROJECT
-    ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    ?? undefined;
+  return resolveFirebaseProjectId();
 }
 
 function getStorageBucket() {

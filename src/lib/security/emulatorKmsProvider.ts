@@ -5,6 +5,7 @@ import {
   createHmac,
   randomBytes,
 } from "node:crypto";
+import { everyConfiguredProjectMatches } from "@/lib/firebase/projectEnvironment";
 
 const emulatorProjectId = "demo-astera-oms";
 const latestMacKeyVersion = 7;
@@ -39,10 +40,13 @@ type EmulatorKmsEnvironment = Readonly<Record<string, string | undefined>>;
 export function isEmulatorKmsProviderEnabled(
   env: EmulatorKmsEnvironment = process.env,
 ) {
-  const projectId = env.GCP_PROJECT_ID?.trim()
-    || env.GOOGLE_CLOUD_PROJECT?.trim();
   return env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true"
-    && projectId === emulatorProjectId;
+    && everyConfiguredProjectMatches(emulatorProjectId, env)
+    && isExpectedLocalEmulatorHost(env.FIREBASE_AUTH_EMULATOR_HOST, 9099)
+    && isExpectedLocalEmulatorHost(env.FIRESTORE_EMULATOR_HOST, 8080)
+    && env.NODE_ENV !== "production"
+    && env.VERCEL !== "1"
+    && !env.VERCEL_ENV?.trim();
 }
 
 export function emulatorKmsMacConfig(
@@ -144,4 +148,9 @@ function keyVersionFromResourceName(resourceName: string | null | undefined) {
 
 function asBuffer(value: Uint8Array | string) {
   return typeof value === "string" ? Buffer.from(value, "utf8") : Buffer.from(value);
+}
+
+function isExpectedLocalEmulatorHost(value: string | undefined, port: number) {
+  const host = value?.trim() ?? "";
+  return host === `127.0.0.1:${port}` || host === `localhost:${port}`;
 }

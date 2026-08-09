@@ -4,6 +4,7 @@ import {
   buildRefundVerificationFailureAudit,
   buildRefundVerificationScopes,
   releaseRefundVerificationReservation,
+  reserveAndVerifyRefundAccount,
   reserveRefundVerificationAttempt,
 } from "../../src/lib/order/refundVerificationAttempts";
 import { POST as resubmitRefundAccount } from "../../src/app/api/cancellations/[id]/refund-account/route";
@@ -325,15 +326,11 @@ describe("refund verification security audit", () => {
     }
   });
 
-  it("builds an allowlisted mismatch audit with safe hashes, counters, result, and timestamps only", () => {
-    const scopes = buildRefundVerificationScopes({
-      requestId: "cancel-sensitive",
-      memberUid: "member-sensitive",
-      requestIp: "203.0.113.8",
-    }, secret);
+  it("builds an attributable mismatch audit without limiter or account secrets", () => {
     const audit = buildRefundVerificationFailureAudit({
       id: "audit-1",
-      scopes,
+      requestId: "cancel-sensitive",
+      actorUid: "member-sensitive",
       priorRequestAttempts: 2,
       verification: "mismatch",
       now,
@@ -342,20 +339,39 @@ describe("refund verification security audit", () => {
     expect(audit).toEqual({
       id: "audit-1",
       action: "refund.account.mismatch",
-      actorUid: "system",
+      actorUid: "member-sensitive",
       targetType: "refundVerificationRequest",
-      targetId: scopes.requestScopeHash,
+      targetId: "cancel-sensitive",
       result: "mismatch",
       attemptCount: 3,
-      requestScopeHash: scopes.requestScopeHash,
-      memberScopeHash: scopes.memberScopeHash,
-      ipScopeHash: scopes.ipScopeHash,
-      refundVerificationExpiresAt: "2026-08-04T00:25:00.000Z",
       createdAt: "2026-08-04T00:10:00.000Z",
     });
     expect(JSON.stringify(audit)).not.toMatch(
-      /cancel-sensitive|member-sensitive|203\.0\.113\.8|accountNumber|canonical|ciphertext|keyVersion|secret/i,
+      /203\.0\.113\.8|requestScopeHash|memberScopeHash|ipScopeHash|accountNumber|canonical|ciphertext|keyVersion|secret/i,
     );
+  });
+
+  it("bounds concurrent verification callbacks through an atomic reservation", async () => {
+    const fake = createReservationFirestore();
+    const scopes = buildRefundVerificationScopes({
+      requestId: "cancel-concurrent-api",
+      memberUid: "member-a",
+      requestIp: "203.0.113.8",
+    }, secret);
+    const signer = vi.fn(async () => "match" as const);
+
+    const outcomes = await Promise.all(Array.from({ length: 6 }, () =>
+      reserveAndVerifyRefundAccount({
+        db: fake.db as never,
+        scopes,
+        requestId: "cancel-concurrent-api",
+        actorUid: "member-a",
+        verify: signer,
+        now,
+      })));
+
+    expect(outcomes.filter((outcome) => outcome.limited)).toHaveLength(1);
+    expect(signer).toHaveBeenCalledTimes(5);
   });
 
   it("atomically limits concurrent reservations before verification, KMS, or encryption", async () => {
@@ -373,6 +389,8 @@ describe("refund verification security audit", () => {
       const reservation = await reserveRefundVerificationAttempt({
         db: fake.db as never,
         scopes,
+        requestId: "cancel-concurrent",
+        actorUid: "member-a",
         now,
       });
       if (reservation.limited) {
@@ -401,6 +419,8 @@ describe("refund verification security audit", () => {
     const first = await reserveRefundVerificationAttempt({
       db: fake.db as never,
       scopes,
+      requestId: "cancel-cleanup",
+      actorUid: "member-a",
       now,
     });
     expect(first.limited).toBe(false);
@@ -417,6 +437,8 @@ describe("refund verification security audit", () => {
     const crashed = await reserveRefundVerificationAttempt({
       db: fake.db as never,
       scopes,
+      requestId: "cancel-cleanup",
+      actorUid: "member-a",
       now,
     });
     expect(crashed.limited).toBe(false);
@@ -426,6 +448,8 @@ describe("refund verification security audit", () => {
     const afterExpiry = await reserveRefundVerificationAttempt({
       db: fake.db as never,
       scopes,
+      requestId: "cancel-cleanup",
+      actorUid: "member-a",
       now: new Date(now.getTime() + 61_000),
     });
 
@@ -606,7 +630,7 @@ describe("refund verification API preflight", () => {
     expect(audit).toEqual({
       id: expect.any(String),
       action: "refund.account.mismatch",
-      actorUid: "system",
+      actorUid: "member-a",
       targetType: "refundVerificationRequest",
       targetId: expect.any(String),
       result: "mismatch",
@@ -706,9 +730,9 @@ describe("Owner sanitized audit list API", () => {
               data: () => ({
                 id: "audit-mismatch-1",
                 action: "refund.account.mismatch",
-                actorUid: "system",
+                actorUid: "member-a",
                 targetType: "refundVerificationRequest",
-                targetId: "request-scope-hash",
+                targetId: "cancel-actual-request",
                 attemptCount: 5,
                 result: "mismatch",
                 createdAt: "2026-08-04T00:10:00.000Z",
@@ -735,8 +759,8 @@ describe("Owner sanitized audit list API", () => {
       logs: [{
         id: "audit-mismatch-1",
         action: "refund.account.mismatch",
-        actorUid: "system",
-        requestReference: "audit-mismatch-1",
+        actorUid: "member-a",
+        requestReference: "cancel-actual-request",
         attemptCount: 5,
         result: "mismatch",
         createdAt: "2026-08-04T00:10:00.000Z",

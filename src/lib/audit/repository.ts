@@ -35,7 +35,7 @@ export function sanitizeOwnerAuditLog(
       id,
       action,
       actorUid,
-      requestReference: id,
+      requestReference: typeof value.targetId === "string" ? value.targetId : id,
       attemptCount: typeof value.attemptCount === "number" ? value.attemptCount : 0,
       result: value.result === "needsReverification" ? "needsReverification" : "mismatch",
       createdAt,

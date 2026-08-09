@@ -35,6 +35,15 @@ export function getMissingEnvironmentNames(env) {
 
 export function validateProductionEnvironment(env) {
   const issues = getMissingEnvironmentNames(env).map((name) => `${name}=missing`);
+  const projectIds = [
+    env.GOOGLE_CLOUD_PROJECT,
+    env.GCP_PROJECT_ID,
+    env.GCLOUD_PROJECT,
+    env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  ].map((value) => String(value ?? "").trim()).filter(Boolean);
+  if (new Set(projectIds).size > 1) {
+    issues.push("PROJECT_ID_ALIASES=conflict");
+  }
   const projectId = String(env.GCP_PROJECT_ID ?? "").trim();
   for (const name of ["GCP_KMS_HMAC_KEY_NAME", "GCP_KMS_REFUND_KEY_NAME"]) {
     const keyName = String(env[name] ?? "").trim();
@@ -77,6 +86,10 @@ export function assertProductionFlags(env) {
   if (
     env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true"
     || env.NEXT_PUBLIC_ENABLE_E2E_TEST_AUTH === "true"
+    || env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true"
+    || String(env.FIREBASE_AUTH_EMULATOR_HOST ?? "").trim()
+    || String(env.FIRESTORE_EMULATOR_HOST ?? "").trim()
+    || String(env.FIREBASE_STORAGE_EMULATOR_HOST ?? "").trim()
   ) {
     throw new Error("unsafe_production_runtime");
   }

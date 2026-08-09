@@ -33,7 +33,15 @@ import { POST as reviewCancellation } from "@/app/api/workspace/cancellations/[i
 import { GET as getOrderDetail } from "@/app/api/orders/[id]/route";
 
 type FakeRef = { kind: "doc"; collection: string; id: string };
-type FakeQuery = { kind: "query"; collection: string; filters: Array<[string, unknown]> };
+type FakeQuery = {
+  kind: "query";
+  collection: string;
+  filters: Array<[string, unknown]>;
+  operator?: string;
+  value?: unknown;
+  maximum?: number;
+  limit?: (maximum: number) => FakeQuery;
+};
 const validHistoricalFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 
 function createPaidCancellationFirestore(options: {
@@ -126,6 +134,20 @@ function createPaidCancellationFirestore(options: {
         data: () => allocation,
       })) };
     }
+    if (query.collection === "auditLogs") {
+      const candidate = String(query.value ?? "");
+      const audits = Object.entries(records)
+        .filter(([key]) => key.startsWith("auditLogs/"))
+        .map(([key, value]) => ({ id: key.slice("auditLogs/".length), value }))
+        .filter(({ value }) => {
+          const expiry = String(value.refundVerificationExpiresAt ?? "");
+          return query.operator === ">" ? expiry > candidate : expiry <= candidate;
+        })
+        .slice(0, query.maximum);
+      return {
+        docs: audits.map(({ id, value }) => ({ id, data: () => value })),
+      };
+    }
     if (query.collection === "cancellationRequests") {
       const cancellations = Object.entries(records)
         .filter(([key]) => key.startsWith("cancellationRequests/"))
@@ -154,6 +176,12 @@ function createPaidCancellationFirestore(options: {
         kind: "query",
         collection: name,
         filters: [[field, value]],
+        operator: _operator,
+        value,
+        limit(maximum) {
+          this.maximum = maximum;
+          return this;
+        },
         where(nextField, _nextOperator, nextValue) {
           this.filters.push([nextField, nextValue]);
           return this;
@@ -172,15 +200,25 @@ function createPaidCancellationFirestore(options: {
     }),
     set: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
       hasStagedWrite = true;
+      records[`${ref.collection}/${ref.id}`] = { ...value };
       writes.push({ operation: "set", ref, value });
     }),
     create: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
       hasStagedWrite = true;
+      records[`${ref.collection}/${ref.id}`] = { ...value };
       writes.push({ operation: "set", ref, value });
     }),
     update: vi.fn((ref: FakeRef, value: Record<string, unknown>) => {
       hasStagedWrite = true;
+      records[`${ref.collection}/${ref.id}`] = {
+        ...records[`${ref.collection}/${ref.id}`],
+        ...value,
+      };
       writes.push({ operation: "update", ref, value });
+    }),
+    delete: vi.fn((ref: FakeRef) => {
+      hasStagedWrite = true;
+      delete records[`${ref.collection}/${ref.id}`];
     }),
   };
   const db = {
@@ -244,6 +282,85 @@ describe("refund account protected APIs", () => {
 
     expect(response.status).toBe(403);
     expect(vault.readRefundAccountForOwner).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: "pending", refundAccountCiphertext: "private-ciphertext" },
+    { status: "approved", refundAccountCiphertext: undefined },
+  ])("rejects a foreign idempotency replay before returning success: %o", async (state) => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-attacker" });
+    const fake = createPaidCancellationFirestore({
+      existingCancellation: {
+        id: "cancel_shared-key",
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        memberUid: "member-owner",
+        reason: "owner request",
+        status: state.status,
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+        ...(state.refundAccountCiphertext
+          ? { refundAccountCiphertext: state.refundAccountCiphertext }
+          : {}),
+      },
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+
+    const response = await createCancellation(new Request("https://example.test/api/cancellations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        reason: "attacker replay",
+        idempotencyKey: "shared-key",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountNumberFull: "00123456789",
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: "idempotency_conflict" });
+    expect(kmsMac.signCanonicalAccount).not.toHaveBeenCalled();
+    expect(vault.encryptRefundAccount).not.toHaveBeenCalled();
+  });
+
+  it("rejects an immutable payload change on a completed idempotent replay", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    const fake = createPaidCancellationFirestore({
+      existingCancellation: {
+        id: "cancel_immutable-key",
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        memberUid: "member-a",
+        reason: "original reason",
+        status: "pending",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+        refundAccountCiphertext: "private-ciphertext",
+      },
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+
+    const response = await createCancellation(new Request("https://example.test/api/cancellations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        reason: "changed reason",
+        idempotencyKey: "immutable-key",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountNumberFull: "00123456789",
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: "idempotency_conflict" });
   });
 
   it("verifies the specified historical payment and stores a 14-day vault entry", async () => {
@@ -337,21 +454,29 @@ describe("refund account protected APIs", () => {
     expect(response.status).toBe(400);
     expect(fake.writes.filter((write) => write.ref.collection === "cancellationRequests")).toHaveLength(0);
     expect(fake.writes.filter((write) => write.ref.collection === "paymentAllocations")).toHaveLength(0);
-    const audit = fake.writes.find((write) => write.ref.collection === "auditLogs");
-    expect(audit?.value).toMatchObject({ action: "refund.account.mismatch" });
+    const audit = fake.writes.find((write) =>
+      write.ref.collection === "auditLogs"
+      && write.value.action === "refund.account.mismatch");
+    expect(audit?.value).toMatchObject({
+      action: "refund.account.mismatch",
+      actorUid: "member-a",
+      targetId: "cancel_paid-refund-mismatch",
+    });
     expect(JSON.stringify(audit)).not.toContain("00123456789");
     expect(vault.storeRefundAccount).not.toHaveBeenCalled();
     expect(fake.writes.filter((write) => write.ref.collection === "securityRateLimits")).toHaveLength(0);
     expect(audit?.ref.id).toMatch(/^generated-auditLogs-/);
     expect(audit?.value).not.toHaveProperty("requestIp");
-    expect(audit?.value).not.toHaveProperty("memberUid");
+    expect(audit?.value).not.toHaveProperty("requestScopeHash");
+    expect(audit?.value).not.toHaveProperty("memberScopeHash");
+    expect(audit?.value).not.toHaveProperty("ipScopeHash");
     expect(fake.transaction.create).toHaveBeenCalledWith(
       expect.objectContaining({ collection: "auditLogs" }),
       expect.objectContaining({ action: "refund.account.mismatch" }),
     );
     expect(JSON.stringify(audit)).not.toContain("203.0.113.8");
-    expect(JSON.stringify(audit)).not.toContain("member-a");
-    expect(JSON.stringify(audit)).not.toContain("paid-refund-mismatch");
+    expect(JSON.stringify(audit)).toContain("member-a");
+    expect(JSON.stringify(audit)).toContain("cancel_paid-refund-mismatch");
   });
 
   it("does not commit cancellation state when KMS encryption fails", async () => {
@@ -545,6 +670,7 @@ describe("refund account protected APIs", () => {
         orderId: "order-paid",
         orderItemIds: ["item-paid"],
         memberUid: "member-a",
+        reason: "retry",
         status: "pending",
         targetPaymentId: "payment-original",
         refundBankCode: "012",

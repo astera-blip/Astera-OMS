@@ -25,6 +25,8 @@ type RefundVerificationAttemptRecord = Partial<RefundVerificationScopes> & {
 export type RefundVerificationReservation = {
   id: string;
   attemptCount: number;
+  requestId: string;
+  actorUid: string;
   scopes: RefundVerificationScopes;
 };
 
@@ -70,7 +72,8 @@ export function assessRefundVerificationCooldown(
 
 export function buildRefundVerificationFailureAudit(input: {
   id: string;
-  scopes: RefundVerificationScopes;
+  requestId: string;
+  actorUid: string;
   priorRequestAttempts: number;
   verification: "mismatch" | "needsReverification";
   now?: Date;
@@ -79,56 +82,20 @@ export function buildRefundVerificationFailureAudit(input: {
   return {
     id: input.id,
     action: "refund.account.mismatch" as const,
-    actorUid: "system" as const,
+    actorUid: input.actorUid,
     targetType: "refundVerificationRequest" as const,
-    targetId: input.scopes.requestScopeHash,
+    targetId: input.requestId,
     result: input.verification,
     attemptCount: input.priorRequestAttempts + 1,
-    ...input.scopes,
-    refundVerificationExpiresAt: new Date(now.getTime() + WINDOW_MS).toISOString(),
     createdAt: now.toISOString(),
   };
-}
-
-export async function readRefundVerificationCooldown(input: {
-  db: FirebaseFirestore.Firestore;
-  scopes: RefundVerificationScopes;
-  now?: Date;
-}) {
-  const now = input.now ?? new Date();
-  const snapshot = await input.db
-    .collection("auditLogs")
-    .where("refundVerificationExpiresAt", ">", now.toISOString())
-    .get();
-  return assessRefundVerificationCooldown(
-    snapshot.docs.map((document) => document.data() as RefundVerificationAttemptRecord),
-    input.scopes,
-    now,
-  );
-}
-
-export async function readRefundVerificationCooldownInTransaction(input: {
-  transaction: FirebaseFirestore.Transaction;
-  db: FirebaseFirestore.Firestore;
-  scopes: RefundVerificationScopes;
-  now?: Date;
-}) {
-  const now = input.now ?? new Date();
-  const snapshot = await input.transaction.get(
-    input.db
-      .collection("auditLogs")
-      .where("refundVerificationExpiresAt", ">", now.toISOString()),
-  );
-  return assessRefundVerificationCooldown(
-    snapshot.docs.map((document) => document.data() as RefundVerificationAttemptRecord),
-    input.scopes,
-    now,
-  );
 }
 
 export async function reserveRefundVerificationAttempt(input: {
   db: FirebaseFirestore.Firestore;
   scopes: RefundVerificationScopes;
+  requestId: string;
+  actorUid: string;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -171,6 +138,8 @@ export async function reserveRefundVerificationAttempt(input: {
     const reservation: RefundVerificationReservation = {
       id: reservationRef.id,
       attemptCount: cooldown.counts.request + 1,
+      requestId: input.requestId,
+      actorUid: input.actorUid,
       scopes: input.scopes,
     };
     transaction.create(reservationRef, {
@@ -246,14 +215,54 @@ export async function finalizeRefundVerificationFailureReservation(input: {
     transaction.create(auditRef, {
       id: auditRef.id,
       action: "refund.account.mismatch",
-      actorUid: "system",
+      actorUid: input.reservation.actorUid,
       targetType: "refundVerificationRequest",
-      targetId: input.reservation.id,
+      targetId: input.reservation.requestId,
       result: input.verification,
       attemptCount: input.reservation.attemptCount,
       createdAt: now.toISOString(),
     });
   });
+}
+
+export async function reserveAndVerifyRefundAccount(input: {
+  db: FirebaseFirestore.Firestore;
+  scopes: RefundVerificationScopes;
+  requestId: string;
+  actorUid: string;
+  verify: () => Promise<"match" | "mismatch" | "needsReverification">;
+  now?: Date;
+}) {
+  const reservationResult = await reserveRefundVerificationAttempt({
+    db: input.db,
+    scopes: input.scopes,
+    requestId: input.requestId,
+    actorUid: input.actorUid,
+    now: input.now,
+  });
+  if (reservationResult.limited) {
+    return reservationResult;
+  }
+  const { reservation } = reservationResult;
+  try {
+    const verification = await input.verify();
+    if (verification !== "match") {
+      await finalizeRefundVerificationFailureReservation({
+        db: input.db,
+        reservation,
+        verification,
+        now: input.now,
+      });
+      return { limited: false as const, verification, reservation: undefined };
+    }
+    return { limited: false as const, verification, reservation };
+  } catch (error) {
+    await releaseRefundVerificationReservation({
+      db: input.db,
+      reservationId: reservation.id,
+    });
+    throw error;
+  }
 }
 
 function requireRateLimitSecret() {
@@ -280,33 +289,4 @@ function timestampMilliseconds(value: unknown): number {
     return (value as { toDate: () => Date }).toDate().getTime();
   }
   return Number.NaN;
-}
-
-export async function appendRefundVerificationFailure(input: {
-  transaction: FirebaseFirestore.Transaction;
-  db: FirebaseFirestore.Firestore;
-  scopes: RefundVerificationScopes;
-  verification: "mismatch" | "needsReverification";
-  now?: Date;
-}) {
-  const now = input.now ?? new Date();
-  const attemptsSnapshot = await input.transaction.get(
-    input.db
-      .collection("auditLogs")
-      .where("refundVerificationExpiresAt", ">", now.toISOString()),
-  );
-  const cooldown = assessRefundVerificationCooldown(
-    attemptsSnapshot.docs.map((document) => document.data() as RefundVerificationAttemptRecord),
-    input.scopes,
-    now,
-  );
-  const auditRef = input.db.collection("auditLogs").doc();
-  input.transaction.create(auditRef, buildRefundVerificationFailureAudit({
-    id: auditRef.id,
-    scopes: input.scopes,
-    priorRequestAttempts: cooldown.counts.request,
-    verification: input.verification,
-    now,
-  }));
-  return cooldown.limited;
 }

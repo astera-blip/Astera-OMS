@@ -62,6 +62,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const reservationResult = await reserveRefundVerificationAttempt({
       db,
       scopes: verificationScopes,
+      requestId: id,
+      actorUid: claims.uid,
     });
     if (reservationResult.limited) {
       throw new Error("refund_account_rate_limited");

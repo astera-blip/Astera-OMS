@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
+  assertProductionFlags,
   formatEnvironmentReport,
   getMissingEnvironmentNames,
   validateProductionEnvironment,
@@ -121,6 +122,20 @@ describe("production environment checker", () => {
       GCP_KMS_REFUND_KEY_NAME:
         "projects/another-project/locations/asia-east1/keyRings/refund/cryptoKeys/account",
     })).toContain("GCP_KMS_REFUND_KEY_NAME=invalid");
+    expect(validateProductionEnvironment({
+      ...environment,
+      GOOGLE_CLOUD_PROJECT: "astera-oms-prod",
+      GCP_PROJECT_ID: "demo-astera-oms",
+    })).toContain("PROJECT_ID_ALIASES=conflict");
+  });
+
+  it.each([
+    { PLAYWRIGHT_USE_FIREBASE_EMULATORS: "true" },
+    { FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099" },
+    { FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080" },
+    { FIREBASE_STORAGE_EMULATOR_HOST: "127.0.0.1:9199" },
+  ])("rejects private emulator configuration in production: %o", (unsafe) => {
+    expect(() => assertProductionFlags(unsafe)).toThrow("unsafe_production_runtime");
   });
 
   it("allows absent OIDC resources to fall through to their create commands on Windows", () => {
