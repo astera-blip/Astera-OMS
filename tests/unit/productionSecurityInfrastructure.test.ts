@@ -15,6 +15,17 @@ const unsafeProjectArgs: string[][] = [
   ["--project", "astera-oms-prod", "--confirm-project", "another-project"],
   ["--project", "astera-oms-dev-b2b2e", "--confirm-project", "astera-oms-dev-b2b2e", "--apply"],
 ];
+const enableApisArgs = [
+  "services", "enable",
+  "cloudkms.googleapis.com",
+  "run.googleapis.com",
+  "cloudscheduler.googleapis.com",
+  "cloudbuild.googleapis.com",
+  "artifactregistry.googleapis.com",
+  "monitoring.googleapis.com",
+  "--project", "astera-oms-prod",
+  "--quiet",
+];
 
 describe("production security infrastructure", () => {
   it("defaults to a dry run for the exact Production project and region", () => {
@@ -35,21 +46,29 @@ describe("production security infrastructure", () => {
     );
     const commandByName = Object.fromEntries(commands.map((step) => [step.name, step]));
 
-    expect(commands.map((step) => step.name)).toEqual(expect.arrayContaining([
+    expect(commands.map((step) => step.name)).toEqual([
       "enableApis",
+      "discoverKeyRing",
       "createKeyRing",
+      "discoverHmacKey",
       "createHmacKey",
+      "discoverRefundKey",
       "createRefundKey",
+      "discoverWorkerServiceAccount",
       "createWorkerServiceAccount",
+      "discoverSchedulerServiceAccount",
       "createSchedulerServiceAccount",
+      "discoverHmacIamPolicy",
       "bindVercelHmacSigner",
       "bindWorkerHmacViewer",
+      "discoverRefundIamPolicy",
       "bindVercelRefundCrypto",
+      "discoverArtifactRepository",
       "createArtifactRepository",
       "prepareCloudRunDeployment",
       "prepareSchedulerDeployment",
       "prepareMonitoringDeployment",
-    ]));
+    ]);
     expect(commandByName.enableApis.args).toEqual(expect.arrayContaining([
       "cloudkms.googleapis.com",
       "run.googleapis.com",
@@ -95,8 +114,22 @@ describe("production security infrastructure", () => {
 
     expect(result.mode).toBe("dry-run");
     expect(spawnSync).not.toHaveBeenCalled();
-    expect(output[0]).toBe("mode=dry-run");
-    expect(output).toContain("action=createHmacKey");
+    expect(output).toEqual([
+      "mode=dry-run",
+      "action=enableApis",
+      "action=createKeyRing",
+      "action=createHmacKey",
+      "action=createRefundKey",
+      "action=createWorkerServiceAccount",
+      "action=createSchedulerServiceAccount",
+      "action=bindVercelHmacSigner",
+      "action=bindWorkerHmacViewer",
+      "action=bindVercelRefundCrypto",
+      "action=createArtifactRepository",
+      "action=prepareCloudRunDeployment",
+      "action=prepareSchedulerDeployment",
+      "action=prepareMonitoringDeployment",
+    ]);
     expect(output.join("\n")).not.toMatch(/@|policy|token|fingerprint|ciphertext|account data/i);
   });
 
@@ -110,15 +143,57 @@ describe("production security infrastructure", () => {
     ], {
       spawnSync,
       log: (line) => output.push(line),
+      platform: "linux",
     })).toThrow("production_security_command_failed:enableApis");
 
     expect(spawnSync).toHaveBeenCalledTimes(1);
     expect(spawnSync).toHaveBeenCalledWith(
       "gcloud",
-      expect.any(Array),
+      enableApisArgs,
       expect.objectContaining({ shell: false }),
     );
     expect(output).toEqual(["mode=apply", "action=enableApis"]);
+  });
+
+  it("launches gcloud.cmd through the validated Windows command processor", () => {
+    const spawnSync = vi.fn(() => ({ status: 7, stdout: "", stderr: "not printed" }));
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], {
+      spawnSync,
+      log: vi.fn(),
+      platform: "win32",
+      env: {
+        SystemRoot: "C:\\Windows",
+        ComSpec: "C:\\Windows\\System32\\cmd.exe",
+      },
+    })).toThrow("production_security_command_failed:enableApis");
+
+    expect(spawnSync).toHaveBeenCalledWith(
+      "C:\\Windows\\System32\\cmd.exe",
+      ["/d", "/s", "/c", "gcloud.cmd", ...enableApisArgs],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it("fails closed before spawning when the Windows command processor is invalid", () => {
+    const spawnSync = vi.fn();
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], {
+      spawnSync,
+      log: vi.fn(),
+      platform: "win32",
+      env: {
+        SystemRoot: "C:\\Windows",
+        ComSpec: "C:\\untrusted\\cmd.exe",
+      },
+    })).toThrow("production_security_windows_launcher_invalid");
+    expect(spawnSync).not.toHaveBeenCalled();
   });
 
   it("leaves exact existing resources and IAM bindings unchanged", () => {

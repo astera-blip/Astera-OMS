@@ -1,4 +1,5 @@
 import { spawnSync as nodeSpawnSync } from "node:child_process";
+import { win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const PROJECT = "astera-oms-prod";
@@ -231,11 +232,18 @@ export function buildProductionSecurityCommands(config) {
  *     options: { shell: false, encoding: "utf8", windowsHide: true },
  *   ) => { status: number | null, stdout?: unknown },
  *   log?: (line: string) => void,
+ *   platform?: string,
+ *   env?: Record<string, string | undefined>,
  * }} [dependencies]
  */
 export function runProductionSecuritySetup(
   argv,
-  { spawnSync = nodeSpawnSync, log = console.log } = {},
+  {
+    spawnSync = nodeSpawnSync,
+    log = console.log,
+    platform = process.platform,
+    env = process.env,
+  } = {},
 ) {
   const config = parseProductionSecurityArgs(argv);
   const commands = buildProductionSecurityCommands(config);
@@ -253,9 +261,10 @@ export function runProductionSecuritySetup(
   for (const command of commands) {
     if (shouldSkipCommand(command.name, state)) continue;
     log(`action=${command.name}`);
+    const launch = resolveGcloudLaunch(command, platform, env);
     let result;
     try {
-      result = spawnSync(command.command, command.args, {
+      result = spawnSync(launch.command, launch.args, {
         shell: false,
         encoding: "utf8",
         windowsHide: true,
@@ -269,6 +278,31 @@ export function runProductionSecuritySetup(
     recordDiscovery(command.name, result.stdout, state);
   }
   return { mode, actions: commands.map(({ name }) => name) };
+}
+
+function resolveGcloudLaunch(command, platform, env) {
+  if (command.command !== "gcloud") {
+    throw new Error("production_security_launcher_invalid");
+  }
+  if (platform !== "win32") return command;
+
+  const systemRoot = String(env.SystemRoot ?? "").trim();
+  const comSpec = String(env.ComSpec ?? "").trim();
+  const normalizedSystemRoot = win32.normalize(systemRoot);
+  if (!/^[A-Za-z]:\\Windows$/i.test(normalizedSystemRoot)) {
+    throw new Error("production_security_windows_launcher_invalid");
+  }
+  const expectedComSpec = win32.join(normalizedSystemRoot, "System32", "cmd.exe");
+  if (
+    !win32.isAbsolute(comSpec)
+    || win32.normalize(comSpec).toLowerCase() !== expectedComSpec.toLowerCase()
+  ) {
+    throw new Error("production_security_windows_launcher_invalid");
+  }
+  return {
+    command: expectedComSpec,
+    args: ["/d", "/s", "/c", "gcloud.cmd", ...command.args],
+  };
 }
 
 function step(name, args) {
