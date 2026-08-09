@@ -444,9 +444,7 @@ function recordDiscovery(name, stdout, state) {
         resource?.email === WORKER_SERVICE_ACCOUNT);
       break;
     case "discoverWorkerFirestoreIamPolicy":
-      state.workerFirestoreBindings = validateIamPolicy(value, name, new Map([
-        [`serviceAccount:${WORKER_SERVICE_ACCOUNT}`, "roles/datastore.user"],
-      ]));
+      state.workerFirestoreBindings = validateWorkerFirestoreIamPolicy(value, name);
       break;
     case "discoverSchedulerServiceAccount":
       state.schedulerServiceAccountExists = validateResourceList(value, name, (resource) =>
@@ -564,6 +562,45 @@ function validateIamPolicy(value, name, allowedTargetRoles) {
     }
   }
   return found;
+}
+
+function validateWorkerFirestoreIamPolicy(value, name) {
+  if (!isPlainObject(value) || !Array.isArray(value.bindings)) {
+    throw new Error(`production_security_resource_incompatible:${name}`);
+  }
+  const member = `serviceAccount:${WORKER_SERVICE_ACCOUNT}`;
+  const found = new Set();
+  for (const binding of value.bindings) {
+    if (
+      !isPlainObject(binding)
+      || typeof binding.role !== "string"
+      || binding.role.length === 0
+      || !Array.isArray(binding.members)
+    ) {
+      throw new Error(`production_security_resource_incompatible:${name}`);
+    }
+    for (const bindingMember of binding.members) {
+      if (typeof bindingMember !== "string" || bindingMember.length === 0) {
+        throw new Error(`production_security_resource_incompatible:${name}`);
+      }
+    }
+    if (!binding.members.includes(member)) continue;
+    if (
+      binding.role !== "roles/datastore.user"
+      || Object.hasOwn(binding, "condition")
+    ) {
+      throw new Error(`production_security_resource_incompatible:${name}`);
+    }
+    found.add(`${binding.role}\0${member}`);
+  }
+  return found;
+}
+
+function isPlainObject(value) {
+  return value !== null
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

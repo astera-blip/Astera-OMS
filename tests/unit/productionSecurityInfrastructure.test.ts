@@ -451,6 +451,64 @@ describe("production security infrastructure", () => {
       .toThrow("production_security_resource_incompatible:discoverWorkerFirestoreIamPolicy");
   });
 
+  it.each([
+    ["non-string member", {
+      bindings: [{
+        role: "roles/datastore.user",
+        members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com", 7],
+      }],
+    }],
+    ["empty member", {
+      bindings: [{
+        role: "roles/datastore.user",
+        members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com", ""],
+      }],
+    }],
+    ["empty-object condition", {
+      bindings: [{
+        role: "roles/datastore.user",
+        members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com"],
+        condition: {},
+      }],
+    }],
+    ["null condition", {
+      bindings: [{
+        role: "roles/datastore.user",
+        members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com"],
+        condition: null,
+      }],
+    }],
+    ["false condition", {
+      bindings: [{
+        role: "roles/datastore.user",
+        members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com"],
+        condition: false,
+      }],
+    }],
+    ["empty-string condition", {
+      bindings: [{
+        role: "roles/datastore.user",
+        members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com"],
+        condition: "",
+      }],
+    }],
+    ["malformed binding object", { bindings: [[]] }],
+  ])("fails closed before mutation or later commands for Worker IAM with %s", (_case, policy) => {
+    const spawnSync = workerFirestorePolicyRunner(policy);
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_resource_incompatible:discoverWorkerFirestoreIamPolicy");
+
+    const executedArgs = spawnSync.mock.calls.map(([, args]) => args as string[]);
+    expect(executedArgs.some((args) => args.includes("add-iam-policy-binding"))).toBe(false);
+    expect(executedArgs.some((args) =>
+      args.includes("--filter=email=astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com")))
+      .toBe(false);
+  });
+
   it("never gives the Scheduler service account a project-wide role", () => {
     const projectRoleCommands = buildProductionSecurityCommands(
       parseProductionSecurityArgs(confirmedDryRunArgs),
