@@ -5,6 +5,7 @@
 !ops/
 !ops/security-worker/
 !ops/security-worker/Dockerfile
+!ops/security-worker/cloudbuild.yaml
 !ops/security-worker/package.json
 !ops/security-worker/package-lock.json
 !ops/security-worker/server.mjs
