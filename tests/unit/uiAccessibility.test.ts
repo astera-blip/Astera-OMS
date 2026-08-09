@@ -41,8 +41,6 @@ describe("shared UI accessibility contract", () => {
       "recipientName",
       "recipientPhone",
       "shippingMethod",
-      "shippingAddress",
-      "shippingStoreInfo",
       "acceptedLegalTerms",
       "acceptedSupplementRule",
     ]) {
@@ -51,7 +49,12 @@ describe("shared UI accessibility contract", () => {
     }
     expect(cart).toContain('autoComplete="name"');
     expect(cart).toContain('autoComplete="tel"');
-    expect(cart).toContain('autoComplete="street-address"');
+    expect(cart).not.toContain("shippingAddress");
+    expect(cart).not.toContain("shippingStoreInfo");
+    expect(cart).toContain('const shippingMethod = "seven_eleven" as const;');
+    expect(cart).toContain("7-Eleven 賣貨便");
+    expect(cart).not.toContain('value="address"');
+    expect(cart).not.toContain('value="family_mart"');
   });
 
   it("keeps compact workspace actions touch friendly", () => {

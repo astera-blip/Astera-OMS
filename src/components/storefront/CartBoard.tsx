@@ -28,9 +28,7 @@ export function CartBoard() {
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [shippingMethod, setShippingMethod] = useState<"address" | "seven_eleven" | "family_mart">("address");
-  const [shippingAddress, setShippingAddress] = useState("");
-  const [shippingStoreInfo, setShippingStoreInfo] = useState("");
+  const shippingMethod = "seven_eleven" as const;
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
@@ -152,8 +150,6 @@ export function CartBoard() {
       recipientName,
       recipientPhone,
       shippingMethod,
-      shippingAddress,
-      shippingStoreInfo,
     });
 
     if (!shippingCheck.ok) {
@@ -185,8 +181,6 @@ export function CartBoard() {
             recipientName: shippingCheck.value.recipientName,
             recipientPhone: shippingCheck.value.recipientPhone,
             shippingMethod,
-            ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-            ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
             legalVersionIds: currentLegalVersionIds(),
             acceptedLegalTerms,
             acceptedSupplementRule,
@@ -296,44 +290,17 @@ export function CartBoard() {
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               />
             </label>
-            <label htmlFor="shippingMethod" className="grid gap-2 text-sm">
+            <div className="grid gap-2 text-sm">
               <span className="font-medium">配送方式</span>
-              <select
+              <input
                 id="shippingMethod"
                 name="shippingMethod"
+                type="hidden"
                 value={shippingMethod}
-                onChange={(event) => setShippingMethod(event.target.value as typeof shippingMethod)}
-                className="rounded-2xl border border-slate-300 px-4 py-3"
-              >
-                <option value="address">宅配地址</option>
-                <option value="seven_eleven">7-Eleven 賣貨便</option>
-                <option value="family_mart">全家好賣+ / 店到店</option>
-              </select>
-            </label>
-            {shippingMethod === "address" ? (
-              <label htmlFor="shippingAddress" className="grid gap-2 text-sm">
-                <span className="font-medium">收件地址</span>
-                <textarea
-                  id="shippingAddress"
-                  name="shippingAddress"
-                  autoComplete="street-address"
-                  value={shippingAddress}
-                  onChange={(event) => setShippingAddress(event.target.value)}
-                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                />
-              </label>
-            ) : (
-              <label htmlFor="shippingStoreInfo" className="grid gap-2 text-sm">
-                <span className="font-medium">超商門市資訊</span>
-                <textarea
-                  id="shippingStoreInfo"
-                  name="shippingStoreInfo"
-                  value={shippingStoreInfo}
-                  onChange={(event) => setShippingStoreInfo(event.target.value)}
-                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                />
-              </label>
-            )}
+              />
+              <p className="rounded-2xl border border-slate-300 px-4 py-3 font-medium">7-Eleven 賣貨便</p>
+              <p className="text-xs text-slate-600">目前僅提供 7-Eleven 賣貨便。</p>
+            </div>
           </div>
         </div>
 
