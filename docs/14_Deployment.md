@@ -138,3 +138,42 @@ The CI workflow runs on push and pull request to `main`:
 - authenticated Auth / Firestore / Storage Emulator Playwright
 
 If GitHub Actions is disabled or requires billing confirmation, the workflow file can remain in the repo and run after the owner enables Actions.
+
+## 2026-08-09 Production security worker — dry run and read-only preflight
+
+`node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod`
+exited 0 with `mode=dry-run`, listing only fixed API, KMS, service-account,
+key-level IAM, Artifact Registry, Cloud Run, Scheduler, and Monitoring
+preparation actions. No cloud command or mutation ran.
+
+The approved design remains: `asia-east1` key ring `astera-oms-security`; Software
+`member-account-fingerprint` (`MAC` / `HMAC_SHA256`) and `refund-account-vault`
+(`ENCRYPT_DECRYPT` / Google symmetric) keys; Vercel-only key-level signer and
+encrypter/decrypter bindings; worker and Scheduler service accounts; `astera-ops`
+Docker repository; private `astera-security-worker` Cloud Run service
+(`min-instances=0`, `max-instances=1`, `concurrency=1`); daily 03:30 and monthly
+day-1 04:00 Asia/Taipei jobs; and `Astera Security Worker non-2xx or timeout`.
+Unauthenticated invocation and project-wide KMS roles are prohibited.
+
+Read-only state on 2026-08-09: project ID/number, active `vercel-oidc` /
+`vercel`, runtime service account, its three existing project roles, and its exact
+Vercel-project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ` principal-set binding matched.
+The provider maps `attribute.project_id` from the assertion but has no separate
+`attributeCondition`; the verified principal-set binding is the scope enforcement.
+Only Monitoring API is enabled; KMS, Run, Scheduler, Cloud Build, and Artifact
+Registry APIs are disabled. Thus planned KMS resources, accounts, repository,
+service, and jobs are absent or not enumerable. No named Monitoring policy was
+listed; the email channel was not verified because local gcloud lacks the optional
+beta channel command and no component was installed.
+
+Cost: two active Software KMS versions are roughly USD 0.12/month before
+free/usage effects; two Scheduler jobs are within the usual three-job allowance;
+Cloud Run `min-instances=0` should remain near free tier at MVP volume, but billing
+alerts are required. Future rollback: disable Scheduler jobs, remove exact
+service-level invoker and key IAM bindings, then delete Cloud Run; never destroy a
+KMS version while a fingerprint or payment snapshot references it. Docker remains
+a parked gate because `docker build -f ops/security-worker/Dockerfile -t
+astera-security-worker:test .` cannot run locally without Docker.
+
+Next mutation, not executed:
+`node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply`.

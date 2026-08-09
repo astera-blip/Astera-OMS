@@ -892,3 +892,37 @@ After it propagates:
 - The Product and Campaign were archived through the protected Owner Product API and the public listing was reloaded: only existing Product `92帽子` remains. Do not hard-delete the archived catalog record or Order, Item, PaymentRequest, ConsentRecord, Audit Log, or notification event; they are retained test evidence.
 - Runtime fixes discovered and deployed during this run: ProductWorkspace initial-load mutation gate; repository Timestamp normalization; protected member detail API with member ownership verification and JSON-safe Timestamp serialization; customer-facing orderNumber plus PaymentRequest detail UI. Current source commit before final documentation is `c3825e4`.
 - Verification before final documentation commit: Unit **26 files / 133 tests**, TypeScript, ESLint, production `next build`; browser passed the full Preview-only checkout / direct-cancel / archive lifecycle. Known follow-up: Campaign `datetime-local` values entered by browser automation did not persist in the returned record; explicit Campaign status still controlled this test. Production Rules deployment and non-Owner authorization remain separate, unperformed tasks.
+
+## 2026-08-09 Production security worker — handoff state
+
+The no-`--apply` planner run exited 0 with `mode=dry-run`; no resource, API, IAM,
+or deployment change occurred. The next approved command is still not executed:
+`node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply`.
+
+Pending design is fixed to `asia-east1` key ring `astera-oms-security`, the
+Software fingerprint and refund-vault KMS keys, Vercel key-level permissions,
+worker/Scheduler identities, `astera-ops`, private `astera-security-worker`
+(`min=0`, `max=1`, concurrency 1), two fixed Scheduler jobs, and the named
+Monitoring policy. No unauthenticated invoker, service-account JSON key, or
+project-wide KMS grant is permitted.
+
+Read-only GCP inspection on 2026-08-09 confirmed project `astera-oms-prod` /
+`1032606875618`, active pool/provider, expected runtime account, exact Vercel
+project principal-set binding, and only the three existing Firestore/Firebase Auth
+viewer/Storage object-viewer project roles. The provider maps the Vercel project
+claim but has no independent attribute condition; binding scope is the enforcement
+point. Only Monitoring API is enabled. KMS, Run, Scheduler, Cloud Build, and
+Artifact Registry APIs are disabled, so planned KMS resources, accounts,
+repository, service, and jobs are absent or not enumerable. The named policy was
+not listed; email-channel state is unverified because the local beta read command
+is unavailable and no component install was attempted.
+
+Budget/rollback: two active Software KMS versions are roughly USD 0.12/month
+before free/usage effects; two Scheduler jobs are within the usual three-job
+allowance; Cloud Run `min-instances=0` should be near free tier at MVP volume, but
+billing alerts remain required. Roll back a future deployment by disabling both
+jobs, removing exact service invoker/key bindings, deleting Cloud Run, and never
+destroying a KMS version referenced by a fingerprint or payment snapshot. Docker
+build verification remains parked because Docker is unavailable locally; CI or a
+Docker-capable host must run `docker build -f ops/security-worker/Dockerfile -t
+astera-security-worker:test .`.

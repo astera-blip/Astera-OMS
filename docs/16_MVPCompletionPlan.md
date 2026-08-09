@@ -982,3 +982,32 @@ and verify profile, cart, and Owner Product writes.
 - The test Product and its Campaign were saved as `Archived` through the Owner Workspace, never deleted. A fresh public `/products` read showed only existing `92帽子`; the exact test Product is no longer public.
 - Retained intentionally: Order, OrderItem, PaymentRequest, ConsentRecord, Audit Log, and any Checkout notification-event record. They are immutable operational evidence and must not be deleted to make a test look clean.
 - All acceptance criteria in `docs/superpowers/specs/2026-07-30-reversible-checkout-test-design.md` are met, except non-Owner authorization and Campaign datetime input persistence, which were explicitly out of this run's scope / recorded follow-up. The next independent work item is the production Firestore Rules deployment checklist, then non-Owner emulator / Preview authorization coverage.
+
+## 2026-08-09 Production security worker — infrastructure preflight
+
+- The guarded local planner exited 0 with `mode=dry-run` and only preparation
+  actions; it made no cloud call or mutation.
+- Pending exact design: `asia-east1` / `astera-oms-security`, the two Software
+  KMS keys, Vercel key-level grants, worker and Scheduler identities,
+  `astera-ops`, private single-instance `astera-security-worker`, two fixed
+  Asia/Taipei Scheduler jobs, and the named Monitoring alert. No public invoker
+  or project-wide KMS role is allowed.
+- Read-only state on 2026-08-09 matched `astera-oms-prod` / `1032606875618`,
+  active Vercel WIF, the runtime account, its exact Vercel project principal set,
+  and only its Firestore/Firebase Auth viewer/Storage object-viewer project roles.
+  The provider maps the Vercel project claim but has no independent attribute
+  condition; the exact principal-set binding remains the effective restriction.
+- Monitoring API is enabled. KMS, Run, Scheduler, Cloud Build, and Artifact
+  Registry are disabled; planned resources are absent or not enumerable. No named
+  Monitoring policy was listed. The email channel remains unverified because the
+  local read-only gcloud beta command is unavailable; no install was attempted.
+- Two Software KMS active versions cost roughly USD 0.12/month before
+  free/usage effects; two Scheduler jobs fit the usual three-job allowance; Cloud
+  Run `min-instances=0` should be near free tier at MVP volume, with billing alerts
+  required. Roll back a future deployment by disabling jobs, removing exact
+  service invoker/key IAM bindings, then deleting Cloud Run; do not destroy a
+  referenced KMS version.
+- Docker is a parked release gate: `docker build -f ops/security-worker/Dockerfile
+  -t astera-security-worker:test .` requires CI or a Docker-capable host.
+- Exact next mutation, not executed: `node scripts/setup-production-security.mjs
+  --project astera-oms-prod --confirm-project astera-oms-prod --apply`.
