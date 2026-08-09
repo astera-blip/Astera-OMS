@@ -46,9 +46,11 @@ The existing `vercel-oidc` pool binding remains restricted to Vercel project
 `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`. No project-wide KMS role is granted.
 
 Create a distinct Cloud Run worker service account with only the Firestore
-permissions required to run the existing cleanup and key-usage report. It does
-not receive decrypt, encrypt, or HMAC-sign permission. Create a distinct Scheduler
-invoker service account with only `roles/run.invoker` on the worker service.
+permissions required to run the existing cleanup and key-usage report, plus
+`roles/cloudkms.viewer` on `member-account-fingerprint` so the monthly report can
+list key versions. It does not receive decrypt, encrypt, or HMAC-sign permission.
+Create a distinct Scheduler invoker service account with only `roles/run.invoker`
+on the worker service.
 
 ### Private scheduled worker
 
