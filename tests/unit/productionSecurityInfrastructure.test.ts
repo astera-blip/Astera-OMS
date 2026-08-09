@@ -44,63 +44,247 @@ describe("production security infrastructure", () => {
     const commands = buildProductionSecurityCommands(
       parseProductionSecurityArgs(confirmedDryRunArgs),
     );
-    const commandByName = Object.fromEntries(commands.map((step) => [step.name, step]));
 
-    expect(commands.map((step) => step.name)).toEqual([
-      "enableApis",
-      "discoverKeyRing",
-      "createKeyRing",
-      "discoverHmacKey",
-      "createHmacKey",
-      "discoverRefundKey",
-      "createRefundKey",
-      "discoverWorkerServiceAccount",
-      "createWorkerServiceAccount",
-      "discoverSchedulerServiceAccount",
-      "createSchedulerServiceAccount",
-      "discoverHmacIamPolicy",
-      "bindVercelHmacSigner",
-      "bindWorkerHmacViewer",
-      "discoverRefundIamPolicy",
-      "bindVercelRefundCrypto",
-      "discoverArtifactRepository",
-      "createArtifactRepository",
-      "prepareCloudRunDeployment",
-      "prepareSchedulerDeployment",
-      "prepareMonitoringDeployment",
+    expect(commands).toEqual([
+      {
+        name: "enableApis",
+        command: "gcloud",
+        args: [
+          "services", "enable",
+          "cloudkms.googleapis.com",
+          "run.googleapis.com",
+          "cloudscheduler.googleapis.com",
+          "cloudbuild.googleapis.com",
+          "artifactregistry.googleapis.com",
+          "monitoring.googleapis.com",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverKeyRing",
+        command: "gcloud",
+        args: [
+          "kms", "keyrings", "list",
+          "--location=asia-east1",
+          "--filter=name=projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security",
+          "--format=json(name)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "createKeyRing",
+        command: "gcloud",
+        args: [
+          "kms", "keyrings", "create", "astera-oms-security",
+          "--location=asia-east1",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverHmacKey",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "list",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--filter=name=projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint",
+          "--format=json(name,purpose,versionTemplate)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "createHmacKey",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "create", "member-account-fingerprint",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--purpose=mac",
+          "--default-algorithm=hmac-sha256",
+          "--protection-level=software",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverRefundKey",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "list",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--filter=name=projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault",
+          "--format=json(name,purpose,versionTemplate)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "createRefundKey",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "create", "refund-account-vault",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--purpose=encryption",
+          "--default-algorithm=google-symmetric-encryption",
+          "--protection-level=software",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverWorkerServiceAccount",
+        command: "gcloud",
+        args: [
+          "iam", "service-accounts", "list",
+          "--filter=email=astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
+          "--format=json(email)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "createWorkerServiceAccount",
+        command: "gcloud",
+        args: [
+          "iam", "service-accounts", "create", "astera-security-worker",
+          "--display-name=Astera Security Worker",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverSchedulerServiceAccount",
+        command: "gcloud",
+        args: [
+          "iam", "service-accounts", "list",
+          "--filter=email=astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com",
+          "--format=json(email)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "createSchedulerServiceAccount",
+        command: "gcloud",
+        args: [
+          "iam", "service-accounts", "create", "astera-security-scheduler",
+          "--display-name=Astera Security Scheduler",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverHmacIamPolicy",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "get-iam-policy", "member-account-fingerprint",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--format=json",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "bindVercelHmacSigner",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "add-iam-policy-binding", "member-account-fingerprint",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--member=serviceAccount:astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+          "--role=roles/cloudkms.signer",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "bindWorkerHmacViewer",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "add-iam-policy-binding", "member-account-fingerprint",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--member=serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
+          "--role=roles/cloudkms.viewer",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverRefundIamPolicy",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "get-iam-policy", "refund-account-vault",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--format=json",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "bindVercelRefundCrypto",
+        command: "gcloud",
+        args: [
+          "kms", "keys", "add-iam-policy-binding", "refund-account-vault",
+          "--keyring=astera-oms-security",
+          "--location=asia-east1",
+          "--member=serviceAccount:astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+          "--role=roles/cloudkms.cryptoKeyEncrypterDecrypter",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "discoverArtifactRepository",
+        command: "gcloud",
+        args: [
+          "artifacts", "repositories", "list",
+          "--location=asia-east1",
+          "--filter=name=projects/astera-oms-prod/locations/asia-east1/repositories/astera-ops",
+          "--format=json(name,format)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "createArtifactRepository",
+        command: "gcloud",
+        args: [
+          "artifacts", "repositories", "create", "astera-ops",
+          "--repository-format=docker",
+          "--location=asia-east1",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
+        name: "prepareCloudRunDeployment",
+        command: "gcloud",
+        args: [
+          "services", "describe", "run.googleapis.com",
+          "--format=value(state)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "prepareSchedulerDeployment",
+        command: "gcloud",
+        args: [
+          "services", "describe", "cloudscheduler.googleapis.com",
+          "--format=value(state)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "prepareMonitoringDeployment",
+        command: "gcloud",
+        args: [
+          "services", "describe", "monitoring.googleapis.com",
+          "--format=value(state)",
+          "--project", "astera-oms-prod",
+        ],
+      },
     ]);
-    expect(commandByName.enableApis.args).toEqual(expect.arrayContaining([
-      "cloudkms.googleapis.com",
-      "run.googleapis.com",
-      "cloudscheduler.googleapis.com",
-      "cloudbuild.googleapis.com",
-      "artifactregistry.googleapis.com",
-      "monitoring.googleapis.com",
-    ]));
-    expect(commandByName.createHmacKey.args).toEqual(expect.arrayContaining([
-      "member-account-fingerprint",
-      "--purpose=mac",
-      "--default-algorithm=hmac-sha256",
-      "--protection-level=software",
-    ]));
-    expect(commandByName.createRefundKey.args).toEqual(expect.arrayContaining([
-      "refund-account-vault",
-      "--purpose=encryption",
-      "--default-algorithm=google-symmetric-encryption",
-      "--protection-level=software",
-    ]));
-    expect(commandByName.bindVercelHmacSigner.args).toContain("--role=roles/cloudkms.signer");
-    expect(commandByName.bindWorkerHmacViewer.args).toContain("--role=roles/cloudkms.viewer");
-    expect(commandByName.bindVercelRefundCrypto.args)
-      .toContain("--role=roles/cloudkms.cryptoKeyEncrypterDecrypter");
-    expect(commands.every((step) => step.command === "gcloud")).toBe(true);
-    expect(commands.every((step) => {
-      const joined = step.args.join(" ");
-      return joined.includes("--project astera-oms-prod")
-        || joined.includes("--project=astera-oms-prod");
-    })).toBe(true);
-    expect(commands.flatMap((step) => step.args)).not.toContain("auth");
-    expect(commands.flatMap((step) => step.args).join(" ")).not.toContain("config set");
   });
 
   it("prints only safe action names and executes nothing in the default dry run", () => {
