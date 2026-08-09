@@ -167,6 +167,18 @@ export function buildProductionSecurityCommands(config) {
       ...projectArgs,
       "--quiet",
     ]),
+    step("discoverWorkerFirestoreIamPolicy", [
+      "projects", "get-iam-policy", PROJECT,
+      "--format=json(bindings.role,bindings.members,bindings.condition)",
+      ...projectArgs,
+    ]),
+    step("bindWorkerFirestoreUser", [
+      "projects", "add-iam-policy-binding", PROJECT,
+      `--member=serviceAccount:${WORKER_SERVICE_ACCOUNT}`,
+      "--role=roles/datastore.user",
+      ...projectArgs,
+      "--quiet",
+    ]),
     step("discoverSchedulerServiceAccount", [
       "iam", "service-accounts", "list",
       `--filter=email=${SCHEDULER_SERVICE_ACCOUNT}`,
@@ -379,6 +391,11 @@ function shouldSkipCommand(name, state) {
       "roles/cloudkms.cryptoKeyEncrypterDecrypter",
       `serviceAccount:${VERCEL_SERVICE_ACCOUNT}`,
     ],
+    bindWorkerFirestoreUser: [
+      "workerFirestoreBindings",
+      "roles/datastore.user",
+      `serviceAccount:${WORKER_SERVICE_ACCOUNT}`,
+    ],
   };
   const binding = bindings[name];
   return binding
@@ -425,6 +442,11 @@ function recordDiscovery(name, stdout, state) {
     case "discoverWorkerServiceAccount":
       state.workerServiceAccountExists = validateResourceList(value, name, (resource) =>
         resource?.email === WORKER_SERVICE_ACCOUNT);
+      break;
+    case "discoverWorkerFirestoreIamPolicy":
+      state.workerFirestoreBindings = validateIamPolicy(value, name, new Map([
+        [`serviceAccount:${WORKER_SERVICE_ACCOUNT}`, "roles/datastore.user"],
+      ]));
       break;
     case "discoverSchedulerServiceAccount":
       state.schedulerServiceAccountExists = validateResourceList(value, name, (resource) =>

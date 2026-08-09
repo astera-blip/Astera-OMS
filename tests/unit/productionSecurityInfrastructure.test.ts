@@ -210,6 +210,26 @@ describe("production security infrastructure", () => {
         ],
       },
       {
+        name: "discoverWorkerFirestoreIamPolicy",
+        command: "gcloud",
+        args: [
+          "projects", "get-iam-policy", "astera-oms-prod",
+          "--format=json(bindings.role,bindings.members,bindings.condition)",
+          "--project", "astera-oms-prod",
+        ],
+      },
+      {
+        name: "bindWorkerFirestoreUser",
+        command: "gcloud",
+        args: [
+          "projects", "add-iam-policy-binding", "astera-oms-prod",
+          "--member=serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
+          "--role=roles/datastore.user",
+          "--project", "astera-oms-prod",
+          "--quiet",
+        ],
+      },
+      {
         name: "discoverSchedulerServiceAccount",
         command: "gcloud",
         args: [
@@ -361,6 +381,7 @@ describe("production security infrastructure", () => {
       "action=createHmacKey",
       "action=createRefundKey",
       "action=createWorkerServiceAccount",
+      "action=bindWorkerFirestoreUser",
       "action=createSchedulerServiceAccount",
       "action=bindVercelHmacSigner",
       "action=bindWorkerHmacViewer",
@@ -371,6 +392,82 @@ describe("production security infrastructure", () => {
       "action=prepareMonitoringDeployment",
     ]);
     expect(output.join("\n")).not.toMatch(/@|policy|token|fingerprint|ciphertext|account data/i);
+  });
+
+  it("binds only the Worker to the exact Firestore data role when its project binding is absent", () => {
+    const spawnSync = workerFirestorePolicyRunner({ bindings: [] });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_command_failed:bindWorkerFirestoreUser");
+
+    expect(spawnSync).toHaveBeenCalledWith(
+      "gcloud",
+      [
+        "projects", "get-iam-policy", "astera-oms-prod",
+        "--format=json(bindings.role,bindings.members,bindings.condition)",
+        "--project", "astera-oms-prod",
+      ],
+      expect.objectContaining({ shell: false }),
+    );
+    expect(spawnSync).toHaveBeenCalledWith(
+      "gcloud",
+      [
+        "projects", "add-iam-policy-binding", "astera-oms-prod",
+        "--member=serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
+        "--role=roles/datastore.user",
+        "--project", "astera-oms-prod",
+        "--quiet",
+      ],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it("discovers and skips an exact existing Worker Firestore project binding", () => {
+    const spawnSync = workerFirestorePolicyRunner(exactWorkerFirestoreIamPolicy());
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_discovery_invalid:discoverHmacIamPolicy");
+
+    expect(spawnSync.mock.calls.some(([, args]) =>
+      (args as string[]).slice(0, 2).join(" ") === "projects get-iam-policy"))
+      .toBe(true);
+    expect(spawnSync.mock.calls.some(([, args]) =>
+      (args as string[]).includes("add-iam-policy-binding"))).toBe(false);
+  });
+
+  it("fails closed on a malformed Worker Firestore project IAM response", () => {
+    const spawnSync = workerFirestorePolicyRunner({ bindings: "invalid" });
+
+    expect(() => runProductionSecuritySetup([
+      ...confirmedDryRunArgs,
+      "--apply",
+    ], { spawnSync, log: vi.fn(), platform: "linux" }))
+      .toThrow("production_security_resource_incompatible:discoverWorkerFirestoreIamPolicy");
+  });
+
+  it("never gives the Scheduler service account a project-wide role", () => {
+    const projectRoleCommands = buildProductionSecurityCommands(
+      parseProductionSecurityArgs(confirmedDryRunArgs),
+    ).filter((command) => command.args[0] === "projects");
+
+    expect(projectRoleCommands).toEqual([
+      expect.objectContaining({ name: "discoverWorkerFirestoreIamPolicy" }),
+      expect.objectContaining({
+        name: "bindWorkerFirestoreUser",
+        args: expect.arrayContaining([
+          "--member=serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
+          "--role=roles/datastore.user",
+        ]),
+      }),
+    ]);
+    expect(JSON.stringify(projectRoleCommands))
+      .not.toContain("astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com");
   });
 
   it("requires the triple gate, uses argv with shell false, and stops on first failure", () => {
@@ -618,6 +715,9 @@ describe("production security infrastructure", () => {
           email: "astera-security-worker@astera-oms-prod.iam.gserviceaccount.com",
         }]);
       }
+      if (joined.includes("projects get-iam-policy")) {
+        return successfulJson(exactWorkerFirestoreIamPolicy());
+      }
       if (joined.includes("iam service-accounts list") && joined.includes("astera-security-scheduler@")) {
         return successfulJson([{
           email: "astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com",
@@ -659,6 +759,7 @@ describe("production security infrastructure", () => {
     expect(output).not.toContain("action=createKeyRing");
     expect(output).not.toContain("action=createHmacKey");
     expect(output).not.toContain("action=createRefundKey");
+    expect(output).not.toContain("action=bindWorkerFirestoreUser");
     expect(output).not.toContain("action=bindVercelHmacSigner");
     expect(output).not.toContain("action=bindWorkerHmacViewer");
     expect(output).not.toContain("action=bindVercelRefundCrypto");
@@ -685,4 +786,38 @@ function exactRuntimeIamPolicy(members = [requiredPrincipalSet]) {
       members,
     }],
   };
+}
+
+function exactWorkerFirestoreIamPolicy() {
+  return {
+    bindings: [{
+      role: "roles/datastore.user",
+      members: ["serviceAccount:astera-security-worker@astera-oms-prod.iam.gserviceaccount.com"],
+    }],
+  };
+}
+
+function workerFirestorePolicyRunner(policy: unknown) {
+  return vi.fn((_command: string, args: string[]) => {
+    const joined = args.join(" ");
+    if (joined.includes("providers describe")) {
+      return successfulJson(exactProvider(requiredWifCondition));
+    }
+    if (joined.includes("service-accounts get-iam-policy")) {
+      return successfulJson(exactRuntimeIamPolicy());
+    }
+    if (joined.includes("kms keyrings list") || joined.includes("kms keys list")) {
+      return successfulJson([]);
+    }
+    if (joined.includes("iam service-accounts list")) {
+      return successfulJson([]);
+    }
+    if (joined.includes("projects get-iam-policy")) {
+      return successfulJson(policy);
+    }
+    if (joined.includes("projects add-iam-policy-binding")) {
+      return { status: 7, stdout: "", stderr: "not printed" };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  });
 }
