@@ -576,16 +576,17 @@ function validateIdempotentCancellationRequest(input: {
     || input.existing.orderId !== input.orderId
     || input.existing.targetPaymentId !== input.targetPaymentId
     || input.existing.reason !== input.reason
-    // Legacy requests only retained the paid review scope. For those records,
-    // only that exact scope can be proven safe; any former mixed selection
-    // remains a conflict instead of guessing from mutable order-item state.
-    || !sameIds(
-      input.existing.requestedOrderItemIds ?? input.existing.orderItemIds,
-      input.orderItemIds,
-    )
     || input.refundBankCodeInput === undefined
     || input.refundAccountNumberInput === undefined
   ) {
+    throw new Error("idempotency_conflict");
+  }
+  if (
+    !input.existing.requestedOrderItemIds
+    || !sameIds(input.existing.requestedOrderItemIds, input.orderItemIds)
+  ) {
+    // Pre-fix records did not retain the complete immutable selection. Never
+    // infer it from the paid review scope or mutable order-item state.
     throw new Error("idempotency_conflict");
   }
   try {

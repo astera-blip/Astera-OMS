@@ -481,6 +481,52 @@ describe("refund account protected APIs", () => {
     });
   });
 
+  it.each([
+    ["the historical full selection", ["item-unpaid", "item-paid"]],
+    ["the stored paid-only subset", ["item-paid"]],
+  ])("fails closed for a same-member pre-fix mixed replay using %s", async (_, orderItemIds) => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    const fake = createPaidCancellationFirestore({
+      existingCancellation: {
+        id: "cancel_legacy-mixed",
+        orderId: "order-paid",
+        orderItemIds: ["item-paid"],
+        memberUid: "member-a",
+        reason: "legacy mixed cancellation",
+        status: "pending",
+        targetPaymentId: "payment-original",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+        refundAccountCiphertext: "private-ciphertext",
+      },
+    });
+    firestore.getAdminFirestore.mockReturnValue(fake.db);
+
+    const response = await createCancellation(new Request(
+      "https://example.test/api/cancellations",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: "order-paid",
+          orderItemIds,
+          reason: "legacy mixed cancellation",
+          idempotencyKey: "legacy-mixed",
+          targetPaymentId: "payment-original",
+          refundBankCode: "012",
+          refundAccountNumberFull: "00123456789",
+        }),
+      },
+    ));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "idempotency_conflict",
+    });
+    expect(kmsMac.signCanonicalAccount).not.toHaveBeenCalled();
+    expect(vault.encryptRefundAccount).not.toHaveBeenCalled();
+  });
+
   it("verifies the specified historical payment and stores a 14-day vault entry", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     kmsMac.signCanonicalAccount.mockResolvedValue({
@@ -787,6 +833,7 @@ describe("refund account protected APIs", () => {
         id: "cancel_retry-incomplete",
         orderId: "order-paid",
         orderItemIds: ["item-paid"],
+        requestedOrderItemIds: ["item-paid"],
         memberUid: "member-a",
         reason: "retry",
         status: "pending",
