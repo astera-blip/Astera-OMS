@@ -169,7 +169,7 @@ export function buildProductionSecurityCommands(config) {
     ]),
     step("discoverWorkerFirestoreIamPolicy", [
       "projects", "get-iam-policy", PROJECT,
-      "--format=json(bindings.role,bindings.members,bindings.condition)",
+      "--format=json",
       ...projectArgs,
     ]),
     step("bindWorkerFirestoreUser", [

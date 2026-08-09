@@ -214,7 +214,7 @@ describe("production security infrastructure", () => {
         command: "gcloud",
         args: [
           "projects", "get-iam-policy", "astera-oms-prod",
-          "--format=json(bindings.role,bindings.members,bindings.condition)",
+          "--format=json",
           "--project", "astera-oms-prod",
         ],
       },
@@ -407,7 +407,7 @@ describe("production security infrastructure", () => {
       "gcloud",
       [
         "projects", "get-iam-policy", "astera-oms-prod",
-        "--format=json(bindings.role,bindings.members,bindings.condition)",
+        "--format=json",
         "--project", "astera-oms-prod",
       ],
       expect.objectContaining({ shell: false }),
