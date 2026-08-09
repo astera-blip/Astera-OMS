@@ -6,6 +6,10 @@ const TEMPORARY_REFUND_FIELDS = [
   "refundEncryptionKeyVersion",
   "refundAccountExpiresAt",
 ];
+const GOVERNANCE_FAILURE_CODES = Object.freeze({
+  refundAccountCleanup: "refundAccountCleanup_failed",
+  fingerprintKeyUsageReport: "fingerprint_key_usage_report_failed",
+});
 
 export async function runRefundAccountCleanup({ db, FieldValue, project, now }) {
   assertProductionJobInput(project, now);
@@ -46,7 +50,8 @@ export async function runFingerprintKeyUsageReport({
 
 export async function emitGovernanceJobFailure({ db, project, job, occurredAt }) {
   assertProductionJobInput(project, occurredAt);
-  if (!db || typeof job !== "string" || !job) {
+  const errorCode = failureCodeFor(job);
+  if (!db) {
     throw new Error("invalid_governance_failure_input");
   }
   await db.collection("notificationEvents").add({
@@ -56,7 +61,7 @@ export async function emitGovernanceJobFailure({ db, project, job, occurredAt })
     payload: {
       job,
       project,
-      errorCode: failureCodeFor(job),
+      errorCode,
     },
     createdAt: occurredAt.toISOString(),
     updatedAt: occurredAt.toISOString(),
@@ -109,7 +114,6 @@ export function buildFingerprintKeyUsageReport({
   }
 
   const stats = new Map();
-  const unclassifiedDocuments = { memberAccounts: [], paymentSnapshots: [] };
   const documentStatistics = {
     malformedMemberAccounts: 0,
     malformedPaymentSnapshots: 0,
@@ -139,7 +143,6 @@ export function buildFingerprintKeyUsageReport({
 
   for (const account of memberAccounts) {
     if (!isUsableFingerprintIdentity(account)) {
-      unclassifiedDocuments.memberAccounts.push(safeDocumentId(account?.id));
       documentStatistics.malformedMemberAccounts += 1;
       continue;
     }
@@ -154,7 +157,6 @@ export function buildFingerprintKeyUsageReport({
   for (const payment of payments) {
     const snapshot = payment?.memberPaymentAccount ?? payment;
     if (!isUsableFingerprintIdentity(snapshot)) {
-      unclassifiedDocuments.paymentSnapshots.push(safeDocumentId(payment?.id));
       documentStatistics.malformedPaymentSnapshots += 1;
       continue;
     }
@@ -177,7 +179,6 @@ export function buildFingerprintKeyUsageReport({
           ? "retain"
           : "eligibleForEvaluation",
       })),
-    unclassifiedDocuments,
     documentStatistics,
     autoDisabledVersions: [],
   };
@@ -242,9 +243,10 @@ async function loadUsageData(db) {
 }
 
 function failureCodeFor(job) {
-  return job === "fingerprintKeyUsageReport"
-    ? "fingerprint_key_usage_report_failed"
-    : `${job}_failed`;
+  if (typeof job !== "string" || !Object.hasOwn(GOVERNANCE_FAILURE_CODES, job)) {
+    throw new Error("invalid_governance_failure_job");
+  }
+  return GOVERNANCE_FAILURE_CODES[job];
 }
 
 function isOverdueReference(record, reportTimestamp) {
@@ -290,11 +292,4 @@ function normalizeTimestamp(value) {
     ).toISOString();
   }
   return null;
-}
-
-function safeDocumentId(value) {
-  if (typeof value !== "string" || !value || value.includes("/")) {
-    throw new Error("invalid_document_id");
-  }
-  return value;
 }

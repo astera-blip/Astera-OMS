@@ -568,19 +568,22 @@ describe("refund governance job functions", () => {
     expect(JSON.stringify(result)).not.toContain(anotherValidFingerprint);
   });
 
-  it("writes a safe owner failure event without raw errors or record data", async () => {
+  it("writes fixed safe failure events only for internal governance jobs", async () => {
     const writes: unknown[] = [];
-    await emitGovernanceJobFailure({
-      db: {
-        collection: (name: string) => {
-          expect(name).toBe("notificationEvents");
-          return { add: async (value: unknown) => { writes.push(value); } };
-        },
+    const db = {
+      collection: (name: string) => {
+        expect(name).toBe("notificationEvents");
+        return { add: async (value: unknown) => { writes.push(value); } };
       },
+    };
+    const input = {
+      db,
       project: "astera-oms-prod",
-      job: "refundAccountCleanup",
       occurredAt: new Date("2026-08-09T00:00:00.000Z"),
-    });
+    };
+
+    await emitGovernanceJobFailure({ ...input, job: "refundAccountCleanup" });
+    await emitGovernanceJobFailure({ ...input, job: "fingerprintKeyUsageReport" });
 
     expect(writes).toEqual([{
       type: "owner.jobFailed",
@@ -595,8 +598,33 @@ describe("refund governance job functions", () => {
       updatedAt: "2026-08-09T00:00:00.000Z",
       createdBy: "system",
       updatedBy: "system",
+    }, {
+      type: "owner.jobFailed",
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        job: "fingerprintKeyUsageReport",
+        project: "astera-oms-prod",
+        errorCode: "fingerprint_key_usage_report_failed",
+      },
+      createdAt: "2026-08-09T00:00:00.000Z",
+      updatedAt: "2026-08-09T00:00:00.000Z",
+      createdBy: "system",
+      updatedBy: "system",
     }]);
     expect(JSON.stringify(writes)).not.toMatch(/test-ciphertext|accountFingerprint|raw-error/);
+  });
+
+  it("rejects a caller-controlled failure job without writing an event", async () => {
+    const writes: unknown[] = [];
+    await expect(emitGovernanceJobFailure({
+      db: { collection: () => ({ add: async (value: unknown) => { writes.push(value); } }) },
+      project: "astera-oms-prod",
+      job: "refundAccountCleanup:test-ciphertext",
+      occurredAt: new Date("2026-08-09T00:00:00.000Z"),
+    })).rejects.toThrow("invalid_governance_failure_job");
+
+    expect(writes).toEqual([]);
   });
 });
 
@@ -670,13 +698,15 @@ describe("monthly fingerprint key usage report", () => {
         disposition: "retain",
       },
     ]);
-    expect(report.unclassifiedDocuments).toEqual({
-      memberAccounts: ["account-unknown"],
-      paymentSnapshots: [],
+    expect(report.documentStatistics).toMatchObject({
+      malformedMemberAccounts: 1,
+      malformedPaymentSnapshots: 0,
     });
+    expect(report).not.toHaveProperty("unclassifiedDocuments");
     expect(report.autoDisabledVersions).toEqual([]);
     expect(JSON.stringify(report)).not.toContain(validFingerprint);
     expect(JSON.stringify(report)).not.toContain(anotherValidFingerprint);
+    expect(JSON.stringify(report)).not.toContain("account-unknown");
   });
 
   it("classifies malformed identities separately and counts overdue references", () => {
@@ -742,18 +772,17 @@ describe("monthly fingerprint key usage report", () => {
         disposition: "eligibleForEvaluation",
       }),
     ]);
-    expect(report.unclassifiedDocuments).toEqual({
-      memberAccounts: ["account-version-only", "account-malformed-base64"],
-      paymentSnapshots: ["payment-fingerprint-only", "payment-wrong-algorithm"],
-    });
     expect(report.documentStatistics).toEqual({
       malformedMemberAccounts: 2,
       malformedPaymentSnapshots: 2,
       overdueMemberAccounts: 1,
       overduePaymentSnapshots: 0,
     });
+    expect(report).not.toHaveProperty("unclassifiedDocuments");
     expect(JSON.stringify(report)).not.toContain(validFingerprint);
-    expect(JSON.stringify(report)).not.toMatch(/missing-version|private/);
+    expect(JSON.stringify(report)).not.toMatch(
+      /account-version-only|account-malformed-base64|payment-fingerprint-only|payment-wrong-algorithm|not-canonical-base64|missing-version|private|ciphertext/,
+    );
   });
 
   it("requires an exact project confirmation", () => {
