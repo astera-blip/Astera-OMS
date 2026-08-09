@@ -1016,3 +1016,27 @@ node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-p
 
 Do not bypass the managed safety review or split the operation into indirect
 commands to avoid the authorization gate.
+
+## 2026-08-10 Task 5 Production security resources completed
+
+Explicit authorization was received. The apply encountered three fail-closed
+gcloud compatibility boundaries; each was fixed with RED/GREEN tests and independent
+review in commits `abd32a6`, `7cb07d1`, and `861a99f`. Final apply exited 0.
+
+Verified Production state:
+
+- WIF Provider ACTIVE with exact mapping, Vercel project condition, and principalSet.
+- Six approved APIs enabled.
+- `member-account-fingerprint` version 1: HMAC_SHA256 / SOFTWARE / ENABLED.
+- `refund-account-vault` primary version 1: Google symmetric / SOFTWARE / ENABLED.
+- Vercel key-level HMAC signer and refund encrypter/decrypter only.
+- Worker key-level HMAC viewer plus project `roles/datastore.user`; no refund crypto.
+- Scheduler service account has no project-wide role.
+- Worker/Scheduler service accounts active.
+- `astera-ops` Docker Artifact Registry exists in `asia-east1`.
+
+Fresh local verification passed focused 35/35, Unit 43 files / 340 tests,
+TypeScript, ESLint, secret scan, and diff check. Task 6 is the next exact step:
+implement and review the private Worker deployment planner, then deploy Cloud Run,
+OIDC Scheduler jobs, and Monitoring only after its source and Docker/image build
+gate pass. This host still has no Docker CLI.

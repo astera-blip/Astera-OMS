@@ -1092,3 +1092,17 @@ four fresh readbacks pass and are reviewed.
   Provider condition, API enablement, KMS keys, Worker/Scheduler service accounts,
   Worker `roles/datastore.user`, key-level KMS IAM, and Artifact Registry; then run
   the already reviewed command without changing its arguments.
+
+## 2026-08-10 Task 5 completed
+
+- Explicit authorization was received and the guarded apply completed with exit 0.
+- Three environment-compatibility fixes were completed through strict TDD and
+  independent review: `abd32a6`, `7cb07d1`, `861a99f`.
+- Fresh verification: focused **35/35**, Unit **43 files / 340 tests**, TypeScript,
+  ESLint, secret scan, and diff check passed.
+- Live readback passed for WIF, six APIs, both KMS keys/version 1, exact key-level
+  IAM, Worker Firestore role, Scheduler no-project-role, both service accounts, and
+  `astera-ops` Artifact Registry.
+- Task 5 is complete. Task 6 is now in progress and must implement/test the private
+  Cloud Run, Scheduler OIDC jobs, and Monitoring alert deployment. No Task 6 live
+  deployment has occurred.

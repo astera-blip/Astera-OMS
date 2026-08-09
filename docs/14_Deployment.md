@@ -266,3 +266,25 @@ The next attempt must use the same reviewed command only after the user explicit
 authorizes changes to `astera-oms-prod` covering the WIF Provider condition, six
 approved APIs, both KMS keys, Worker and Scheduler service accounts, the Worker
 Firestore role, key-level KMS IAM, and the `astera-ops` Artifact Registry repository.
+
+### 2026-08-10 Task 5 Production security apply complete
+
+The user explicitly authorized the complete Task 5 scope. Three fail-closed
+compatibility stops exposed Windows gcloud behavior before later actions; reviewed
+fixes `abd32a6`, `7cb07d1`, and `861a99f` replaced unsupported/projected reads with
+standard JSON and exact enabled-API validation. Final controller evidence passed:
+focused 35/35, full Unit 43 files / 340 tests, TypeScript, ESLint, secret scan, and
+diff check. The final idempotent apply exited 0.
+
+Readback confirms project `astera-oms-prod` / `1032606875618`; Provider `vercel`
+is ACTIVE with the exact mapping, condition, and Vercel-project principal set;
+all six approved APIs are enabled; HMAC key version 1 is `HMAC_SHA256`, SOFTWARE,
+ENABLED; refund key primary version 1 is `GOOGLE_SYMMETRIC_ENCRYPTION`, SOFTWARE,
+ENABLED. Vercel has only HMAC signer and refund encrypter/decrypter on the
+individual keys. Worker has HMAC viewer plus project `roles/datastore.user`, and
+no refund-key crypto grant. Scheduler has no project-wide role. Both service
+accounts are active and `astera-ops` is a Docker repository in `asia-east1`.
+
+No Cloud Run service, Scheduler job, or Monitoring policy was deployed in Task 5.
+Those remain Task 6. Local Docker image construction also remains unverified because
+this host has no Docker CLI.
