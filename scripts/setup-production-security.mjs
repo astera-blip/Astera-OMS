@@ -92,7 +92,7 @@ export function buildProductionSecurityCommands(config) {
     step("discoverVerifiedWifProvider", discoverWifProviderArgs),
     step("discoverRuntimeServiceAccountIamPolicy", [
       "iam", "service-accounts", "get-iam-policy", VERCEL_SERVICE_ACCOUNT,
-      "--format=json(bindings.role,bindings.members,bindings.condition)",
+      "--format=json",
       ...projectArgs,
     ]),
     step("enableApis", [

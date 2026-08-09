@@ -97,7 +97,7 @@ describe("production security infrastructure", () => {
         args: [
           "iam", "service-accounts", "get-iam-policy",
           "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
-          "--format=json(bindings.role,bindings.members,bindings.condition)",
+          "--format=json",
           "--project", "astera-oms-prod",
         ],
       },
@@ -628,7 +628,7 @@ describe("production security infrastructure", () => {
         [
           "iam", "service-accounts", "get-iam-policy",
           "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
-          "--format=json(bindings.role,bindings.members,bindings.condition)",
+          "--format=json",
         ],
         ["services", "enable", "cloudkms.googleapis.com", "run.googleapis.com", "cloudscheduler.googleapis.com"],
       ]);
