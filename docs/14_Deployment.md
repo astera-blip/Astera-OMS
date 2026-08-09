@@ -234,3 +234,23 @@ project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, and API IDs
 `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and
 `monitoring.googleapis.com`. KMS and security `--apply` remain BLOCKED until all
 four fresh readbacks pass and are reviewed.
+
+### 2026-08-10 Task 5 authorization checkpoint
+
+The WIF preflight in `1c8387f` has an approved review result. Worker Firestore
+IAM changes in `3bec6e9` and `5961b9a` also passed approved re-review. Fresh
+controller evidence passed: focused 52/52, full Unit 43 files / 334 tests,
+TypeScript, ESLint, secret scan, and document diff check.
+
+The guarded apply is READY in code but remains BLOCKED pending explicit user
+authorization. It remediates the Provider condition and adds the Worker exact
+`roles/datastore.user` binding; Scheduler receives no project-wide role. No cloud
+command or `--apply` has run. The only next command is:
+
+```text
+node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+It must not continue to API/KMS work until readback proves Provider `ACTIVE`, the
+exact mapping, exact Vercel-project condition, and exact `principalSet`. Docker
+build remains unverified because Docker CLI is unavailable.

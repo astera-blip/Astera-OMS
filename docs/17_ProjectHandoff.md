@@ -977,3 +977,23 @@ also includes Pool `vercel-oidc`, Provider `vercel`, Vercel project
 `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and
 `monitoring.googleapis.com`. Until then KMS and security `--apply` remain
 BLOCKED.
+
+## 2026-08-10 Task 5 authorization checkpoint
+
+WIF preflight commit `1c8387f` has approved review; Worker Firestore IAM commits
+`3bec6e9` and `5961b9a` have approved re-review. Fresh controller results pass:
+focused 52/52, full Unit 43 files / 334 tests, TypeScript, ESLint, secret scan,
+and document diff check.
+
+The apply path is READY in code but BLOCKED for live mutation until explicit user
+authorization. It includes Provider-condition remediation and the Worker exact
+`roles/datastore.user` binding; Scheduler has no project-wide role. No cloud
+command or `--apply` has run. The exact next command is:
+
+```text
+node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+The command will not proceed to API/KMS until readback verifies Provider `ACTIVE`,
+the exact mapping, exact Vercel-project condition, and exact `principalSet`.
+Docker build remains unverified because Docker CLI is absent.

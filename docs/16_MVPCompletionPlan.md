@@ -1061,3 +1061,22 @@ Vercel project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, and API IDs
 `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and
 `monitoring.googleapis.com`. KMS and security `--apply` remain BLOCKED until all
 four fresh readbacks pass and are reviewed.
+
+## 2026-08-10 Task 5 authorization checkpoint
+
+- WIF preflight commit `1c8387f` received approved review. Worker Firestore IAM
+  commits `3bec6e9` and `5961b9a` received approved re-review.
+- Fresh controller checks passed: focused **52/52**, full Unit **43 files / 334
+  tests**, TypeScript, ESLint, secret scan, and document diff check.
+- The code-ready dry-run plan remediates the Provider condition and creates the
+  Worker exact `roles/datastore.user` binding. Scheduler has no project-wide role.
+- No cloud command or `--apply` ran. Live mutation is READY in code but BLOCKED
+  until the user explicitly authorizes this exact command:
+
+  ```text
+  node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+  ```
+
+- The command must stop before API/KMS work unless readback verifies Provider
+  `ACTIVE`, the exact mapping, exact Vercel-project condition, and exact
+  `principalSet`. Docker build remains unverified because Docker CLI is absent.
