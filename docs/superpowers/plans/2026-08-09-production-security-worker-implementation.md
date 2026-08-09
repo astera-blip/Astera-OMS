@@ -128,6 +128,7 @@ git commit -m "refactor: share refund governance jobs"
 - Create: `ops/security-worker/package.json`
 - Create: `ops/security-worker/package-lock.json`
 - Create: `ops/security-worker/Dockerfile`
+- Create: `ops/security-worker/Dockerfile.dockerignore`
 - Create: `tests/unit/productionSecurityWorker.test.ts`
 
 **Interfaces:**
@@ -185,7 +186,10 @@ const routes = new Map([
 `ops/security-worker/package.json` uses Node `>=24.18.0 <25` and contains only
 `@google-cloud/kms` and `firebase-admin`. The Dockerfile uses
 `node:24.18.0-bookworm-slim`, runs `npm ci --omit=dev`, exposes `$PORT`, uses the
-non-root `node` user, and starts `node server.mjs`.
+non-root `node` user, and starts `node server.mjs`. Because the shared job module
+imports `src/lib/payment/fingerprintIdentity.mjs`, the build uses repository-root
+context plus a Dockerfile-specific default-deny ignore file that sends only the
+Worker package and that pure helper.
 
 - [ ] **Step 5: Verify worker behavior and container construction.**
 
@@ -195,7 +199,7 @@ Run:
 npx vitest run tests/unit/productionSecurityWorker.test.ts tests/unit/fingerprintMigration.test.ts
 npm run typecheck
 npm run lint
-docker build -t astera-security-worker:test ops/security-worker
+docker build -f ops/security-worker/Dockerfile -t astera-security-worker:test .
 ```
 
 Expected: tests and static checks exit 0; Docker image builds without copying root
