@@ -2,12 +2,19 @@ import { createServer, type Server } from "node:http";
 import { createConnection } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSecurityWorker } from "../../ops/security-worker/server.mjs";
+import {
+  buildProductionSecurityDeploymentCommands,
+  parseProductionSecurityDeploymentArgs,
+} from "../../scripts/deploy-production-security-worker.mjs";
 
 const productionProject = "astera-oms-prod";
 const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+const fixedHmacKeyName =
+  "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint";
 
 describe("production security worker HTTP contract", () => {
   const originalProject = process.env.GOOGLE_CLOUD_PROJECT;
+  const originalHmacKeyName = process.env.GCP_KMS_HMAC_KEY_NAME;
   let server: Server | undefined;
 
   beforeEach(() => {
@@ -20,6 +27,49 @@ describe("production security worker HTTP contract", () => {
     vi.restoreAllMocks();
     if (originalProject === undefined) delete process.env.GOOGLE_CLOUD_PROJECT;
     else process.env.GOOGLE_CLOUD_PROJECT = originalProject;
+    if (originalHmacKeyName === undefined) delete process.env.GCP_KMS_HMAC_KEY_NAME;
+    else process.env.GCP_KMS_HMAC_KEY_NAME = originalHmacKeyName;
+  });
+
+  it("uses the fixed deployment environment for both governance routes", async () => {
+    const config = parseProductionSecurityDeploymentArgs([
+      "--project", productionProject,
+      "--confirm-project", productionProject,
+    ]);
+    const plan = buildProductionSecurityDeploymentCommands(config, {
+      sourceRevision: "a".repeat(40),
+      imageDigest:
+        "asia-east1-docker.pkg.dev/astera-oms-prod/astera-ops/astera-security-worker@sha256:"
+        + "b".repeat(64),
+      serviceUrl: "https://astera-security-worker-1032606875618.asia-east1.run.app",
+    });
+    const environmentArgument = plan.deployWorkerService.args.find((argument: string) =>
+      argument.startsWith("--set-env-vars="));
+    expect(environmentArgument).toBe(
+      `--set-env-vars=GOOGLE_CLOUD_PROJECT=${productionProject},GCP_KMS_HMAC_KEY_NAME=${fixedHmacKeyName}`,
+    );
+    for (const pair of environmentArgument!.slice("--set-env-vars=".length).split(",")) {
+      const separator = pair.indexOf("=");
+      process.env[pair.slice(0, separator)] = pair.slice(separator + 1);
+    }
+
+    server = await startWorker(createSecurityWorker({
+      project: productionProject,
+      now: () => new Date("2026-08-09T00:00:00.000Z"),
+      initializeDependencies: async () => {
+        if (process.env.GCP_KMS_HMAC_KEY_NAME !== fixedHmacKeyName) {
+          throw new Error("cloud_kms_mac_not_configured");
+        }
+        return {
+          db: createCombinedDb(),
+          FieldValue: { delete: () => "__delete__" },
+          listKnownKeyVersions: async () => [1, 2],
+        };
+      },
+    }));
+
+    expect((await request(server, "/jobs/refund-account-cleanup")).status).toBe(200);
+    expect((await request(server, "/jobs/fingerprint-key-usage")).status).toBe(200);
   });
 
   it("returns only the cleanup aggregate for the fixed cleanup route", async () => {
@@ -297,5 +347,16 @@ function createReportDb() {
           .map((record) => ({ id: record.id, data: () => ({ ...record }) })),
       }),
     }),
+  };
+}
+
+function createCombinedDb() {
+  const cleanupDb = createCleanupDb();
+  const reportDb = createReportDb();
+  return {
+    ...cleanupDb,
+    collection: (name: string) => name === "cancellationRequests"
+      ? cleanupDb.collection(name)
+      : reportDb.collection(name),
   };
 }

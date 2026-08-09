@@ -1,5 +1,9 @@
 import { spawnSync as nodeSpawnSync } from "node:child_process";
-import { readFileSync as nodeReadFileSync } from "node:fs";
+import {
+  existsSync as nodeExistsSync,
+  readFileSync as nodeReadFileSync,
+  realpathSync as nodeRealpathSync,
+} from "node:fs";
 import { win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { GoogleAuth } from "google-auth-library";
@@ -14,6 +18,9 @@ const WORKER_SERVICE_ACCOUNT =
 const SCHEDULER_SERVICE_ACCOUNT =
   "astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com";
 const SCHEDULER_MEMBER = `serviceAccount:${SCHEDULER_SERVICE_ACCOUNT}`;
+const HMAC_KEY_NAME =
+  `projects/${PROJECT}/locations/${REGION}/keyRings/astera-oms-security/`+
+  "cryptoKeys/member-account-fingerprint";
 const NOTIFICATION_EMAIL = "astera.0920@gmail.com";
 const NOTIFICATION_CHANNEL_DISPLAY_NAME = "Astera Security Worker email";
 const ALERT_POLICY_DISPLAY_NAME = "Astera Security Worker non-2xx or timeout";
@@ -171,7 +178,10 @@ export function validateDeployedWorkerService(value, expectedImageDigest) {
       || !isRecord(template)
       || !isRecord(templateMetadata)
       || !isRecord(annotations)
-      || annotations["autoscaling.knative.dev/minScale"] !== "0"
+      || (
+        annotations["autoscaling.knative.dev/minScale"] !== undefined
+        && annotations["autoscaling.knative.dev/minScale"] !== "0"
+      )
       || annotations["autoscaling.knative.dev/maxScale"] !== "1"
       || !isRecord(templateSpec)
       || templateSpec.serviceAccountName !== WORKER_SERVICE_ACCOUNT
@@ -369,7 +379,7 @@ export async function ensureProductionMonitoring({ request }) {
 
   let channel = channelCandidates[0];
   if (channel) {
-    if (!isExactNotificationChannel(channel)) monitoringConflict();
+    validateFixedNotificationChannel(channel);
   } else {
     if (policyCandidates.length !== 0) monitoringConflict();
     const response = await request({
@@ -378,7 +388,7 @@ export async function ensureProductionMonitoring({ request }) {
       data: expectedNotificationChannel(),
     });
     channel = response?.data;
-    if (!isExactNotificationChannel(channel)) monitoringConflict();
+    validateFixedNotificationChannel(channel);
   }
 
   const desiredPolicy = buildProductionAlertPolicy(channel.name);
@@ -412,6 +422,9 @@ export async function ensureProductionMonitoring({ request }) {
  *     params?: Record<string, unknown>,
  *   }) => Promise<unknown>>,
  *   readFileSync?: (path: URL, encoding: "utf8") => string,
+ *   existsSync?: (path: string) => boolean,
+ *   realpathSync?: (path: string) => string,
+ *   cwd?: () => string,
  *   log?: (line: string) => void,
  *   platform?: string,
  *   env?: Record<string, string | undefined>,
@@ -423,6 +436,9 @@ export async function runProductionSecurityDeployment(
     spawnSync = nodeSpawnSync,
     createMonitoringRequest = createGoogleMonitoringRequest,
     readFileSync = nodeReadFileSync,
+    existsSync = nodeExistsSync,
+    realpathSync = nodeRealpathSync,
+    cwd = process.cwd,
     log = console.log,
     platform = process.platform,
     env = process.env,
@@ -436,7 +452,15 @@ export async function runProductionSecurityDeployment(
     return Object.freeze({ mode, actions: DRY_RUN_ACTIONS });
   }
 
-  const dependencies = { spawnSync, log, platform, env };
+  const dependencies = {
+    spawnSync,
+    log,
+    platform,
+    env,
+    existsSync,
+    realpathSync,
+    cwd,
+  };
   const sourceRevision = readSourceRevision(dependencies);
   verifyWorkerBuildIgnore(readFileSync);
   verifyBuildContextClean(dependencies);
@@ -527,7 +551,7 @@ function deployServiceCommand(imageDigest) {
     "--min-instances=0",
     "--max-instances=1",
     "--concurrency=1",
-    `--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT}`,
+    `--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT},GCP_KMS_HMAC_KEY_NAME=${HMAC_KEY_NAME}`,
     "--no-allow-unauthenticated",
     "--invoker-iam-check",
     `--project=${PROJECT}`,
@@ -666,7 +690,7 @@ function verifyBuildContextClean(dependencies) {
 
 function runCommand(command, dependencies, shouldLog = true) {
   if (shouldLog) dependencies.log(`action=${command.name}`);
-  const launch = resolveLaunch(command, dependencies.platform, dependencies.env);
+  const launch = resolveLaunch(command, dependencies);
   let result;
   try {
     result = dependencies.spawnSync(launch.command, launch.args, {
@@ -683,29 +707,81 @@ function runCommand(command, dependencies, shouldLog = true) {
   return result;
 }
 
-function resolveLaunch(command, platform, env) {
+function resolveLaunch(command, dependencies) {
   if (command.command === "git") return command;
   if (command.command !== "gcloud") {
     throw new Error("production_security_deployment_launcher_invalid");
   }
-  if (platform !== "win32") return command;
+  if (dependencies.platform !== "win32") return command;
 
-  const normalizedSystemRoot = win32.normalize(String(env.SystemRoot ?? "").trim());
-  const comSpec = String(env.ComSpec ?? "").trim();
-  if (!/^[A-Za-z]:\\Windows$/i.test(normalizedSystemRoot)) {
-    throw new Error("production_security_deployment_windows_launcher_invalid");
-  }
-  const expectedComSpec = win32.join(normalizedSystemRoot, "System32", "cmd.exe");
+  const localAppData = win32.normalize(
+    String(dependencies.env.LOCALAPPDATA ?? "").trim(),
+  );
   if (
-    !win32.isAbsolute(comSpec)
-    || win32.normalize(comSpec).toLowerCase() !== expectedComSpec.toLowerCase()
+    !win32.isAbsolute(localAppData)
+    || !/^[A-Za-z]:\\Users\\[^\\]+\\AppData\\Local$/i.test(localAppData)
   ) {
     throw new Error("production_security_deployment_windows_launcher_invalid");
   }
+  const sdkRoot = win32.join(
+    localAppData,
+    "Google",
+    "Cloud SDK",
+    "google-cloud-sdk",
+  );
+  const python = win32.join(
+    sdkRoot,
+    "platform",
+    "bundledpython",
+    "python.exe",
+  );
+  const gcloudPy = win32.join(sdkRoot, "lib", "gcloud.py");
+  if (
+    !dependencies.existsSync(python)
+    || !dependencies.existsSync(gcloudPy)
+    || canonicalWindowsPath(python, dependencies.realpathSync) !== python.toLowerCase()
+    || canonicalWindowsPath(gcloudPy, dependencies.realpathSync) !== gcloudPy.toLowerCase()
+  ) {
+    throw new Error("production_security_deployment_windows_launcher_invalid");
+  }
+  rejectWindowsGcloudShadows(
+    sdkRoot,
+    dependencies.env.PATH,
+    dependencies.cwd,
+    dependencies.existsSync,
+  );
   return Object.freeze({
-    command: expectedComSpec,
-    args: ["/d", "/s", "/c", "gcloud.cmd", ...command.args],
+    command: python,
+    args: ["-S", gcloudPy, ...command.args],
   });
+}
+
+function canonicalWindowsPath(path, realpathSync) {
+  try {
+    return win32.normalize(realpathSync(path)).toLowerCase();
+  } catch {
+    throw new Error("production_security_deployment_windows_launcher_invalid");
+  }
+}
+
+function rejectWindowsGcloudShadows(sdkRoot, pathValue, cwd, existsSync) {
+  const trusted = win32.join(sdkRoot, "bin", "gcloud.cmd").toLowerCase();
+  const currentDirectory = win32.normalize(cwd());
+  if (!win32.isAbsolute(currentDirectory)) {
+    throw new Error("production_security_deployment_windows_launcher_invalid");
+  }
+  const searchDirectories = [
+    currentDirectory,
+    ...String(pathValue ?? "").split(";").filter((entry) => entry !== ""),
+  ];
+  for (const directory of searchDirectories) {
+    const unquoted = directory.replace(/^"|"$/g, "");
+    const resolved = win32.resolve(currentDirectory, unquoted);
+    const candidate = win32.join(resolved, "gcloud.cmd");
+    if (existsSync(candidate) && candidate.toLowerCase() !== trusted) {
+      throw new Error("production_security_deployment_windows_launcher_invalid");
+    }
+  }
 }
 
 function parseCommandJson(stdout, name) {
@@ -774,11 +850,22 @@ function assertFixedConfig(config) {
 }
 
 function hasExactWorkerEnvironment(env) {
-  return Array.isArray(env)
-    && env.length === 1
-    && isRecord(env[0])
-    && env[0].name === "GOOGLE_CLOUD_PROJECT"
-    && env[0].value === PROJECT;
+  if (!Array.isArray(env) || env.length !== 2) return false;
+  const values = new Map();
+  for (const variable of env) {
+    if (
+      !isRecord(variable)
+      || typeof variable.name !== "string"
+      || typeof variable.value !== "string"
+      || values.has(variable.name)
+    ) {
+      return false;
+    }
+    values.set(variable.name, variable.value);
+  }
+  return values.size === 2
+    && values.get("GOOGLE_CLOUD_PROJECT") === PROJECT
+    && values.get("GCP_KMS_HMAC_KEY_NAME") === HMAC_KEY_NAME;
 }
 
 function expectedNotificationChannel() {
@@ -791,14 +878,24 @@ function expectedNotificationChannel() {
 }
 
 function isExactNotificationChannel(channel) {
+  return isMatchingNotificationChannelConfiguration(channel)
+    && channel.verificationStatus === "VERIFIED";
+}
+
+function isMatchingNotificationChannelConfiguration(channel) {
   return isRecord(channel)
     && isNotificationChannelName(channel.name)
     && channel.type === "email"
     && channel.displayName === NOTIFICATION_CHANNEL_DISPLAY_NAME
-    && channel.enabled === true
+    && (channel.enabled === undefined || channel.enabled === true)
     && isRecord(channel.labels)
     && Object.keys(channel.labels).length === 1
     && channel.labels.email_address === NOTIFICATION_EMAIL;
+}
+
+function validateFixedNotificationChannel(channel) {
+  if (!isMatchingNotificationChannelConfiguration(channel)) monitoringConflict();
+  if (!isExactNotificationChannel(channel)) monitoringVerificationRequired();
 }
 
 function isNotificationChannelName(value) {
@@ -812,7 +909,7 @@ function isExactAlertPolicy(policy, desired) {
     || !/^projects\/astera-oms-prod\/alertPolicies\/[A-Za-z0-9_-]+$/.test(policy.name)
     || policy.displayName !== desired.displayName
     || policy.combiner !== desired.combiner
-    || policy.enabled !== true
+    || (policy.enabled !== undefined && policy.enabled !== true)
     || !semanticallyEqual(policy.notificationChannels, desired.notificationChannels)
     || !semanticallyEqual(policy.documentation, desired.documentation)
     || !Array.isArray(policy.conditions)
@@ -868,7 +965,15 @@ function isValidMonitoringResource(collection, resource) {
       && isRecord(resource.labels)
       && Object.values(resource.labels).every((value) => typeof value === "string")
       && (resource.displayName === undefined || typeof resource.displayName === "string")
-      && (resource.enabled === undefined || typeof resource.enabled === "boolean");
+      && (resource.enabled === undefined || typeof resource.enabled === "boolean")
+      && (
+        resource.verificationStatus === undefined
+        || [
+          "VERIFICATION_STATUS_UNSPECIFIED",
+          "UNVERIFIED",
+          "VERIFIED",
+        ].includes(resource.verificationStatus)
+      );
   }
   if (collection === "alertPolicies") {
     return /^projects\/astera-oms-prod\/alertPolicies\/[A-Za-z0-9_-]+$/
@@ -911,6 +1016,10 @@ function semanticallyEqual(left, right) {
 
 function monitoringConflict() {
   throw new Error("production_security_monitoring_conflict");
+}
+
+function monitoringVerificationRequired() {
+  throw new Error("production_security_monitoring_verification_required");
 }
 
 async function createGoogleMonitoringRequest() {

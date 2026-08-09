@@ -28,6 +28,8 @@ const workerServiceAccount =
 const schedulerServiceAccount =
   "astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com";
 const schedulerMember = `serviceAccount:${schedulerServiceAccount}`;
+const hmacKeyName =
+  "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint";
 const unsafeArguments: string[][] = [
   [],
   ["--project", "astera-oms-prod"],
@@ -92,7 +94,7 @@ describe("production security deployment", () => {
         "--min-instances=0",
         "--max-instances=1",
         "--concurrency=1",
-        "--set-env-vars=GOOGLE_CLOUD_PROJECT=astera-oms-prod",
+        `--set-env-vars=GOOGLE_CLOUD_PROJECT=astera-oms-prod,GCP_KMS_HMAC_KEY_NAME=${hmacKeyName}`,
         "--no-allow-unauthenticated",
         "--invoker-iam-check",
         "--project=astera-oms-prod",
@@ -197,6 +199,20 @@ describe("production security deployment", () => {
           },
         },
       }),
+      exactService({
+        spec: {
+          ...exactService().spec,
+          template: {
+            ...exactService().spec.template,
+            metadata: {
+              annotations: {
+                ...exactService().spec.template.metadata.annotations,
+                "autoscaling.knative.dev/minScale": "1",
+              },
+            },
+          },
+        },
+      }),
       exactService({ status: { url: "https://evil.example/jobs" } }),
       exactService({
         spec: {
@@ -283,23 +299,25 @@ describe("production security deployment", () => {
     }
   });
 
-  it("creates exact email Monitoring state once and is idempotent", async () => {
+  it("requires external email verification before policy creation and then becomes idempotent", async () => {
     const state: MonitoringState = { channels: [], policies: [] };
     const request = statefulMonitoringRequest(state);
 
-    await ensureProductionMonitoring({ request });
+    await expect(ensureProductionMonitoring({ request }))
+      .rejects.toThrow("production_security_monitoring_verification_required");
 
     expect(state.channels).toEqual([{
       name: "projects/astera-oms-prod/notificationChannels/channel-1",
       type: "email",
       displayName: "Astera Security Worker email",
       labels: { email_address: "astera.0920@gmail.com" },
-      enabled: true,
+      verificationStatus: "UNVERIFIED",
     }]);
-    expect(state.policies).toEqual([{
-      name: "projects/astera-oms-prod/alertPolicies/policy-1",
-      ...buildProductionAlertPolicy(state.channels[0].name),
-    }]);
+    expect(state.policies).toEqual([]);
+
+    state.channels[0].verificationStatus = "VERIFIED";
+    await ensureProductionMonitoring({ request });
+    expect(state.policies).toEqual([normalizedPolicyFixture(state.channels[0].name)]);
 
     const callsAfterCreate = request.mock.calls.length;
     await ensureProductionMonitoring({ request });
@@ -315,6 +333,7 @@ describe("production security deployment", () => {
       displayName: "Astera Security Worker email",
       labels: { email_address: "astera.0920@gmail.com" },
       enabled: true,
+      verificationStatus: "VERIFIED",
     };
     const desired = buildProductionAlertPolicy(channel.name);
     const state: MonitoringState = {
@@ -397,12 +416,21 @@ describe("production security deployment", () => {
   });
 
   it("permits valid unrelated Monitoring resources with omitted optional defaults", async () => {
+    const fixedChannel = {
+      name: "projects/astera-oms-prod/notificationChannels/channel-1",
+      type: "email",
+      displayName: "Astera Security Worker email",
+      labels: { email_address: "astera.0920@gmail.com" },
+      enabled: true,
+      verificationStatus: "VERIFIED",
+    };
     const state: MonitoringState = {
       channels: [{
         name: "projects/astera-oms-prod/notificationChannels/unrelated",
         type: "email",
         labels: { email_address: "other@example.com" },
-      }],
+        verificationStatus: "VERIFICATION_STATUS_UNSPECIFIED",
+      }, fixedChannel],
       policies: [{
         name: "projects/astera-oms-prod/alertPolicies/unrelated",
         displayName: "Unrelated policy",
@@ -420,6 +448,43 @@ describe("production security deployment", () => {
     expect(state.policies).toHaveLength(2);
   });
 
+  it.each(["UNVERIFIED", "VERIFICATION_STATUS_UNSPECIFIED", undefined])(
+    "blocks the fixed email channel verification state %s before policy creation",
+    async (verificationStatus) => {
+      const channel: { name: string; [key: string]: unknown } = {
+        name: "projects/astera-oms-prod/notificationChannels/channel-1",
+        type: "email",
+        displayName: "Astera Security Worker email",
+        labels: { email_address: "astera.0920@gmail.com" },
+        enabled: true,
+        ...(verificationStatus === undefined ? {} : { verificationStatus }),
+      };
+      const state: MonitoringState = { channels: [channel], policies: [] };
+      const request = statefulMonitoringRequest(state);
+
+      await expect(ensureProductionMonitoring({ request }))
+        .rejects.toThrow("production_security_monitoring_verification_required");
+      expect(request.mock.calls.every(([call]) => call.method === "GET")).toBe(true);
+    },
+  );
+
+  it("rejects malformed Monitoring channel verification status", async () => {
+    const state: MonitoringState = {
+      channels: [{
+        name: "projects/astera-oms-prod/notificationChannels/unrelated",
+        type: "email",
+        labels: { email_address: "other@example.com" },
+        verificationStatus: "BROKEN",
+      }],
+      policies: [],
+    };
+    const request = statefulMonitoringRequest(state);
+
+    await expect(ensureProductionMonitoring({ request }))
+      .rejects.toThrow("production_security_monitoring_conflict");
+    expect(request.mock.calls.every(([call]) => call.method === "GET")).toBe(true);
+  });
+
   it("fails closed on duplicate or conflicting Monitoring state", async () => {
     const exactChannel = {
       name: "projects/astera-oms-prod/notificationChannels/channel-1",
@@ -427,6 +492,7 @@ describe("production security deployment", () => {
       displayName: "Astera Security Worker email",
       labels: { email_address: "astera.0920@gmail.com" },
       enabled: true,
+      verificationStatus: "VERIFIED",
     };
     const conflictingStates: MonitoringState[] = [
       { channels: [exactChannel, { ...exactChannel, name: `${exactChannel.name}-2` }], policies: [] },
@@ -502,59 +568,120 @@ describe("production security deployment", () => {
     ]);
   });
 
-  it("completes one exact apply sequence using only validated argv and injected Monitoring", async () => {
-    let invokerBound = false;
-    const schedulerJobs = new Map<string, ReturnType<typeof schedulerJob>>();
-    const spawnSync = vi.fn((_command: string, args: string[], _options: { shell: false }) => {
-      expect(_options.shell).toBe(false);
-      const joined = args.join(" ");
-      if (joined === "rev-parse HEAD") {
+  it("uses absolute bundled Cloud SDK Python and gcloud.py on Windows", async () => {
+    const windows = windowsLauncherFixture();
+    const spawnSync = vi.fn((command: string, args: string[]) => {
+      if (command === "git" && args.join(" ") === "rev-parse HEAD") {
         return { status: 0, stdout: `${revision}\n`, stderr: "" };
       }
-      if (args[0] === "status") return { status: 0, stdout: "", stderr: "" };
-      if (joined.startsWith("artifacts docker images describe")) {
-        return { status: 0, stdout: `${imageDigest}\n`, stderr: "" };
-      }
-      if (joined.startsWith("run services describe")) {
-        return successfulJson(exactService());
-      }
-      if (joined.startsWith("run services get-iam-policy")) {
-        return successfulJson(invokerBound ? exactIamPolicy() : { bindings: [] });
-      }
-      if (joined.startsWith("run services add-iam-policy-binding")) {
-        invokerBound = true;
+      if (command === "git" && args[0] === "status") {
         return { status: 0, stdout: "", stderr: "" };
       }
-      if (joined.startsWith("scheduler jobs list")) {
-        const fullName = args.find((arg) => arg.startsWith("--filter=name="))
-          ?.slice("--filter=name=".length) ?? "";
-        return successfulJson(schedulerJobs.has(fullName) ? [schedulerJobs.get(fullName)] : []);
-      }
-      if (joined.startsWith("scheduler jobs create http")) {
-        const job = schedulerJob(args[4]);
-        schedulerJobs.set(job.name, job);
-        return { status: 0, stdout: "", stderr: "" };
-      }
-      return { status: 0, stdout: "", stderr: "" };
+      return { status: 7, stdout: "", stderr: "not printed" };
     });
-    const monitoringState: MonitoringState = { channels: [], policies: [] };
-    const monitoringRequest = statefulMonitoringRequest(monitoringState);
 
     await expect(runProductionSecurityDeployment([...confirmedArgs, "--apply"], {
       spawnSync,
-      createMonitoringRequest: async () => monitoringRequest,
+      createMonitoringRequest: vi.fn(),
       log: vi.fn(),
-      platform: "linux",
-    })).resolves.toMatchObject({ mode: "apply" });
+      platform: "win32",
+      env: windows.env,
+      cwd: () => windows.cwd,
+      existsSync: windows.existsSync,
+      realpathSync: windows.realpathSync,
+    })).rejects.toThrow("production_security_deployment_command_failed:buildWorkerImage");
 
-    expect(invokerBound).toBe(true);
-    expect(schedulerJobs.size).toBe(2);
-    expect(monitoringState.channels).toHaveLength(1);
-    expect(monitoringState.policies).toHaveLength(1);
-    expect(spawnSync.mock.calls.every(([, , options]) => options.shell === false)).toBe(true);
-    expect(spawnSync.mock.calls.flatMap(([, args]) => args)).not.toContain("auth");
-    expect(spawnSync.mock.calls.flatMap(([, args]) => args)).not.toContain("config");
-    expect(spawnSync.mock.calls.flatMap(([, args]) => args))
+    expect(spawnSync).toHaveBeenNthCalledWith(
+      3,
+      windows.python,
+      ["-S", windows.gcloudPy,
+        "builds", "submit", ".",
+        "--config=ops/security-worker/cloudbuild.yaml",
+        "--ignore-file=ops/security-worker/Dockerfile.dockerignore",
+        `--substitutions=_IMAGE=${imageTag}`,
+        "--region=asia-east1",
+        "--project=astera-oms-prod",
+        "--quiet"],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it.each(["cwd", "path"] as const)("rejects a Windows %s gcloud.cmd shadow", async (source) => {
+    const windows = windowsLauncherFixture(source);
+    const spawnSync = sourceRevisionRunner();
+
+    await expect(runProductionSecurityDeployment([...confirmedArgs, "--apply"], {
+      spawnSync,
+      createMonitoringRequest: vi.fn(),
+      log: vi.fn(),
+      platform: "win32",
+      env: windows.env,
+      cwd: () => windows.cwd,
+      existsSync: windows.existsSync,
+      realpathSync: windows.realpathSync,
+    })).rejects.toThrow("production_security_deployment_windows_launcher_invalid");
+    expect(spawnSync).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a missing trusted Windows Cloud SDK launcher", async () => {
+    const windows = windowsLauncherFixture("missing");
+    const spawnSync = sourceRevisionRunner();
+
+    await expect(runProductionSecurityDeployment([...confirmedArgs, "--apply"], {
+      spawnSync,
+      createMonitoringRequest: vi.fn(),
+      log: vi.fn(),
+      platform: "win32",
+      env: windows.env,
+      cwd: () => windows.cwd,
+      existsSync: windows.existsSync,
+      realpathSync: windows.realpathSync,
+    })).rejects.toThrow("production_security_deployment_windows_launcher_invalid");
+    expect(spawnSync).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs strict create/update apply then a mutation-idempotent Windows apply", async () => {
+    const harness = strictApplyHarness();
+    const dependencies = {
+      spawnSync: harness.spawnSync,
+      createMonitoringRequest: async () => harness.monitoringRequest,
+      log: vi.fn(),
+      platform: "win32",
+      env: harness.windows.env,
+      cwd: () => harness.windows.cwd,
+      existsSync: harness.windows.existsSync,
+      realpathSync: harness.windows.realpathSync,
+    };
+
+    await expect(runProductionSecurityDeployment(
+      [...confirmedArgs, "--apply"],
+      dependencies,
+    )).resolves.toMatchObject({ mode: "apply" });
+    expect(harness.state.mutations).toEqual([
+      "bindSchedulerInvoker",
+      "createDailySchedulerJob",
+      "updateMonthlySchedulerJob",
+    ]);
+    expect(harness.state.jobs.get(harness.dailyName)).toEqual(dailyJob());
+    expect(harness.state.jobs.get(harness.monthlyName)).toEqual(schedulerJob(
+      "astera-fingerprint-key-report-monthly",
+    ));
+
+    await expect(runProductionSecurityDeployment(
+      [...confirmedArgs, "--apply"],
+      dependencies,
+    )).resolves.toMatchObject({ mode: "apply" });
+    expect(harness.state.mutations).toEqual([
+      "bindSchedulerInvoker",
+      "createDailySchedulerJob",
+      "updateMonthlySchedulerJob",
+    ]);
+    expect(harness.state.builds).toBe(2);
+    expect(harness.state.deploys).toBe(2);
+    expect(harness.monitoringRequest).toHaveBeenCalledTimes(4);
+    expect(harness.monitoringRequest.mock.calls.every(([call]) => call.method === "GET"))
+      .toBe(true);
+    expect(harness.spawnSync.mock.calls.flatMap(([, args]) => args))
       .not.toContain("--allow-unauthenticated");
   });
 });
@@ -570,7 +697,6 @@ function exactService(overrides: Record<string, unknown> = {}) {
       template: {
         metadata: {
           annotations: {
-            "autoscaling.knative.dev/minScale": "0",
             "autoscaling.knative.dev/maxScale": "1",
           },
         },
@@ -579,7 +705,10 @@ function exactService(overrides: Record<string, unknown> = {}) {
           containerConcurrency: 1,
           containers: [{
             image: imageDigest,
-            env: [{ name: "GOOGLE_CLOUD_PROJECT", value: "astera-oms-prod" }],
+            env: [
+              { name: "GOOGLE_CLOUD_PROJECT", value: "astera-oms-prod" },
+              { name: "GCP_KMS_HMAC_KEY_NAME", value: hmacKeyName },
+            ],
           }],
         },
       },
@@ -644,9 +773,18 @@ function statefulMonitoringRequest(state: MonitoringState) {
       return { data: { notificationChannels: state.channels } };
     }
     if (method === "POST" && url.endsWith("/notificationChannels")) {
+      expect(data).toEqual({
+        type: "email",
+        displayName: "Astera Security Worker email",
+        labels: { email_address: "astera.0920@gmail.com" },
+        enabled: true,
+      });
       const created = {
         name: "projects/astera-oms-prod/notificationChannels/channel-1",
-        ...data,
+        type: "email",
+        displayName: "Astera Security Worker email",
+        labels: { email_address: "astera.0920@gmail.com" },
+        verificationStatus: "UNVERIFIED",
       };
       state.channels.push(created);
       return { data: created };
@@ -655,10 +793,13 @@ function statefulMonitoringRequest(state: MonitoringState) {
       return { data: { alertPolicies: state.policies } };
     }
     if (method === "POST" && url.endsWith("/alertPolicies")) {
-      const created = {
-        name: "projects/astera-oms-prod/alertPolicies/policy-1",
-        ...data,
-      };
+      expect(data?.displayName).toBe("Astera Security Worker non-2xx or timeout");
+      expect(data?.notificationChannels).toEqual([
+        "projects/astera-oms-prod/notificationChannels/channel-1",
+      ]);
+      const created = normalizedPolicyFixture(
+        "projects/astera-oms-prod/notificationChannels/channel-1",
+      );
       state.policies.push(created);
       return { data: created };
     }
@@ -668,4 +809,290 @@ function statefulMonitoringRequest(state: MonitoringState) {
 
 function successfulJson(value: unknown) {
   return { status: 0, stdout: JSON.stringify(value), stderr: "" };
+}
+
+function strictApplyHarness() {
+  const windows = windowsLauncherFixture();
+  const dailyName =
+    "projects/astera-oms-prod/locations/asia-east1/jobs/astera-refund-vault-cleanup-daily";
+  const monthlyName =
+    "projects/astera-oms-prod/locations/asia-east1/jobs/astera-fingerprint-key-report-monthly";
+  const initialMonthly = {
+    ...schedulerJob("astera-fingerprint-key-report-monthly"),
+    schedule: "5 5 1 * *",
+  };
+  const state = {
+    invokerBound: false,
+    jobs: new Map<string, ReturnType<typeof schedulerJob>>([[monthlyName, initialMonthly]]),
+    mutations: [] as string[],
+    builds: 0,
+    deploys: 0,
+  };
+  const channelName = "projects/astera-oms-prod/notificationChannels/channel-1";
+  const monitoringState: MonitoringState = {
+    channels: [{
+      name: channelName,
+      type: "email",
+      displayName: "Astera Security Worker email",
+      labels: { email_address: "astera.0920@gmail.com" },
+      verificationStatus: "VERIFIED",
+    }],
+    policies: [normalizedPolicyFixture(channelName)],
+  };
+  const monitoringRequest = statefulMonitoringRequest(monitoringState);
+  const spawnSync = vi.fn((command: string, args: string[], options: { shell: false }) => {
+    expect(options).toMatchObject({ shell: false, encoding: "utf8", windowsHide: true });
+    if (command === "git") {
+      if (args.join(" ") === "rev-parse HEAD") {
+        return { status: 0, stdout: `${revision}\n`, stderr: "" };
+      }
+      if (args[0] === "status") {
+        expect(args).toEqual([
+          "status", "--porcelain=v1", "--untracked-files=all", "--",
+          "ops/security-worker", "src/lib/payment/fingerprintIdentity.mjs",
+        ]);
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected_git:${args.join("|")}`);
+    }
+
+    expect(command).toBe(windows.python);
+    expect(args.slice(0, 2)).toEqual(["-S", windows.gcloudPy]);
+    const gcloudArgs = args.slice(2);
+    const prefix = gcloudArgs.slice(0, 4).join(" ");
+    if (gcloudArgs[0] === "builds") {
+      expect(gcloudArgs).toEqual([
+        "builds", "submit", ".",
+        "--config=ops/security-worker/cloudbuild.yaml",
+        "--ignore-file=ops/security-worker/Dockerfile.dockerignore",
+        `--substitutions=_IMAGE=${imageTag}`,
+        "--region=asia-east1",
+        "--project=astera-oms-prod",
+        "--quiet",
+      ]);
+      state.builds += 1;
+      return commandSuccess();
+    }
+    if (prefix === "artifacts docker images describe") {
+      expect(gcloudArgs).toEqual([
+        "artifacts", "docker", "images", "describe", imageTag,
+        "--format=value(image_summary.fully_qualified_digest)",
+        "--project=astera-oms-prod",
+      ]);
+      return { status: 0, stdout: `${imageDigest}\n`, stderr: "" };
+    }
+    if (gcloudArgs[0] === "run" && gcloudArgs[1] === "deploy") {
+      expect(gcloudArgs).toEqual([
+        "run", "deploy", "astera-security-worker",
+        `--image=${imageDigest}`,
+        `--service-account=${workerServiceAccount}`,
+        "--region=asia-east1",
+        "--min-instances=0",
+        "--max-instances=1",
+        "--concurrency=1",
+        `--set-env-vars=GOOGLE_CLOUD_PROJECT=astera-oms-prod,GCP_KMS_HMAC_KEY_NAME=${hmacKeyName}`,
+        "--no-allow-unauthenticated",
+        "--invoker-iam-check",
+        "--project=astera-oms-prod",
+        "--quiet",
+      ]);
+      state.deploys += 1;
+      return commandSuccess();
+    }
+    if (prefix === "run services describe astera-security-worker") {
+      expect(gcloudArgs).toEqual([
+        "run", "services", "describe", "astera-security-worker",
+        "--region=asia-east1", "--format=json", "--project=astera-oms-prod",
+      ]);
+      return successfulJson(exactService());
+    }
+    if (prefix === "run services get-iam-policy astera-security-worker") {
+      expect(gcloudArgs).toEqual([
+        "run", "services", "get-iam-policy", "astera-security-worker",
+        "--region=asia-east1", "--format=json", "--project=astera-oms-prod",
+      ]);
+      return successfulJson(state.invokerBound ? exactIamPolicy() : { bindings: [] });
+    }
+    if (prefix === "run services add-iam-policy-binding astera-security-worker") {
+      expect(gcloudArgs).toEqual([
+        "run", "services", "add-iam-policy-binding", "astera-security-worker",
+        `--member=${schedulerMember}`,
+        "--role=roles/run.invoker",
+        "--region=asia-east1",
+        "--project=astera-oms-prod",
+        "--quiet",
+      ]);
+      state.invokerBound = true;
+      state.mutations.push("bindSchedulerInvoker");
+      return commandSuccess();
+    }
+    if (prefix === "scheduler jobs list --location=asia-east1") {
+      const fullName = gcloudArgs.find((argument) => argument.startsWith("--filter=name="))
+        ?.slice("--filter=name=".length);
+      if (fullName !== dailyName && fullName !== monthlyName) {
+        throw new Error(`unexpected_scheduler_read:${fullName}`);
+      }
+      expect(gcloudArgs).toEqual(schedulerListArgs(fullName));
+      return successfulJson(state.jobs.has(fullName) ? [state.jobs.get(fullName)] : []);
+    }
+    if (prefix === "scheduler jobs create http") {
+      expect(gcloudArgs).toEqual(dailyCreateArgs());
+      state.jobs.set(dailyName, dailyJob());
+      state.mutations.push("createDailySchedulerJob");
+      return commandSuccess();
+    }
+    if (prefix === "scheduler jobs update http") {
+      expect(gcloudArgs).toEqual(monthlyUpdateArgs());
+      state.jobs.set(monthlyName, schedulerJob("astera-fingerprint-key-report-monthly"));
+      state.mutations.push("updateMonthlySchedulerJob");
+      return commandSuccess();
+    }
+    throw new Error(`unexpected_gcloud:${gcloudArgs.join("|")}`);
+  });
+  return {
+    windows,
+    state,
+    spawnSync,
+    monitoringRequest,
+    dailyName,
+    monthlyName,
+  };
+}
+
+function schedulerListArgs(fullName: string) {
+  return [
+    "scheduler", "jobs", "list",
+    "--location=asia-east1",
+    `--filter=name=${fullName}`,
+    "--format=json(name,schedule,timeZone,state,httpTarget)",
+    "--project=astera-oms-prod",
+  ];
+}
+
+function dailyCreateArgs() {
+  return [
+    "scheduler", "jobs", "create", "http", "astera-refund-vault-cleanup-daily",
+    "--location=asia-east1",
+    "--schedule=30 3 * * *",
+    "--time-zone=Asia/Taipei",
+    `--uri=${serviceUrl}/jobs/refund-account-cleanup`,
+    "--http-method=POST",
+    `--oidc-service-account-email=${schedulerServiceAccount}`,
+    `--oidc-token-audience=${serviceUrl}`,
+    "--project=astera-oms-prod",
+    "--quiet",
+  ];
+}
+
+function monthlyUpdateArgs() {
+  return [
+    "scheduler", "jobs", "update", "http", "astera-fingerprint-key-report-monthly",
+    "--location=asia-east1",
+    "--schedule=0 4 1 * *",
+    "--time-zone=Asia/Taipei",
+    `--uri=${serviceUrl}/jobs/fingerprint-key-usage`,
+    "--http-method=POST",
+    `--oidc-service-account-email=${schedulerServiceAccount}`,
+    `--oidc-token-audience=${serviceUrl}`,
+    "--clear-headers",
+    "--clear-message-body",
+    "--project=astera-oms-prod",
+    "--quiet",
+  ];
+}
+
+function commandSuccess() {
+  return { status: 0, stdout: "", stderr: "" };
+}
+
+function normalizedPolicyFixture(channelName: string) {
+  const baseFilter =
+    'resource.type = "cloud_run_revision" AND '
+    + 'resource.labels.service_name = "astera-security-worker" AND '
+    + 'resource.labels.location = "asia-east1" AND '
+    + 'metric.type = "run.googleapis.com/request_count"';
+  return {
+    name: "projects/astera-oms-prod/alertPolicies/policy-1",
+    documentation: {
+      content: "The private Astera Security Worker returned a non-2xx response or timed out.",
+      mimeType: "text/markdown",
+    },
+    conditions: [
+      {
+        name: "projects/astera-oms-prod/alertPolicies/policy-1/conditions/non-2xx",
+        conditionThreshold: {
+          aggregations: [{
+            crossSeriesReducer: "REDUCE_SUM",
+            perSeriesAligner: "ALIGN_DELTA",
+            alignmentPeriod: "60s",
+          }],
+          duration: "0s",
+          thresholdValue: 0,
+          comparison: "COMPARISON_GT",
+          filter: `${baseFilter} AND metric.labels.response_code_class != "2xx"`,
+        },
+        displayName: "Astera Security Worker non-2xx",
+      },
+      {
+        name: "projects/astera-oms-prod/alertPolicies/policy-1/conditions/timeout",
+        conditionThreshold: {
+          aggregations: [{
+            crossSeriesReducer: "REDUCE_SUM",
+            perSeriesAligner: "ALIGN_DELTA",
+            alignmentPeriod: "60s",
+          }],
+          duration: "0s",
+          thresholdValue: 0,
+          comparison: "COMPARISON_GT",
+          filter: `${baseFilter} AND metric.labels.response_code = "504"`,
+        },
+        displayName: "Astera Security Worker timeout",
+      },
+    ],
+    notificationChannels: [channelName],
+    combiner: "OR",
+    displayName: "Astera Security Worker non-2xx or timeout",
+  };
+}
+
+function sourceRevisionRunner() {
+  return vi.fn((command: string, args: string[]) => {
+    if (command === "git" && args.join(" ") === "rev-parse HEAD") {
+      return { status: 0, stdout: `${revision}\n`, stderr: "" };
+    }
+    if (command === "git" && args[0] === "status") {
+      return { status: 0, stdout: "", stderr: "" };
+    }
+    return { status: 7, stdout: "", stderr: "" };
+  });
+}
+
+function windowsLauncherFixture(mode: "valid" | "cwd" | "path" | "missing" = "valid") {
+  const localAppData = "C:\\Users\\tester\\AppData\\Local";
+  const sdkRoot = `${localAppData}\\Google\\Cloud SDK\\google-cloud-sdk`;
+  const python = `${sdkRoot}\\platform\\bundledpython\\python.exe`;
+  const gcloudPy = `${sdkRoot}\\lib\\gcloud.py`;
+  const trustedBin = `${sdkRoot}\\bin`;
+  const trustedCmd = `${trustedBin}\\gcloud.cmd`;
+  const cwd = "C:\\repo";
+  const cwdShadow = `${cwd}\\gcloud.cmd`;
+  const pathShadow = "C:\\untrusted\\gcloud.cmd";
+  const existing = new Set([
+    ...(mode === "missing" ? [] : [python, gcloudPy, trustedCmd]),
+    ...(mode === "cwd" ? [cwdShadow] : []),
+    ...(mode === "path" ? [pathShadow] : []),
+  ].map((value) => value.toLowerCase()));
+  return {
+    cwd,
+    python,
+    gcloudPy,
+    env: {
+      SystemRoot: "C:\\Windows",
+      ComSpec: "C:\\Windows\\System32\\cmd.exe",
+      LOCALAPPDATA: localAppData,
+      PATH: mode === "path" ? `C:\\untrusted;${trustedBin}` : trustedBin,
+    },
+    existsSync: vi.fn((path: string) => existing.has(path.toLowerCase())),
+    realpathSync: vi.fn((path: string) => path),
+  };
 }
