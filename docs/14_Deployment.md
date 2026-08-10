@@ -114,9 +114,11 @@ to Vercel Production and Preview environments, redeploy, then test
   downloaded private key.
 - `roles/iam.workloadIdentityUser` is restricted to Vercel Project
   `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
-- All seven OIDC variables above were stored as sensitive variables in both
-  Vercel Preview and Production, then a Preview was rebuilt successfully:
-  `https://astera-n850fxxzw-astera-oms.vercel.app`.
+- Historical 2026-07-30 state: all seven OIDC variables above were stored as
+  sensitive variables in both Vercel Preview and Production, then Preview
+  `https://astera-n850fxxzw-astera-oms.vercel.app` was rebuilt. This record is
+  superseded by the 2026-08-10 Task 7 fixed non-secret identifiers plus two
+  target-specific Sensitive rate-limit secrets documented below.
 
 The next release verification is authenticated: save a member profile, update
 the cart, and save an Owner Product on that Preview. These operations must
@@ -466,3 +468,37 @@ Production deployment occurred. Next exact action is a separately authorized,
 name-scoped cleanup of only the Emulator variable and those seven duplicate Preview
 records, followed by a fresh names/targets-only inventory. Do not deploy until that
 inventory reports zero forbidden names and zero overlaps.
+
+### 2026-08-10 Task 7 cleanup and Preview deployment checkpoint
+
+The user authorized only the exact drift cleanup. The forbidden Emulator variable
+and the seven older Preview Sensitive duplicates were removed by record ID; all
+verified fixed Production/Preview records and both target-specific Sensitive
+Secrets were preserved. Fresh inventory passed with 21 total records, 16/16 fixed
+records, 0 bad fixed records, 2 rate-limit secrets, 0 forbidden names, and 0
+Preview overlaps.
+
+Two initial Preview attempts were blocked with `TEAM_ACCESS_REQUIRED` because the
+Git author email was not a member of team Astera OMS. Empty commit `e9db99b` uses
+the verified team-member author `Astera OMS <astera.0920@gmail.com>` and contains no
+file or secret change. The resulting Preview deployment
+`dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` reached Ready:
+
+- unique URL: `https://astera-ix5gsqvlu-astera-oms.vercel.app`;
+- stable alias: `https://astera-oms-astera-blip-astera-oms.vercel.app`;
+- target: Preview only; no Production deployment or promotion;
+- build: compile and TypeScript pass, 39/39 static pages.
+
+Vercel used Node.js 24.15.0 while `package.json` currently requires
+`>=24.18.0 <25`, producing an `EBADENGINE` warning even though the build passed.
+Resolve this version-policy mismatch before Production promotion rather than
+silently treating the warning as a release pass.
+
+Public Preview browser checks pass for the home page, Product catalog, Brand page,
+and empty Cart; `/e2e-auth` is unavailable in Preview as required. Google sign-in
+is blocked on both the unique URL and stable alias because Firebase Authentication
+Authorized Domains does not contain those hosts. A separately authorized next
+step should add only the stable alias, then run the approved `測試專用` member
+binding, payment fingerprint snapshot, refund mismatch/match, Owner reveal, and
+vault-deletion flow. Do not add every one-off deployment hostname and do not deploy
+Production as part of that verification.

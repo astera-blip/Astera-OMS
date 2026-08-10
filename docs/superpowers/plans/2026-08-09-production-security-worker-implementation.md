@@ -482,7 +482,7 @@ project, and region. Human impersonation was intentionally not enabled.
 - `npm run production:env:check -- --scope security --strict`
 - Existing full gate remains `npm run production:env:check -- --strict`.
 
-- [ ] **Step 1: Add non-secret Vercel Production and Preview identifiers.**
+- [x] **Step 1: Add non-secret Vercel Production and Preview identifiers.**
 
 Set the verified project, WIF, service-account, KMS key names, and HMAC version.
 Confirm no Emulator/Test Auth variable is present in either environment.
@@ -502,8 +502,8 @@ were generated only in process memory, piped through stdin to separate Productio
 and Preview Sensitive Secret records, then cleared; neither value was printed,
 saved, or documented. Step 2 is complete.
 
-Step 1 remains open because the post-write name/target inventory corrected the
-earlier preflight conclusion and found pre-existing configuration drift:
+The post-write name/target inventory initially found pre-existing configuration
+drift:
 
 - `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` is present for both Production and Preview;
 - seven GCP/WIF names have an older unscoped Preview Sensitive record overlapping
@@ -512,11 +512,10 @@ earlier preflight conclusion and found pre-existing configuration drift:
   `GCP_WORKLOAD_IDENTITY_PROVIDER_ID`, `GCP_WORKLOAD_IDENTITY_AUDIENCE`, and
   `GCP_SERVICE_ACCOUNT_EMAIL`.
 
-No Preview or Production deployment was started. Before Step 3, obtain separate
-authorization to remove the Emulator variable and normalize only those seven
-duplicate Preview targets while preserving the verified fixed values. Then rerun
-the names/targets-only inventory and require zero Emulator/Test Auth names and zero
-overlapping key+target records.
+The subsequently authorized cleanup removed exactly the Emulator variable and the
+seven old Preview duplicate records. Fresh metadata inventory passed with 21 total
+records, fixed 16/16, bad fixed 0, rate-limit secrets 2, forbidden names 0, and
+Preview overlaps 0. Step 1 is complete.
 
 - [ ] **Step 3: Redeploy Preview and verify WIF/KMS access.**
 
@@ -525,7 +524,13 @@ payment fingerprint snapshot, refund mismatch, refund match, Owner reveal, and
 vault deletion tests with records explicitly named `測試專用`. Do not use a real
 bank account or real payment.
 
-- [ ] **Step 4: Run the full local release gate.**
+2026-08-10 checkpoint: Preview deployment
+`dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` is Ready and public route checks pass. Google
+sign-in is blocked because the stable Preview alias is absent from Firebase
+Authentication Authorized Domains. Therefore authenticated WIF/KMS and the
+`測試專用` security flow remain open; no Production deployment occurred.
+
+- [x] **Step 4: Run the full local release gate.**
 
 Run:
 
@@ -543,15 +548,27 @@ npm run audit:production
 Expected: every command exits 0. Existing ExcelJS transitive UUID moderate
 advisories may remain documented; no high or critical production advisory is allowed.
 
-- [ ] **Step 5: Update handoff and stop before migration apply.**
+2026-08-10 result: TypeScript, ESLint, Build (39 pages), Unit 44 files / 374
+tests, Rules 2 files / 32 tests, Emulator Playwright 34 passed / 8 skipped / 0
+failed, secret scan, production dependency audit, and diff check all pass. The
+first full E2E run exposed two stale Pixel 7 label assertions; focused correction
+passed 3/3 before the green full rerun.
+
+- [x] **Step 5: Update handoff and stop before migration apply.**
 
 Record KMS, IAM, Worker, Scheduler, Monitoring, Preview, and test results. The next
 Production data step is migration dry-run and ignored local backup. Do not run
 `--apply` migration in this task; it requires its own exact user confirmation after
 the dry-run report has been reviewed.
 
-- [ ] **Step 6: Commit safely isolated documentation and push only after authorization.**
+- [x] **Step 6: Commit safely isolated documentation and push only after authorization.**
 
 Never include unrelated dirty UI, reconciliation, product, or user documentation
 changes. If the required documentation hunks cannot be isolated, leave them
 unstaged and record the exact continuation step in the SDD ledger.
+
+2026-08-10 result: the stale mobile acceptance correction is isolated in local
+commit `a68b6e3`; the five Task 7 checkpoint documents are the only remaining files
+in the documentation commit. Independent diff review found no unrelated or secret
+change. The branch has no upstream and was not pushed because push authorization
+was not granted.

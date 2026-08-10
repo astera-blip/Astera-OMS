@@ -172,3 +172,44 @@ Retest after separately authorized drift cleanup:
 3. require exactly one effective record per fixed key and target;
 4. deploy Preview only and inspect the build/deployment result;
 5. continue with the strict security check and approved non-real-bank flow.
+
+### 2026-08-10 Task 7 drift cleanup, Preview, and local release gate
+
+The separately authorized name-scoped cleanup completed without touching any other
+Vercel setting. Fresh metadata-only inventory returned:
+
+- 21 total Environment Variable records;
+- 16/16 verified fixed records, with zero bad target/type records;
+- two `REFUND_RATE_LIMIT_HASH_SECRET` Sensitive Secret records, one each for
+  Preview and Production;
+- zero `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` records;
+- zero overlapping Preview records for the seven GCP/WIF names.
+
+Preview deployment `dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` is Ready at
+`https://astera-ix5gsqvlu-astera-oms.vercel.app`, with stable alias
+`https://astera-oms-astera-blip-astera-oms.vercel.app`. The build compiled, passed
+TypeScript, and generated 39/39 static pages. Browser checks passed `/`,
+`/products`, `/brand`, and the empty `/cart`; `/e2e-auth` correctly returned 404.
+Both Preview hosts currently reject Google sign-in because neither host is in
+Firebase Authentication Authorized Domains. Therefore authenticated WIF/KMS and
+refund-security flow verification remains open.
+
+`vercel env run -e preview` cannot decrypt a Sensitive Environment Variable after
+creation, so its local strict check reports only `REFUND_RATE_LIMIT_HASH_SECRET`
+as missing. The two target-specific metadata records and the variable name in the
+successful Vercel build are the non-disclosing configuration evidence; the secret
+must not be downgraded to a readable variable to satisfy that local command.
+
+Fresh local release evidence:
+
+- TypeScript, ESLint, and Next.js production Build (39 pages): pass;
+- Unit: 44 files / 374 tests pass;
+- Firestore and Storage Rules: 2 files / 32 tests pass;
+- Emulator Playwright: 34 passed / 8 intentionally skipped / 0 failed;
+- secret scan, production dependency audit, and `git diff --check`: pass;
+- `npm audit --omit=dev --audit-level=high`: 0 vulnerabilities.
+
+The first full Emulator Playwright run found two stale Pixel 7 workspace-label
+assertions. The assertions were aligned with the current bilingual accessible
+names, focused Pixel 7 verification passed 3/3, and the full rerun produced the
+34/8/0 result above.

@@ -1,6 +1,6 @@
 # Astera OMS MVP Completion Plan
 
-Last updated: 2026-07-30 Asia/Taipei
+Last updated: 2026-08-10 Asia/Taipei
 
 ## Execution Rules
 
@@ -12,10 +12,17 @@ Last updated: 2026-07-30 Asia/Taipei
 
 ## Current Baseline
 
-- Branch: `codex/mvp-completion`.
-- Pre-existing dirty file: `AGENTS.md`.
-- Local baseline from handoff: lint, typecheck, build, unit tests, Firestore rules tests, and Playwright smoke tests pass.
-- Known production gates: Firebase login, Blaze upgrade, Storage buckets, Vercel OIDC, `asteratw.com` purchase, DNS, Resend verified domain.
+- Active isolated branch: `codex/production-security-worker` in
+  `.worktrees/production-security-worker`; the primary workspace's unrelated
+  changes remain untouched.
+- Current local release gate: TypeScript, ESLint, Build, 374 Unit tests, 32 Rules
+  tests, 34 Emulator Playwright tests, secret scan, and production dependency
+  audit pass.
+- Current Task 7 gate: Vercel security variables are normalized and Preview is
+  Ready; authenticated verification is blocked only by the stable Preview alias
+  missing from Firebase Authentication Authorized Domains.
+- Production has not been redeployed or promoted by Task 7. Domain/DNS, Resend,
+  final Production data and mobile acceptance remain separate release gates.
 
 ## Batch Status
 
@@ -1194,3 +1201,28 @@ four fresh readbacks pass and are reviewed.
 - Task 7 remains in progress. Exact continuation: obtain explicit authorization to
   remove only the Emulator variable and normalize only the seven duplicate Preview
   records; rerun the metadata-only inventory; then deploy and verify Preview only.
+
+## 2026-08-10 Task 7 cleanup and Preview release-gate checkpoint
+
+- Exact Vercel cleanup completed: `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` was removed
+  from Production/Preview and only the seven named legacy Preview Sensitive
+  duplicates were removed. No other Vercel setting changed.
+- Fresh environment inventory passes: 21 total records, fixed 16/16, bad fixed 0,
+  rate-limit secrets 2, forbidden names 0, Preview overlaps 0.
+- Preview `dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` is Ready at
+  `https://astera-ix5gsqvlu-astera-oms.vercel.app`; stable alias is
+  `https://astera-oms-astera-blip-astera-oms.vercel.app`. Production was not
+  deployed or promoted.
+- Public browser checks pass for `/`, `/products`, `/brand`, and `/cart`;
+  `/e2e-auth` returns 404. Google sign-in is blocked on both Preview hosts because
+  Firebase Authorized Domains is not yet configured for either host, so the
+  authenticated WIF/KMS flow is not claimed complete.
+- Fresh local gate passes: Unit 44 files / 374 tests; Rules 2 files / 32 tests;
+  Emulator Playwright 34 passed / 8 skipped; TypeScript, ESLint, Build (39 pages),
+  secret scan, production audit, and diff check.
+- Vercel built with Node 24.15.0 while project engines request `>=24.18.0 <25`.
+  Build passed but the `EBADENGINE` warning remains a Production release warning.
+- Next exact action requires separate authorization: add only the stable Preview
+  alias to Firebase Authentication Authorized Domains, then use explicitly named
+  `測試專用` data for member binding, payment fingerprint snapshot, refund
+  mismatch/match, Owner reveal, and vault deletion. Do not deploy Production.

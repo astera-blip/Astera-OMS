@@ -1,21 +1,26 @@
 # Astera OMS Project Handoff
 
-Last updated: 2026-07-30 Asia/Taipei
+Last updated: 2026-08-10 Asia/Taipei
 
 ## Active Objective
 
-Complete the Astera OMS MVP according to the handoff spec without redesigning the existing architecture.
+Complete the Production security release gates without redesigning the existing
+Astera OMS MVP architecture. Task 7 currently stops before Production deployment.
 
 Current execution plan:
 
-- `docs/superpowers/specs/2026-07-29-mvp-local-completion-design.md`
-- `docs/superpowers/plans/2026-07-29-mvp-local-completion.md`
-- Start at Task 1. Do not skip production/test isolation or fallback/boundary Tasks 2–3 before Product image/storefront work.
+- Active plan:
+  `docs/superpowers/plans/2026-08-09-production-security-worker-implementation.md`
+  (Task 7).
+- Legacy MVP plans remain historical context; do not restart already completed
+  Tasks 1–6.
 
 ## Repository State
 
-- Working branch: `codex/mvp-completion`.
-- Preserve existing user change: `AGENTS.md`.
+- Working branch: `codex/production-security-worker` in isolated worktree
+  `.worktrees/production-security-worker`.
+- Preserve all unrelated changes in the primary workspace; Task 7 has no push
+  authorization.
 - Existing product authority remains `productsInternal`; public storefront reads only `productsPublic`.
 - Complete continuation entrypoint for another AI: `docs/20_CompleteAIHandoff_2026-07-30.md`.
 
@@ -1225,3 +1230,43 @@ the seven named duplicate Preview records while retaining the verified values. T
 rerun `vercel env ls` metadata-only, require zero forbidden names/overlaps, deploy
 Preview only, and continue Task 7 verification. Branch
 `codex/production-security-worker` remains isolated; no push is authorized.
+
+## 2026-08-10 Task 7 cleanup, Ready Preview, and exact continuation
+
+The name-scoped cleanup completed exactly as authorized. It removed
+`NEXT_PUBLIC_USE_FIREBASE_EMULATORS` and only the seven legacy Preview Sensitive
+duplicates for the GCP/WIF identifiers. Fresh metadata inventory is clean: 21 total
+records, fixed 16/16, bad fixed 0, rate-limit Sensitive Secrets 2, forbidden 0,
+and Preview overlaps 0. Both target-specific secrets remain hidden and distinct.
+
+The first deployments exposed Vercel's `TEAM_ACCESS_REQUIRED` Git-author gate.
+Empty commit `e9db99b`, authored by verified team member
+`Astera OMS <astera.0920@gmail.com>`, contains no source or secret change and allowed
+deployment `dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` to reach Ready. Preview URLs:
+
+- `https://astera-ix5gsqvlu-astera-oms.vercel.app`;
+- stable alias `https://astera-oms-astera-blip-astera-oms.vercel.app`.
+
+Production was not deployed, promoted, or otherwise changed. Build compile,
+TypeScript, and 39/39 page generation passed. Vercel actually used Node 24.15.0,
+which is below the repository's declared `>=24.18.0` floor and produced an
+`EBADENGINE` warning; retain this as a Production release warning.
+
+Public browser verification passes `/`, `/products`, `/brand`, and `/cart`, and
+confirms `/e2e-auth` returns 404. Google sign-in on both Preview hosts is currently
+blocked by Firebase Authentication Authorized Domains. Thus public Preview health
+is proven, but authenticated WIF/KMS and refund-flow verification is not.
+
+Local evidence is green: TypeScript, ESLint, Build 39 pages, Unit 44/374, Rules
+2/32, Emulator Playwright 34 passed / 8 skipped / 0 failed, secret scan, production
+dependency audit (0 vulnerabilities), and diff check. The only source test change
+aligns stale Pixel 7 workspace assertions with the current bilingual accessible
+names; focused verification passed 3/3 and independent review found no issue.
+
+Exact continuation, requiring separate authorization: add only
+`astera-oms-astera-blip-astera-oms.vercel.app` to Firebase Production Authentication
+Authorized Domains. Then sign in through that stable Preview alias and create only
+explicitly named `測試專用` records to verify member binding, payment fingerprint
+snapshot, refund mismatch and match, Owner reveal, and vault deletion. Do not add
+one-off Preview hosts, do not deploy Production, and do not push this branch without
+new authorization.
