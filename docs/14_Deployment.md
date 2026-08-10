@@ -334,3 +334,25 @@ Read-only Production state:
 Design requires a Budget Alert before deployment. The next allowed mutation is
 only to enable `billingbudgets.googleapis.com` after explicit authorization, then
 rerun the read-only budget list. Do not run Task 6 `--apply` before this gate passes.
+
+### 2026-08-10 Billing Budget API enabled and alert verified
+
+The user authorized only API enablement and a read-only Budget inventory. The
+following mutation completed successfully on `astera-oms-prod`:
+
+```text
+gcloud services enable billingbudgets.googleapis.com --project=astera-oms-prod --quiet
+```
+
+Readback for `billingAccounts/01B794-2E6BD7-33D714` found the existing budget
+`Firebase Project astera-oms-prod`, scoped only to project number `1032606875618`:
+
+- monthly amount: TWD 200;
+- thresholds: 50%, 90%, and 100% of current spend;
+- all credits included;
+- default Billing Account Administrator/User email recipients are not disabled.
+
+No Budget was created, modified, or deleted. No Cloud Build, Artifact Registry push,
+Cloud Run, service IAM, Scheduler, Monitoring channel, or alert-policy mutation ran.
+The Budget gate passes. The next exact step is separate explicit authorization for
+the reviewed Task 6 apply blast radius before running the guarded command.

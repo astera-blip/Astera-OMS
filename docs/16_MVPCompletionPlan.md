@@ -1133,3 +1133,16 @@ four fresh readbacks pass and are reviewed.
 - Next exact step: obtain explicit authorization to enable only
   `billingbudgets.googleapis.com`, list budgets read-only, and confirm an acceptable
   alert before requesting the larger Task 6 deployment authorization.
+
+## 2026-08-10 Billing Budget pre-deployment gate complete
+
+- Explicit authorization was received to enable only
+  `billingbudgets.googleapis.com` and query the linked Billing Account read-only.
+- API enablement completed successfully.
+- Existing project-scoped monthly Budget Alert verified: TWD 200, with 50%, 90%,
+  and 100% current-spend thresholds and default role-based email recipients active.
+- No Budget setting was changed and no Task 6 deployment action ran.
+- Task 6 remains in progress. Next exact step: obtain separate authorization for
+  Cloud Build/image push, private Cloud Run, service-level invoker IAM, two OIDC
+  Scheduler jobs, Monitoring email channel, and Monitoring alert policy; then run
+  the already reviewed guarded apply.

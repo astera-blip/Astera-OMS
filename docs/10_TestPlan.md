@@ -85,3 +85,13 @@ fixed Scheduler jobs, and no matching Monitoring channel/policy. Billing is link
 but `billingbudgets.googleapis.com` is disabled, so the mandatory pre-deployment
 Budget Alert cannot yet be verified. Live Task 6 apply remains blocked until that
 API is explicitly enabled and the budget inventory is reviewed.
+
+### 2026-08-10 Billing Budget gate passed
+
+With explicit narrow authorization, `billingbudgets.googleapis.com` was enabled on
+`astera-oms-prod`. A read-only budget inventory returned one monthly project-scoped
+Budget Alert: TWD 200 with current-spend thresholds at 50%, 90%, and 100%.
+`notificationsRule` does not disable default IAM recipients, so the standard Billing
+Account Administrator/User email notifications remain active. No Budget was created,
+modified, or deleted, and no Task 6 deployment ran. The Budget pre-deployment gate
+is now satisfied; live apply still requires separate explicit authorization.

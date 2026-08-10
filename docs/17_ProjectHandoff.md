@@ -1099,3 +1099,26 @@ Budget Alert before deployment. Exact continuation:
    channel, and alert policy.
 
 No Task 6 Production mutation occurred in this resumed step.
+
+## 2026-08-10 Billing Budget gate continuation
+
+The user explicitly authorized only enabling `billingbudgets.googleapis.com` on
+`astera-oms-prod` and a read-only query of Billing Account
+`01B794-2E6BD7-33D714`. API enablement completed successfully. The inventory found
+one existing monthly Budget Alert, `Firebase Project astera-oms-prod`, scoped to
+project number `1032606875618`, with TWD 200 amount and current-spend thresholds at
+50%, 90%, and 100%. Default Billing Account Administrator/User recipients are not
+disabled, so the required pre-deployment Budget Alert gate passes.
+
+No Budget was created, modified, or deleted. No Task 6 Cloud Build, image push,
+Cloud Run, IAM, Scheduler, Monitoring channel, or alert-policy deployment occurred.
+Task 6 remains in progress. Exact continuation:
+
+1. Obtain explicit authorization for the complete reviewed Task 6 Production blast
+   radius: Cloud Build/image push, private Cloud Run, service-level Scheduler
+   invoker IAM, two OIDC Scheduler jobs, Monitoring email channel, and alert policy.
+2. Run the guarded apply command once with unchanged reviewed arguments.
+3. If the new email channel is `UNVERIFIED`, stop and have the operator complete
+   Google's email verification; rerun only after readback is `VERIFIED`.
+4. Complete authenticated/private/public IAM, route, idempotency, alert-delivery,
+   and sensitive-log verification before marking Task 6 complete.
