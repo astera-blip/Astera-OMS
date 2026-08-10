@@ -1156,10 +1156,16 @@ Task 6 is not complete because the remaining smoke has a separate data effect:
    `refundAccountExpiresAt`, and may set pending requests to `needsReverification`.
 2. Read Cloud Run request logs and only the aggregate `cleaned` count; verify the
    second run is zero/idempotent without exposing record IDs or payloads.
-3. Trigger one controlled non-sensitive non-2xx signal and have the recipient
-   confirm the alert email reached `astera.0920@gmail.com`.
-4. Resolve authenticated `/healthz` evidence without granting persistent human
+3. Resolve authenticated `/healthz` evidence without granting persistent human
    impersonation rights, or document why the authenticated 200 job route is the
    stronger approved substitute.
 
 Only after these gates pass may Task 6 be marked complete and Task 7 begin.
+
+Monitoring delivery subsequently passed. The user supplied a screenshot of the
+received Google Cloud email showing `Alert firing` for the fixed
+`Astera Security Worker non-2xx or timeout` policy, request-count value 4, project
+`astera-oms-prod`, service `astera-security-worker`, and location `asia-east1`.
+No mailbox access was performed and the attachment was not copied into the
+repository. The remaining Task 6 gate is cleanup idempotency plus the documented
+authenticated-health substitution decision.

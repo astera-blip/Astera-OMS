@@ -1157,7 +1157,9 @@ four fresh readbacks pass and are reviewed.
 - Unauthenticated job requests return 403; recent Worker payload logs contain no
   detected sensitive field names, long account-number patterns, or failure marker.
 - Task 6 remains in progress, not complete. Next exact steps are separately authorize
-  cleanup execution twice, verify first-run deletion count and second-run zero,
-  intentionally generate a non-sensitive alert signal, and confirm email delivery.
+  cleanup execution twice and verify first-run deletion count and second-run zero.
 - Do not add human Service Account Token Creator just to test `/healthz`; preserve
   the current least-privilege boundary and document an approved substitute if needed.
+- Monitoring delivery gate is complete: the recipient supplied a screenshot of the
+  received firing email for the exact policy/project/service/region and a
+  non-sensitive request-count value of 4.

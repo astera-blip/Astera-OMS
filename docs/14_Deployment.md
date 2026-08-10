@@ -392,7 +392,12 @@ Smoke evidence:
 
 Do not grant a human Token Creator merely for `/healthz`; the attempted short-lived
 Scheduler-SA impersonation was denied as intended. Before marking Task 6 complete,
-obtain explicit authorization for two cleanup executions, confirm the deletion
-count/idempotency, trigger a controlled non-sensitive alert, and have the recipient
-confirm delivery. Cleanup can delete expired refund-vault fields, so a generic
+obtain explicit authorization for two cleanup executions and confirm the deletion
+count/idempotency. Cleanup can delete expired refund-vault fields, so a generic
 deployment authorization is not sufficient for that destructive smoke step.
+
+Monitoring delivery is confirmed. The user provided a screenshot of the received
+Google Cloud alert email showing `Alert firing`, policy
+`Astera Security Worker non-2xx or timeout`, request-count value 4, and the exact
+Production project, service, and `asia-east1` labels. This satisfies the controlled
+non-sensitive alert and recipient-delivery gate without accessing the mailbox.

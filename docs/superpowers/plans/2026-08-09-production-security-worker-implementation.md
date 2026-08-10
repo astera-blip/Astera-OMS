@@ -444,7 +444,7 @@ Use an identity token with audience equal to the Cloud Run URL. Call `/healthz`,
 then each job route once. Verify cleanup is idempotent, the report is read-only,
 unauthenticated calls return 401/403, and no response/log contains sensitive data.
 
-- [ ] **Step 6: Verify Monitoring and commit.**
+- [x] **Step 6: Verify Monitoring and commit.**
 
 Trigger one controlled non-sensitive `405` response, verify alert policy
 `Astera Security Worker non-2xx or timeout` receives the non-2xx metric and sends
@@ -462,8 +462,9 @@ channel, and one enabled alert policy. The pure-read monthly job returned 200 an
 recent Worker payload logs had zero sensitive-field, long-account-number, or
 failure-marker matches. Step 5 remains partial: cleanup idempotency requires
 explicit authorization because a real run deletes expired refund-vault fields.
-Step 6 alert delivery also remains pending an intentional non-sensitive incident
-and recipient confirmation. Human impersonation was intentionally not enabled.
+Step 6 is complete: the user's received-email screenshot confirms the fixed policy
+fired on a non-sensitive request-count value of 4 for the exact Production service,
+project, and region. Human impersonation was intentionally not enabled.
 
 ### Task 7: Configure Vercel security environment and run release gates
 
