@@ -295,8 +295,14 @@ export function inspectSchedulerJob(value, expected) {
     && typeof oidcToken.serviceAccountEmail === "string"
     && typeof oidcToken.audience === "string";
   const headers = job.httpTarget.headers;
-  const headersAreEmpty = headers === undefined
-    || (isRecord(headers) && Object.keys(headers).length === 0);
+  const headerEntries = isRecord(headers) ? Object.entries(headers) : [];
+  const headersArePlatformDefault = headers === undefined
+    || headerEntries.length === 0
+    || (
+      headerEntries.length === 1
+      && headerEntries[0][0] === "User-Agent"
+      && headerEntries[0][1] === "Google-Cloud-Scheduler"
+    );
   const bodyIsEmpty = job.httpTarget.body === undefined || job.httpTarget.body === "";
   const exact = job.schedule === expected.schedule
     && job.timeZone === expected.timeZone
@@ -306,7 +312,7 @@ export function inspectSchedulerJob(value, expected) {
     && oidcWellFormed
     && oidcToken.serviceAccountEmail === SCHEDULER_SERVICE_ACCOUNT
     && oidcToken.audience === expected.httpTarget.oidcToken.audience
-    && headersAreEmpty
+    && headersArePlatformDefault
     && bodyIsEmpty;
   return Object.freeze({ exists: true, exact });
 }

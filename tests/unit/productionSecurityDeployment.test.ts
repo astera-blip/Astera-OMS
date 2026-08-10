@@ -271,7 +271,26 @@ describe("production security deployment", () => {
     expect(inspectSchedulerJob([], dailyJob())).toEqual({ exists: false, exact: false });
     expect(inspectSchedulerJob([dailyJob()], dailyJob())).toEqual({ exists: true, exact: true });
     expect(inspectSchedulerJob([
+      dailyJob({
+        httpTarget: {
+          ...dailyJob().httpTarget,
+          headers: { "User-Agent": "Google-Cloud-Scheduler" },
+        },
+      }),
+    ], dailyJob())).toEqual({ exists: true, exact: true });
+    expect(inspectSchedulerJob([
       dailyJob({ httpTarget: { ...dailyJob().httpTarget, body: "c2VjcmV0" } }),
+    ], dailyJob())).toEqual({ exists: true, exact: false });
+    expect(inspectSchedulerJob([
+      dailyJob({
+        httpTarget: {
+          ...dailyJob().httpTarget,
+          headers: {
+            "User-Agent": "Google-Cloud-Scheduler",
+            "X-Unexpected": "value",
+          },
+        },
+      }),
     ], dailyJob())).toEqual({ exists: true, exact: false });
     expect(inspectSchedulerJob([
       dailyJob({
