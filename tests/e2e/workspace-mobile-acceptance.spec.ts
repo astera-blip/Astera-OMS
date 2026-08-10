@@ -13,7 +13,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
   await page.getByLabel("Email").fill("owner-e2e@example.test");
   await page.getByLabel("Password").fill("Password123!");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Operations Workspace" })).toBeVisible();
 
   for (const path of [
     "/workspace/products",
@@ -23,7 +23,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
     "/workspace/content",
   ]) {
     await page.goto(path);
-    await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operations Workspace" })).toBeVisible();
     const hasOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
@@ -54,17 +54,17 @@ test("helper mobile workspace hides high-risk payment, member, and audit navigat
   await page.getByLabel("Password").fill("Password123!");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Operations Workspace" })).toBeVisible();
   const workspaceNavigation = page.getByRole("navigation");
-  await expect(workspaceNavigation.getByRole("link", { name: "商品 Products" }))
+  await expect(workspaceNavigation.getByRole("link", { name: "Products（商品）" }))
     .toBeVisible();
-  await expect(workspaceNavigation.getByRole("link", { name: "訂單 Orders" }))
+  await expect(workspaceNavigation.getByRole("link", { name: "Orders（訂單）" }))
     .toBeVisible();
-  await expect(workspaceNavigation.getByRole("link", { name: "會員 Members" }))
+  await expect(workspaceNavigation.getByRole("link", { name: "Members（會員）" }))
     .toHaveCount(0);
-  await expect(workspaceNavigation.getByRole("link", { name: "付款 Payments" }))
+  await expect(workspaceNavigation.getByRole("link", { name: "Payments（付款）" }))
     .toHaveCount(0);
-  await expect(workspaceNavigation.getByRole("link", { name: "稽核紀錄 Audit Logs" }))
+  await expect(workspaceNavigation.getByRole("link", { name: "Audit Logs（稽核紀錄）" }))
     .toHaveCount(0);
 });
 
