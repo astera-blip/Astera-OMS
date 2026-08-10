@@ -502,3 +502,19 @@ step should add only the stable alias, then run the approved `測試專用` memb
 binding, payment fingerprint snapshot, refund mismatch/match, Owner reveal, and
 vault-deletion flow. Do not add every one-off deployment hostname and do not deploy
 Production as part of that verification.
+
+### 2026-08-10 Stable Preview Authorized Domain added
+
+The user separately authorized one Firebase mutation. The Production Firebase
+Console added only `astera-oms-astera-blip-astera-oms.vercel.app` to Authentication
+Authorized Domains. The Console reported success, and a complete settings reload
+showed the original list unchanged plus that single Custom domain. No one-off
+Preview hostname, other Firebase setting, Vercel setting, or Production deployment
+was changed.
+
+Google login no longer reports `auth/unauthorized-domain`: a later attempt reaches
+the Google account chooser. The automated browser loses the popup/opener binding
+when Google account selection closes, so the user must complete that identity
+interaction in the visible browser. Do not substitute a test-auth route, enable a
+new sign-in provider, or issue an Admin custom token. After member login, continue
+only on the stable Preview with synthetic test data and do not deploy Production.

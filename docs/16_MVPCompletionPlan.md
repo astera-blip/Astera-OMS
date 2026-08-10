@@ -1226,3 +1226,23 @@ four fresh readbacks pass and are reviewed.
   alias to Firebase Authentication Authorized Domains, then use explicitly named
   `測試專用` data for member binding, payment fingerprint snapshot, refund
   mismatch/match, Owner reveal, and vault deletion. Do not deploy Production.
+
+## 2026-08-10 Stable Preview authentication checkpoint
+
+- Exact Firebase authorization was received and only
+  `astera-oms-astera-blip-astera-oms.vercel.app` was added to Production
+  Authentication Authorized Domains.
+- Firebase Console success plus a full settings reload proves the original domain
+  set was preserved and exactly one Custom domain was appended. No one-off Preview
+  domain or other Firebase setting changed.
+- Google login now reaches the account chooser instead of the former
+  `auth/unauthorized-domain` error. The browser-control session cannot retain the
+  OAuth opener after Google account selection, so the user must finish that
+  identity interaction before the authenticated flow resumes.
+- No test member account binding, Order, Payment, CancellationRequest, refund
+  ciphertext, reveal, or vault deletion was created at this checkpoint.
+- Exact continuation: after the user confirms the member Google login, bind one
+  synthetic test account, create/confirm a clearly marked test-only payment, then
+  use the API-only mismatch/match and Owner reveal paths. Approve a full test
+  refund so Order becomes `refunded` and verify vault-field removal. Never record
+  the synthetic full account, fingerprint, ciphertext, token, or rate-limit hash.

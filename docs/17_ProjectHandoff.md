@@ -1270,3 +1270,37 @@ explicitly named `測試專用` records to verify member binding, payment finger
 snapshot, refund mismatch and match, Owner reveal, and vault deletion. Do not add
 one-off Preview hosts, do not deploy Production, and do not push this branch without
 new authorization.
+
+## 2026-08-10 Firebase Authorized Domain applied; OAuth handoff required
+
+The user explicitly authorized only the stable Preview alias. Attempts to read the
+Identity Toolkit admin config through both locally authenticated gcloud accounts
+returned 403 and performed no mutation. The already signed-in Firebase Console
+session was therefore used. Its Authorized Domains table showed the prior set;
+adding `astera-oms-astera-blip-astera-oms.vercel.app` returned Success. Reloading
+the full settings route showed the exact prior set plus that one Custom domain.
+No existing domain was removed, no unique deployment hostname was added, no other
+Firebase setting changed, and Production was not deployed.
+
+The original `auth/unauthorized-domain` blocker is resolved because a later Preview
+attempt reaches Google's two-account chooser. One initial post-change attempt did
+return `auth/network-request-failed`, but retrying reached Google. The controlled
+browser cannot keep the app opener after account selection closes the OAuth popup;
+the user must select `ting1811tin@gmail.com` in the visible browser and report
+completion before automation can resume on `/account/bank-accounts`.
+
+Read-only Task 7 flow audit is stored in the ignored SDD workspace as
+`task-7-auth-flow-audit.md`. Important constraints: member account binding,
+payment report, Owner confirmation, and Owner refund review have UI paths; paid
+refund mismatch/match and Owner reveal are API-only. The member-account schema has
+no display label, so surrounding payer/reason/review/idempotency fields must carry
+`測試專用`. Immediate vault deletion is only valid through a full approved test
+refund that recalculates Order to `refunded`; otherwise expiry plus the private
+cleanup Worker is required. No test record or sensitive value has been created.
+
+Exact continuation: wait for user confirmation of the member Google login. Use a
+synthetic full account held only in process/browser memory, never output or save it,
+and create only clearly marked test records. Complete member binding, a test-only
+Payment and Owner confirmation, one mismatch, one match, Owner reveal without
+capturing its body, full refund approval, and field-absence verification. Do not
+push, deploy Production, add another domain, or change any other Firebase setting.

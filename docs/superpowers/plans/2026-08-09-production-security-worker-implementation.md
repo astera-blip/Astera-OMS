@@ -530,6 +530,13 @@ sign-in is blocked because the stable Preview alias is absent from Firebase
 Authentication Authorized Domains. Therefore authenticated WIF/KMS and the
 `測試專用` security flow remain open; no Production deployment occurred.
 
+2026-08-10 continuation checkpoint: with exact authorization, Firebase Console
+added only the stable Preview alias and a full reload proved the existing domain
+set was preserved. Google sign-in now reaches the account chooser, clearing the
+unauthorized-domain gate. The user must finish account selection because the
+controlled browser cannot retain the OAuth opener after the popup closes. No
+authenticated security-flow record exists yet, so Step 3 remains open.
+
 - [x] **Step 4: Run the full local release gate.**
 
 Run:

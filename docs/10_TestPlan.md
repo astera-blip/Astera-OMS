@@ -213,3 +213,25 @@ The first full Emulator Playwright run found two stale Pixel 7 workspace-label
 assertions. The assertions were aligned with the current bilingual accessible
 names, focused Pixel 7 verification passed 3/3, and the full rerun produced the
 34/8/0 result above.
+
+### 2026-08-10 Task 7 Firebase Authorized Domain checkpoint
+
+With exact user authorization, Firebase Authentication Authorized Domains was
+read in the Production Console, and only
+`astera-oms-astera-blip-astera-oms.vercel.app` was added. Firebase displayed a
+success confirmation; a full settings reload preserved every prior domain and
+showed exactly that one additional Custom domain. No unique deployment hostname
+or other Firebase setting was added, removed, or edited.
+
+The first Preview login attempt after the change returned
+`auth/network-request-failed`; a subsequent attempt reached the Google account
+chooser. This proves the prior `auth/unauthorized-domain` blocker is cleared, but
+does not yet prove an authenticated member session. The browser-control surface
+cannot retain the OAuth opener after account selection closes the Google popup, so
+the user must finish that account-selection interaction before the authenticated
+member/WIF/KMS checks can continue.
+
+Read-only source audit also identified two acceptance constraints: paid refund
+mismatch/match submission and Owner refund-account reveal are currently API-only;
+immediate vault removal requires the full approved refund path to reach Order
+`refunded`. No test payment/refund record has been created at this checkpoint.
