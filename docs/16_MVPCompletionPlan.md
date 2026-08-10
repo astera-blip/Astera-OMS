@@ -1146,3 +1146,18 @@ four fresh readbacks pass and are reviewed.
   Cloud Build/image push, private Cloud Run, service-level invoker IAM, two OIDC
   Scheduler jobs, Monitoring email channel, and Monitoring alert policy; then run
   the already reviewed guarded apply.
+
+## 2026-08-10 Task 6 deployment checkpoint
+
+- Guarded Production apply completed successfully after three TDD-backed
+  Google-managed readback compatibility fixes (`774740d`, `78e5c42`, `246e51d`).
+- Private Worker, exact service IAM, both OIDC Scheduler jobs, Monitoring channel,
+  and alert policy all pass fresh readback.
+- Pure-read monthly job authenticated through Scheduler and returned 200.
+- Unauthenticated job requests return 403; recent Worker payload logs contain no
+  detected sensitive field names, long account-number patterns, or failure marker.
+- Task 6 remains in progress, not complete. Next exact steps are separately authorize
+  cleanup execution twice, verify first-run deletion count and second-run zero,
+  intentionally generate a non-sensitive alert signal, and confirm email delivery.
+- Do not add human Service Account Token Creator just to test `/healthz`; preserve
+  the current least-privilege boundary and document an approved substitute if needed.

@@ -356,3 +356,43 @@ No Budget was created, modified, or deleted. No Cloud Build, Artifact Registry p
 Cloud Run, service IAM, Scheduler, Monitoring channel, or alert-policy mutation ran.
 The Budget gate passes. The next exact step is separate explicit authorization for
 the reviewed Task 6 apply blast radius before running the guarded command.
+
+### 2026-08-10 Task 6 Production deployment applied
+
+Explicit authorization covered Cloud Build/image push, private Cloud Run,
+service-level Scheduler invoker IAM, two OIDC jobs, the fixed Monitoring email
+channel, and the non-2xx/timeout policy. The guarded apply now exits 0.
+
+Final readback:
+
+- service `astera-security-worker` is Ready in `asia-east1`;
+- max instances 1, min instances omitted/default 0, concurrency 1, timeout 300s;
+- runtime SA is `astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`;
+- image is digest-pinned in `astera-ops`; only the fixed project and HMAC key env
+  values are present;
+- service IAM contains exactly one `roles/run.invoker` member, the Scheduler SA;
+- daily cleanup is enabled at `03:30 Asia/Taipei` and monthly report at day 1
+  `04:00 Asia/Taipei`, both with POST, exact service URL audience, and Scheduler SA;
+- exactly one enabled `Astera Security Worker email` channel points to
+  `astera.0920@gmail.com`;
+- exactly one enabled `Astera Security Worker non-2xx or timeout` policy has the
+  fixed non-2xx and 504 conditions and references only that channel.
+
+Deployment encountered three fail-closed live readback differences. Commits
+`774740d`, `78e5c42`, and `246e51d` add real fixtures and narrowly normalize only
+Google-managed defaults; unexpected headers, explicit `UNVERIFIED`, unknown states,
+non-zero threshold differences, duplicates, and configuration drift still fail.
+
+Smoke evidence:
+
+- unauthenticated POSTs to both job routes: 403;
+- pure-read monthly Scheduler job: 200, empty status, fresh last-attempt timestamp;
+- recent payload-only Worker log scan: zero sensitive-key, long-digit, or failure
+  marker matches.
+
+Do not grant a human Token Creator merely for `/healthz`; the attempted short-lived
+Scheduler-SA impersonation was denied as intended. Before marking Task 6 complete,
+obtain explicit authorization for two cleanup executions, confirm the deletion
+count/idempotency, trigger a controlled non-sensitive alert, and have the recipient
+confirm delivery. Cleanup can delete expired refund-vault fields, so a generic
+deployment authorization is not sufficient for that destructive smoke step.

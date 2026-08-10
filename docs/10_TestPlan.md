@@ -95,3 +95,34 @@ Budget Alert: TWD 200 with current-spend thresholds at 50%, 90%, and 100%.
 Account Administrator/User email notifications remain active. No Budget was created,
 modified, or deleted, and no Task 6 deployment ran. The Budget pre-deployment gate
 is now satisfied; live apply still requires separate explicit authorization.
+
+### 2026-08-10 Task 6 deployment and partial Production smoke
+
+The user authorized the reviewed Task 6 blast radius. Guarded apply ultimately
+exited 0 after three live-readback compatibility fixes were completed with TDD:
+
+- accept only Cloud Scheduler's fixed `User-Agent: Google-Cloud-Scheduler` default;
+- follow the Monitoring API contract that only explicit `UNVERIFIED` is unusable;
+- normalize an omitted Monitoring `thresholdValue` to the protobuf default zero.
+
+Fresh post-fix verification passed focused 33/33, full Unit 44 files / 374 tests,
+TypeScript, ESLint, Next.js Build (39 pages), secret scan, and diff check. Production
+readback verifies Worker Ready, max instances 1, concurrency 1, exact runtime SA,
+fixed image digest/env, one Scheduler-only service-level invoker, two enabled OIDC
+jobs, one enabled email channel, and one enabled two-condition alert policy.
+
+Unauthenticated POSTs to both job routes return 403. A manual run of the pure-read
+monthly key-usage job returned 200 through Scheduler OIDC. A payload-only scan of
+the recent Worker logs found zero forbidden sensitive-field names, zero 10–16 digit
+number matches, and zero `security_worker_failed` markers.
+
+Still required before Task 6 is complete:
+
+- explicit authorization to run the cleanup job twice, because it can delete
+  expired ciphertext/key-version/expiry fields and change pending requests to
+  `needsReverification`;
+- controlled non-sensitive alert activation and confirmation that the notification
+  reached `astera.0920@gmail.com`;
+- authenticated `/healthz` evidence, or an approved documented substitution. Human
+  Scheduler-SA impersonation correctly failed because no Token Creator role exists;
+  do not broaden IAM merely for smoke testing.

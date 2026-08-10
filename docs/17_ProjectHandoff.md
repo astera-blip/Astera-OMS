@@ -1122,3 +1122,44 @@ Task 6 remains in progress. Exact continuation:
    Google's email verification; rerun only after readback is `VERIFIED`.
 4. Complete authenticated/private/public IAM, route, idempotency, alert-delivery,
    and sensitive-log verification before marking Task 6 complete.
+
+## 2026-08-10 Task 6 deployed; destructive smoke still gated
+
+The explicitly authorized Task 6 guarded apply completed with exit 0. Production
+now has a Ready private Worker, digest-pinned image, fixed project/HMAC env, max 1,
+default min 0, concurrency 1, the Worker runtime SA, exact Scheduler-only invoker,
+two enabled Asia/Taipei OIDC jobs, one enabled email channel, and one enabled
+non-2xx/timeout policy.
+
+Three fail-closed compatibility findings were diagnosed from live Google readback
+and fixed through red/green tests:
+
+- `774740d`: accept the sole Cloud Scheduler platform User-Agent while rejecting
+  every additional or altered header;
+- `78e5c42`: accept undefined/UNSPECIFIED Monitoring verification status per the
+  API contract, while explicit UNVERIFIED and unknown states still fail;
+- `246e51d`: normalize omitted thresholdValue to protobuf default zero while
+  retaining exact semantic policy comparison.
+
+Post-fix evidence: focused 33/33, Unit 44 files / 374 tests, TypeScript, ESLint,
+Build 39 pages, secret scan, and diff check passed. Monthly key-usage Scheduler run
+returned 200. Unauthenticated job POSTs returned 403. A recent payload-only log
+scan counted 0 forbidden sensitive keys, 0 long-digit matches, and 0 Worker failure
+markers. No human Token Creator permission was added; Scheduler-SA impersonation
+was denied, preserving least privilege.
+
+Task 6 is not complete because the remaining smoke has a separate data effect:
+
+1. Obtain explicit authorization to run
+   `astera-refund-vault-cleanup-daily` twice. The first run may permanently delete
+   expired `refundAccountCiphertext`, `refundEncryptionKeyVersion`, and
+   `refundAccountExpiresAt`, and may set pending requests to `needsReverification`.
+2. Read Cloud Run request logs and only the aggregate `cleaned` count; verify the
+   second run is zero/idempotent without exposing record IDs or payloads.
+3. Trigger one controlled non-sensitive non-2xx signal and have the recipient
+   confirm the alert email reached `astera.0920@gmail.com`.
+4. Resolve authenticated `/healthz` evidence without granting persistent human
+   impersonation rights, or document why the authenticated 200 job route is the
+   stronger approved substitute.
+
+Only after these gates pass may Task 6 be marked complete and Task 7 begin.

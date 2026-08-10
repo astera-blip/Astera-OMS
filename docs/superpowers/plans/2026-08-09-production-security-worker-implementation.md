@@ -400,19 +400,19 @@ secret in a command whose output is captured.
 - Mutation additionally requires `--apply`.
 - Deploys `astera-security-worker` from `ops/security-worker` with authentication required.
 
-- [ ] **Step 1: Write failing deployment-plan tests.**
+- [x] **Step 1: Write failing deployment-plan tests.**
 
 Assert exact region, service name, service account, `min=0`, `max=1`,
 `concurrency=1`, no `--allow-unauthenticated`, two OIDC Scheduler jobs, exact
 audience equal to the deployed service URL, and fixed Asia/Taipei schedules.
 
-- [ ] **Step 2: Implement the dry-run deployment planner and guarded executor.**
+- [x] **Step 2: Implement the dry-run deployment planner and guarded executor.**
 
 The planner builds argv arrays for Cloud Run deploy, service-level
 `roles/run.invoker`, Scheduler creation/update, and Monitoring policy creation.
 Mutation requires exact project confirmation and uses `shell: false`.
 
-- [ ] **Step 3: Run focused and full local checks.**
+- [x] **Step 3: Run focused and full local checks.**
 
 Run:
 
@@ -427,7 +427,7 @@ npm run check:secrets
 
 Expected: all commands exit 0.
 
-- [ ] **Step 4: Apply the deployment.**
+- [x] **Step 4: Apply the deployment.**
 
 Run:
 
@@ -455,6 +455,15 @@ tool and its tests.
 git add scripts/deploy-production-security-worker.mjs tests/unit/productionSecurityDeployment.test.ts docs/14_Deployment.md
 git commit -m "ops: deploy refund governance worker"
 ```
+
+2026-08-10 checkpoint: guarded apply completed and readback verifies the private
+Worker, exact service-level Scheduler invoker, both OIDC jobs, one enabled email
+channel, and one enabled alert policy. The pure-read monthly job returned 200 and
+recent Worker payload logs had zero sensitive-field, long-account-number, or
+failure-marker matches. Step 5 remains partial: cleanup idempotency requires
+explicit authorization because a real run deletes expired refund-vault fields.
+Step 6 alert delivery also remains pending an intentional non-sensitive incident
+and recipient confirmation. Human impersonation was intentionally not enabled.
 
 ### Task 7: Configure Vercel security environment and run release gates
 
