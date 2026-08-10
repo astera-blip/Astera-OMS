@@ -150,3 +150,25 @@ Next gate requires explicit Vercel mutation authorization: add the 16 non-secret
 fixed values to Production and Preview, generate two independent random
 `REFUND_RATE_LIMIT_HASH_SECRET` values directly through stdin into Vercel Secret
 storage, verify names without reading values, and redeploy Preview only.
+
+### 2026-08-10 Task 7 environment write and drift gate
+
+The authorized write completed for project `astera-oms/astera-oms`: all 16 fixed
+names target Production and Preview, and separate hidden Sensitive Secret records
+exist for Production and Preview. The two 48-byte values were generated in memory,
+sent through stdin, cleared, and never printed or persisted.
+
+The required post-write names/targets-only check did **not** pass. It found one
+pre-existing forbidden name, `NEXT_PUBLIC_USE_FIREBASE_EMULATORS`, targeting both
+Production and Preview. It also found older unscoped Preview Sensitive records for
+seven GCP/WIF names that overlap the verified fixed records. No Git branch scope was
+present on those records. Therefore Preview deployment and WIF/KMS flow testing were
+not started; Production was not deployed.
+
+Retest after separately authorized drift cleanup:
+
+1. list Vercel names, types, targets, and branch metadata without values;
+2. require zero Emulator/Test Auth matches;
+3. require exactly one effective record per fixed key and target;
+4. deploy Preview only and inspect the build/deployment result;
+5. continue with the strict security check and approved non-real-bank flow.

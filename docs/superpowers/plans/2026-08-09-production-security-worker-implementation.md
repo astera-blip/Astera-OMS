@@ -487,13 +487,36 @@ project, and region. Human impersonation was intentionally not enabled.
 Set the verified project, WIF, service-account, KMS key names, and HMAC version.
 Confirm no Emulator/Test Auth variable is present in either environment.
 
-- [ ] **Step 2: Add the stable rate-limit secret without disclosure.**
+- [x] **Step 2: Add the stable rate-limit secret without disclosure.**
 
 Generate at least 32 cryptographically random bytes directly into the Vercel
 Secret input. Do not display, copy into documentation, save locally, or include in
 shell history. Apply the same stable value to Production and Preview only if both
 environments intentionally share the Production backend; otherwise use separate
 values and document only that they are configured.
+
+2026-08-10 checkpoint: the explicitly authorized Vercel mutation targeted only
+`astera-oms/astera-oms`. All 16 fixed names were added or overwritten for
+Production and Preview. Two independent 48-byte cryptographically random values
+were generated only in process memory, piped through stdin to separate Production
+and Preview Sensitive Secret records, then cleared; neither value was printed,
+saved, or documented. Step 2 is complete.
+
+Step 1 remains open because the post-write name/target inventory corrected the
+earlier preflight conclusion and found pre-existing configuration drift:
+
+- `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` is present for both Production and Preview;
+- seven GCP/WIF names have an older unscoped Preview Sensitive record overlapping
+  the verified Production+Preview fixed record: `GOOGLE_CLOUD_PROJECT`,
+  `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`, `GCP_WORKLOAD_IDENTITY_POOL_ID`,
+  `GCP_WORKLOAD_IDENTITY_PROVIDER_ID`, `GCP_WORKLOAD_IDENTITY_AUDIENCE`, and
+  `GCP_SERVICE_ACCOUNT_EMAIL`.
+
+No Preview or Production deployment was started. Before Step 3, obtain separate
+authorization to remove the Emulator variable and normalize only those seven
+duplicate Preview targets while preserving the verified fixed values. Then rerun
+the names/targets-only inventory and require zero Emulator/Test Auth names and zero
+overlapping key+target records.
 
 - [ ] **Step 3: Redeploy Preview and verify WIF/KMS access.**
 

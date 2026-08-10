@@ -1194,3 +1194,34 @@ Exact continuation requires separate authorization to:
 
 No Vercel variable or deployment mutation has occurred in Task 7 yet. Production
 redeploy is not part of the next authorization unless explicitly added later.
+
+## 2026-08-10 Task 7 authorized write; Preview deployment paused
+
+The user explicitly authorized Vercel project `astera-oms/astera-oms` only. The 16
+fixed Production/Preview names were added or overwritten. Separate Production and
+Preview `REFUND_RATE_LIMIT_HASH_SECRET` values were each generated from 48 random
+bytes in process memory and written via stdin as Sensitive Secrets. The values were
+not output, saved, or recorded. The initial static RNG call was unavailable in the
+host PowerShell runtime and failed before generation or Vercel input; the compatible
+`RandomNumberGenerator.Create().GetBytes()` path was length/distinctness tested and
+then completed successfully.
+
+The metadata-only verification found 29 records and exposed pre-existing drift:
+
+1. `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` exists for Production and Preview.
+2. Older unscoped Preview Sensitive records overlap the newly verified fixed record
+   for `GOOGLE_CLOUD_PROJECT`, `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`,
+   `GCP_WORKLOAD_IDENTITY_POOL_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER_ID`,
+   `GCP_WORKLOAD_IDENTITY_AUDIENCE`, and `GCP_SERVICE_ACCOUNT_EMAIL`.
+3. No branch restriction is attached to those conflicting records.
+
+Because the authorization prohibited removing other settings, nothing was deleted
+or normalized. The Emulator/Test Auth gate is not satisfied, so no Preview build,
+deployment, authenticated security flow, or Production deployment was attempted.
+
+Exact continuation requires a new narrow authorization to remove
+`NEXT_PUBLIC_USE_FIREBASE_EMULATORS` from Production and Preview and normalize only
+the seven named duplicate Preview records while retaining the verified values. Then
+rerun `vercel env ls` metadata-only, require zero forbidden names/overlaps, deploy
+Preview only, and continue Task 7 verification. Branch
+`codex/production-security-worker` remains isolated; no push is authorized.

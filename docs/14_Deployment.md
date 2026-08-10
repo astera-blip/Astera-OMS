@@ -440,3 +440,29 @@ mutation is: 16 fixed non-secret values for both Production and Preview; two
 independent random rate-limit secrets written to their respective Vercel Secret
 targets through stdin without stdout/history disclosure; then Preview redeploy and
 security-only strict verification. Production redeploy remains a later gate.
+
+### 2026-08-10 Task 7 Vercel variables configured; deployment blocked by drift
+
+The user authorized only project `astera-oms/astera-oms`, Production/Preview
+environment-variable writes, and Preview deployment. The configuration write
+completed:
+
+- 16 verified fixed names were added or overwritten for Production and Preview;
+- Production and Preview each received a distinct 48-byte in-memory random
+  `REFUND_RATE_LIMIT_HASH_SECRET` through stdin as a Sensitive Secret;
+- no secret value was displayed, saved locally, or written to Git/documentation.
+
+The mandatory post-write inventory revealed pre-existing drift that must be removed
+before building a safe Preview:
+
+- `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` targets Production and Preview;
+- seven older unscoped Preview Sensitive GCP/WIF records overlap the verified fixed
+  records: project/project-number, pool/provider/audience, service-account email,
+  and `GOOGLE_CLOUD_PROJECT`.
+
+The current authorization explicitly prohibited removing other settings, so no
+record was deleted or normalized. No Preview deployment was started and no
+Production deployment occurred. Next exact action is a separately authorized,
+name-scoped cleanup of only the Emulator variable and those seven duplicate Preview
+records, followed by a fresh names/targets-only inventory. Do not deploy until that
+inventory reports zero forbidden names and zero overlaps.

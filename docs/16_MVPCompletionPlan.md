@@ -1177,3 +1177,20 @@ four fresh readbacks pass and are reviewed.
 - Task 7 remains in progress. Next exact step requires explicit authorization to
   write 16 fixed variables plus independently generated Production/Preview secrets
   to Vercel, followed by Preview-only redeployment and verification.
+
+## 2026-08-10 Task 7 environment configuration checkpoint
+
+- Explicit authorization was received for `astera-oms/astera-oms` only.
+- All 16 verified fixed variables were added or overwritten for Production and
+  Preview.
+- Two different 48-byte random rate-limit values were generated in memory and sent
+  directly through stdin to separate Production/Preview Sensitive Secret records;
+  they were not printed, persisted, or documented.
+- The post-write inventory failed the isolation gate because the pre-existing
+  `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` name targets both environments.
+- Seven older unscoped Preview Sensitive GCP/WIF records also overlap the verified
+  fixed records.
+- No Preview or Production deployment was started.
+- Task 7 remains in progress. Exact continuation: obtain explicit authorization to
+  remove only the Emulator variable and normalize only the seven duplicate Preview
+  records; rerun the metadata-only inventory; then deploy and verify Preview only.
