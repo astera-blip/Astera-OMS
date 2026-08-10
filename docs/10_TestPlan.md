@@ -130,3 +130,23 @@ post-run payload-only scan again found zero sensitive-key, 10–16 digit, or Wor
 failure matches. The authenticated 200 monthly and cleanup routes exercise IAM,
 runtime, Firestore, and KMS and are accepted as stronger evidence than `/healthz`;
 no persistent human Token Creator permission was added.
+
+### 2026-08-10 Task 7 Vercel security environment preflight
+
+Read-only Vercel CLI inspection confirms project `astera-oms/astera-oms`, project ID
+`prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, Next.js preset, and Node.js 24.x. `vercel env ls`
+returned zero custom variables. Therefore the security-only strict check cannot pass
+in the current deployment; the local empty-environment run reported all 17 required
+names missing.
+
+Firebase CLI auth was expired, so no CLI data was used. Read-only Firebase
+Management API via ADC confirmed one ACTIVE Production Web App and returned the six
+public SDK values. Combining those with the verified Task 5 GCP/WIF/KMS identifiers,
+HMAC version 1, and a preflight-only 32+ character placeholder made
+`production:env:check -- --scope security --strict` exit 0. No `.env` file, Vercel
+variable, secret, or deployment was created.
+
+Next gate requires explicit Vercel mutation authorization: add the 16 non-secret
+fixed values to Production and Preview, generate two independent random
+`REFUND_RATE_LIMIT_HASH_SECRET` values directly through stdin into Vercel Secret
+storage, verify names without reading values, and redeploy Preview only.

@@ -419,3 +419,24 @@ authenticated 200 cleanup runs plus the earlier authenticated 200 monthly report
 exercise more of the private runtime than `/healthz`, so they are the approved
 health substitute. Do not add Token Creator to a human account. Task 6 is complete;
 Task 7 is the next stage.
+
+### 2026-08-10 Task 7 Vercel preflight; no mutation yet
+
+Read-only CLI state:
+
+- project: `astera-oms/astera-oms`;
+- project ID: `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`;
+- framework: Next.js; root directory `.`; Node.js 24.x;
+- custom Environment Variables: none.
+
+The exact 17-variable security configuration has been assembled from live
+Production readbacks. One ACTIVE Firebase Web App provides the six public Firebase
+SDK values; Task 5 provides the fixed GCP/WIF/KMS values and HMAC version 1. A
+child-process-only schema test with a non-production placeholder secret passed the
+strict security environment check. No value was saved locally.
+
+Do not run `vercel env add` or redeploy until separately authorized. The intended
+mutation is: 16 fixed non-secret values for both Production and Preview; two
+independent random rate-limit secrets written to their respective Vercel Secret
+targets through stdin without stdout/history disclosure; then Preview redeploy and
+security-only strict verification. Production redeploy remains a later gate.

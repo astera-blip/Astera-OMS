@@ -1166,3 +1166,31 @@ documented stronger substitute for `/healthz`, so no human Token Creator role is
 needed. Task 6 is complete. Exact continuation is Task 7 Vercel security environment
 preflight and strict release gates; do not mutate Vercel environment or redeploy
 without its separately authorized scope.
+
+## 2026-08-10 Task 7 read-only Vercel preflight
+
+Task 6 is complete and Task 7 is in progress. Vercel CLI 58.9.0 readback found the
+linked project `astera-oms/astera-oms` with ID
+`prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, Next.js, root `.`, and Node.js 24.x. The project
+currently has no custom Environment Variables.
+
+The local strict security check initially listed all 17 variables missing because
+the shell had no Vercel environment. Firebase CLI auth had expired; instead, the
+read-only Firebase Management API was called through existing ADC and confirmed the
+ACTIVE Production Web App plus all six public SDK values. Those values, the verified
+Task 5 GCP/WIF/KMS values, key version 1, and a deliberately non-production
+placeholder secret passed the strict checker in a child process. Nothing was saved
+to `.env`, Vercel, Git, or documentation as a secret.
+
+Exact continuation requires separate authorization to:
+
+1. Add the 16 fixed non-secret variables to both Vercel Production and Preview.
+2. Generate two independent cryptographically random 48-byte values in memory and
+   pipe each directly to `REFUND_RATE_LIMIT_HASH_SECRET` for its target with
+   sensitive/secret visibility; never print, document, or save them.
+3. List variable names/targets only and confirm no Emulator or E2E-auth variable.
+4. Redeploy Preview only, run the strict security gate in that environment, and
+   perform the approved non-real-bank-account security flow.
+
+No Vercel variable or deployment mutation has occurred in Task 7 yet. Production
+redeploy is not part of the next authorization unless explicitly added later.

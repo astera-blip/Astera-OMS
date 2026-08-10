@@ -1166,3 +1166,14 @@ four fresh readbacks pass and are reviewed.
   non-sensitive request-count value of 4.
 - Task 7 is now the next executable stage: Vercel security environment preflight,
   strict environment checks, Preview verification, and full release gates.
+
+## 2026-08-10 Task 7 Vercel preflight
+
+- Vercel project identity and Node.js 24.x are correct.
+- Read-only inventory found zero custom Vercel Environment Variables.
+- All 17 Production/Preview security values have authoritative sources and pass the
+  strict checker when injected only into a local child process. No real secret was
+  generated or saved during preflight.
+- Task 7 remains in progress. Next exact step requires explicit authorization to
+  write 16 fixed variables plus independently generated Production/Preview secrets
+  to Vercel, followed by Preview-only redeployment and verification.
