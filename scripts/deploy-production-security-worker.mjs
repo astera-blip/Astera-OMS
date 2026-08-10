@@ -931,6 +931,15 @@ function isExactAlertPolicy(policy, desired) {
     if (!isRecord(condition)) return false;
     const normalized = { ...condition };
     delete normalized.name;
+    if (
+      isRecord(normalized.conditionThreshold)
+      && normalized.conditionThreshold.thresholdValue === undefined
+    ) {
+      normalized.conditionThreshold = {
+        ...normalized.conditionThreshold,
+        thresholdValue: 0,
+      };
+    }
     return semanticallyEqual(normalized, desired.conditions[index]);
   });
 }

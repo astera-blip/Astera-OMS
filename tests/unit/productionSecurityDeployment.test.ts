@@ -368,7 +368,7 @@ describe("production security deployment", () => {
     },
   );
 
-  it("accepts semantically exact Monitoring policy fields in any JSON property order", async () => {
+  it("accepts Monitoring-generated condition names and an omitted zero threshold", async () => {
     const channel = {
       name: "projects/astera-oms-prod/notificationChannels/channel-1",
       type: "email",
@@ -386,7 +386,8 @@ describe("production security deployment", () => {
           content: desired.documentation.content,
           mimeType: desired.documentation.mimeType,
         },
-        conditions: desired.conditions.map((condition) => ({
+        conditions: desired.conditions.map((condition, index) => ({
+          name: `projects/astera-oms-prod/alertPolicies/policy-1/conditions/${index + 1}`,
           conditionThreshold: {
             aggregations: condition.conditionThreshold.aggregations.map((aggregation) => ({
               crossSeriesReducer: aggregation.crossSeriesReducer,
@@ -394,7 +395,6 @@ describe("production security deployment", () => {
               alignmentPeriod: aggregation.alignmentPeriod,
             })),
             duration: condition.conditionThreshold.duration,
-            thresholdValue: condition.conditionThreshold.thresholdValue,
             comparison: condition.conditionThreshold.comparison,
             filter: condition.conditionThreshold.filter,
           },
