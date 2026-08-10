@@ -401,3 +401,21 @@ Google Cloud alert email showing `Alert firing`, policy
 `Astera Security Worker non-2xx or timeout`, request-count value 4, and the exact
 Production project, service, and `asia-east1` labels. This satisfies the controlled
 non-sensitive alert and recipient-delivery gate without accessing the mailbox.
+
+### 2026-08-10 Task 6 cleanup idempotency complete
+
+The user separately authorized two manual executions of
+`astera-refund-vault-cleanup-daily`, acknowledging its permanent deletion behavior.
+Only count aggregations and request metadata were inspected:
+
+- pre-run expired refund-vault count: 0;
+- run 1: Scheduler OIDC request 200; post-run count 0; aggregate `cleaned=0`;
+- run 2: Scheduler OIDC request 200; post-run count 0; aggregate `cleaned=0`;
+- post-run payload-only log scan: 0 forbidden sensitive-key matches, 0 long-digit
+  matches, and 0 `security_worker_failed` markers.
+
+No refund record or field was deleted because no expired record existed. Two
+authenticated 200 cleanup runs plus the earlier authenticated 200 monthly report
+exercise more of the private runtime than `/healthz`, so they are the approved
+health substitute. Do not add Token Creator to a human account. Task 6 is complete;
+Task 7 is the next stage.

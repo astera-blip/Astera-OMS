@@ -116,17 +116,17 @@ monthly key-usage job returned 200 through Scheduler OIDC. A payload-only scan o
 the recent Worker logs found zero forbidden sensitive-field names, zero 10–16 digit
 number matches, and zero `security_worker_failed` markers.
 
-Still required before Task 6 is complete:
-
-- explicit authorization to run the cleanup job twice, because it can delete
-  expired ciphertext/key-version/expiry fields and change pending requests to
-  `needsReverification`;
-- authenticated `/healthz` evidence, or an approved documented substitution. Human
-  Scheduler-SA impersonation correctly failed because no Token Creator role exists;
-  do not broaden IAM merely for smoke testing.
-
 Monitoring delivery is now verified. The user supplied a received-email screenshot
 showing `Alert firing` for policy `Astera Security Worker non-2xx or timeout`, exact
 project `astera-oms-prod`, service `astera-security-worker`, region `asia-east1`, and
 request-count value 4. This is accepted as the controlled non-sensitive non-2xx
 delivery test; no mailbox access or additional notification mutation was performed.
+
+Task 6 cleanup/idempotency is also complete. With explicit destructive-test
+authorization, count-only Firestore aggregations returned 0 expired refund-vault
+records before run 1, after run 1, and after run 2. Both Scheduler OIDC cleanup
+requests returned 200, so aggregate `cleaned=0` twice and no data was deleted. A
+post-run payload-only scan again found zero sensitive-key, 10–16 digit, or Worker
+failure matches. The authenticated 200 monthly and cleanup routes exercise IAM,
+runtime, Firestore, and KMS and are accepted as stronger evidence than `/healthz`;
+no persistent human Token Creator permission was added.

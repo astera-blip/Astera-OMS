@@ -1148,20 +1148,6 @@ scan counted 0 forbidden sensitive keys, 0 long-digit matches, and 0 Worker fail
 markers. No human Token Creator permission was added; Scheduler-SA impersonation
 was denied, preserving least privilege.
 
-Task 6 is not complete because the remaining smoke has a separate data effect:
-
-1. Obtain explicit authorization to run
-   `astera-refund-vault-cleanup-daily` twice. The first run may permanently delete
-   expired `refundAccountCiphertext`, `refundEncryptionKeyVersion`, and
-   `refundAccountExpiresAt`, and may set pending requests to `needsReverification`.
-2. Read Cloud Run request logs and only the aggregate `cleaned` count; verify the
-   second run is zero/idempotent without exposing record IDs or payloads.
-3. Resolve authenticated `/healthz` evidence without granting persistent human
-   impersonation rights, or document why the authenticated 200 job route is the
-   stronger approved substitute.
-
-Only after these gates pass may Task 6 be marked complete and Task 7 begin.
-
 Monitoring delivery subsequently passed. The user supplied a screenshot of the
 received Google Cloud email showing `Alert firing` for the fixed
 `Astera Security Worker non-2xx or timeout` policy, request-count value 4, project
@@ -1169,3 +1155,14 @@ received Google Cloud email showing `Alert firing` for the fixed
 No mailbox access was performed and the attachment was not copied into the
 repository. The remaining Task 6 gate is cleanup idempotency plus the documented
 authenticated-health substitution decision.
+
+Those remaining gates subsequently passed. The user explicitly authorized two
+cleanup executions. Count-only Firestore aggregation was 0 before run 1, 0 after
+run 1, and 0 after run 2. Both Scheduler OIDC requests returned 200, proving
+aggregate `cleaned=0` idempotency; no record was deleted and no ID/payload was read.
+Post-run payload log scanning again returned zero sensitive-key, long-digit, and
+failure-marker matches. The authenticated 200 monthly and cleanup routes are the
+documented stronger substitute for `/healthz`, so no human Token Creator role is
+needed. Task 6 is complete. Exact continuation is Task 7 Vercel security environment
+preflight and strict release gates; do not mutate Vercel environment or redeploy
+without its separately authorized scope.

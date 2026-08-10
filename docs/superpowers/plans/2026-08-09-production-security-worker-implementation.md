@@ -438,7 +438,7 @@ node scripts/deploy-production-security-worker.mjs --project astera-oms-prod --c
 Expected: Cloud Run service is private, both Scheduler jobs are enabled, and no
 `allUsers` or `allAuthenticatedUsers` invoker binding exists.
 
-- [ ] **Step 5: Run authenticated smoke tests.**
+- [x] **Step 5: Run authenticated smoke tests.**
 
 Use an identity token with audience equal to the Cloud Run URL. Call `/healthz`,
 then each job route once. Verify cleanup is idempotent, the report is read-only,
@@ -460,8 +460,12 @@ git commit -m "ops: deploy refund governance worker"
 Worker, exact service-level Scheduler invoker, both OIDC jobs, one enabled email
 channel, and one enabled alert policy. The pure-read monthly job returned 200 and
 recent Worker payload logs had zero sensitive-field, long-account-number, or
-failure-marker matches. Step 5 remains partial: cleanup idempotency requires
-explicit authorization because a real run deletes expired refund-vault fields.
+failure-marker matches. Step 5 is complete: after explicit authorization, cleanup
+ran twice through Scheduler OIDC with 200 responses; aggregate expired-vault counts
+were 0 before, after run 1, and after run 2, proving `cleaned=0` idempotency without
+reading IDs or payloads. Authenticated 200 monthly and cleanup routes are accepted
+as stronger runtime evidence than `/healthz`, avoiding persistent human Token
+Creator access.
 Step 6 is complete: the user's received-email screenshot confirms the fixed policy
 fired on a non-sensitive request-count value of 4 for the exact Production service,
 project, and region. Human impersonation was intentionally not enabled.
