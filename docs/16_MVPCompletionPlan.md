@@ -1106,3 +1106,30 @@ four fresh readbacks pass and are reviewed.
 - Task 5 is complete. Task 6 is now in progress and must implement/test the private
   Cloud Run, Scheduler OIDC jobs, and Monitoring alert deployment. No Task 6 live
   deployment has occurred.
+
+## 2026-08-10 Task 6 source/review checkpoint
+
+- Implementation commits: `2e246e2`, `1ac6d13`.
+- Independent controller re-review: five findings addressed, no new breakage,
+  Spec PASS, Quality APPROVED; live apply is code-ready but not authorized/executed.
+- Implementer evidence: focused 42/42, Unit 44 files / 374 tests, TypeScript,
+  ESLint, Build, secret scan, and diff checks pass.
+- Controller fresh full gate is still pending because managed execution was rejected
+  before startup by the Codex usage limit. Retry after 2026-08-16 10:05.
+- Before Task 6 apply: rerun the full controller gate, verify budget alert and current
+  read-only cloud state, then obtain explicit authorization for Cloud Build/image,
+  private Cloud Run, service IAM, two OIDC Scheduler jobs, email notification
+  channel, and Monitoring policy.
+- Task 7 remains pending. No Task 6 cloud mutation or smoke test occurred.
+
+## 2026-08-10 Task 6 controller gate resumed
+
+- Fresh controller gate now passes: focused 42/42, Unit 44 files / 374 tests,
+  TypeScript, ESLint, Build, secret scan, diff check, and dry-run.
+- Production read-only inventory confirms Worker service, both Scheduler jobs, and
+  matching Monitoring channel/policy are absent.
+- Billing is enabled, but Billing Budget API is disabled; the required Budget Alert
+  cannot be verified. Task 6 live apply remains blocked.
+- Next exact step: obtain explicit authorization to enable only
+  `billingbudgets.googleapis.com`, list budgets read-only, and confirm an acceptable
+  alert before requesting the larger Task 6 deployment authorization.

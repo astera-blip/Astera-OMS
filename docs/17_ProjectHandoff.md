@@ -1040,3 +1040,62 @@ TypeScript, ESLint, secret scan, and diff check. Task 6 is the next exact step:
 implement and review the private Worker deployment planner, then deploy Cloud Run,
 OIDC Scheduler jobs, and Monitoring only after its source and Docker/image build
 gate pass. This host still has no Docker CLI.
+
+## 2026-08-10 Task 6 continuation checkpoint
+
+Task 6 source is implemented in `2e246e2`; security hardening is in `1ac6d13`.
+Controller review originally found three High and two Medium issues; the scoped
+re-review confirms all addressed, no new breakage, Spec PASS, Quality APPROVED.
+Implementer evidence passes focused 42/42, Unit 44 files / 374 tests, TypeScript,
+ESLint, Build, secret scan, and diff checks.
+
+No Task 6 live operation ran. A controller fresh full gate was requested, but the
+managed executor rejected it before command startup because the Codex usage limit
+was reached. The UI states retry availability at 2026-08-16 10:05. Do not report
+Task 6 complete and do not attempt alternate execution to bypass this limit.
+
+Exact resume sequence:
+
+1. Run controller focused 42/42, full Unit, TypeScript, ESLint, Build, secret scan,
+   diff check, and exact dry-run.
+2. Read back the budget alert and confirm existing Cloud Run/Scheduler/Monitoring
+   state without mutation.
+3. Obtain explicit authorization for Cloud Build/image push, private Cloud Run,
+   service-level Scheduler invoker, two OIDC jobs, email notification channel, and
+   Monitoring policy.
+4. Run `node scripts/deploy-production-security-worker.mjs --project
+   astera-oms-prod --confirm-project astera-oms-prod --apply`.
+5. If it stops on `UNVERIFIED`, complete the external email-channel verification
+   and rerun only after readback is `VERIFIED`.
+6. Perform private/public IAM readback, authenticated `/healthz` and both job route
+   smoke tests, idempotency, controlled 405 alert delivery, and sensitive-log audit.
+
+Task 7 remains pending. No branch push or integration authorization has been given.
+
+## 2026-08-10 Task 6 resumed after managed-execution limit
+
+The controller reran the full local gate successfully: focused 42/42, full Unit
+44 files / 374 tests, TypeScript, ESLint, Next.js Build, secret scan, diff check,
+and exact dry-run all exited 0.
+
+Read-only Production findings:
+
+- Billing enabled; linked billing account ID recorded in Deployment only.
+- Worker Cloud Run service absent.
+- Daily and monthly Scheduler jobs absent.
+- Matching Monitoring email channel and alert policy absent.
+- Billing Budget API disabled; budget inventory therefore unverified.
+
+Task 6 remains BLOCKED from live deployment because the approved design requires a
+Budget Alert before deployment. Exact continuation:
+
+1. Obtain explicit authorization to enable `billingbudgets.googleapis.com` on
+   `astera-oms-prod`.
+2. List budgets read-only for the linked billing account.
+3. If no acceptable budget exists, obtain a separate decision/authorization for
+   amount, thresholds, and recipients before creating it.
+4. Only after budget verification, obtain explicit Task 6 authorization for Cloud
+   Build/image push, private Cloud Run, service IAM, two OIDC jobs, Monitoring email
+   channel, and alert policy.
+
+No Task 6 Production mutation occurred in this resumed step.

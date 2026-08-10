@@ -60,3 +60,28 @@ npm run production:smoke -- --base-url https://astera-oms.vercel.app
 `production:products:audit` compares Product IDs and counts, Variant/Campaign
 counts, immutable SKU formats, projected prices, public image fields, and absence
 of private Product fields. A non-zero exit blocks migration or release.
+
+## 2026-08-10 Task 6 security deployment gate
+
+Source commits `2e246e2` and `1ac6d13` have TDD evidence and independent review.
+Latest implementer evidence passed focused 42/42, Unit 44 files / 374 tests,
+TypeScript, ESLint, Build, secret scan, and diff checks. Controller re-review passed
+Spec and Quality with all five security findings addressed.
+
+Controller fresh execution remains required before live apply. The attempted
+sandbox-external run was rejected by the Codex managed-execution usage limit before
+any command started; retry no earlier than 2026-08-16 10:05. Then run the focused
+tests, full Unit, TypeScript, ESLint, Build, secret scan, diff check, and safe dry-run.
+Do not treat subagent evidence alone as the final release gate.
+
+### 2026-08-10 Task 6 controller gate resumed
+
+The managed-execution limit no longer blocks local verification. Fresh controller
+execution passed focused **42/42**, full Unit **44 files / 374 tests**, TypeScript,
+ESLint, Next.js production Build, secret scan, diff check, and exact dry-run.
+
+Production read-only preflight found no existing Worker Cloud Run service, no two
+fixed Scheduler jobs, and no matching Monitoring channel/policy. Billing is linked,
+but `billingbudgets.googleapis.com` is disabled, so the mandatory pre-deployment
+Budget Alert cannot yet be verified. Live Task 6 apply remains blocked until that
+API is explicitly enabled and the budget inventory is reviewed.

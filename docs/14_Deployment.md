@@ -288,3 +288,49 @@ accounts are active and `astera-ops` is a Docker repository in `asia-east1`.
 No Cloud Run service, Scheduler job, or Monitoring policy was deployed in Task 5.
 Those remain Task 6. Local Docker image construction also remains unverified because
 this host has no Docker CLI.
+
+### 2026-08-10 Task 6 source ready; live deployment blocked
+
+Task 6 deployment tooling commits `2e246e2` and hardening fix `1ac6d13` passed
+independent review: all three High and two Medium findings are addressed, Spec PASS,
+Quality APPROVED. Latest implementer evidence passed focused 42/42, Unit 44 files /
+374 tests, TypeScript, ESLint, Build, secret scan, and diff checks. Safe dry-run
+prints only seven fixed actions.
+
+No Task 6 Cloud Build, image push, Cloud Run service, service-level invoker binding,
+Scheduler job, Monitoring channel/policy, authenticated smoke test, or alert test has
+run. Controller fresh full verification was attempted but the managed-execution
+usage limit rejected it before command start; retry is available after 2026-08-16
+10:05.
+
+After fresh verification and explicit Task 6 Production authorization, the exact
+mutation command is:
+
+```text
+node scripts/deploy-production-security-worker.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+The first run may create an email notification channel and stop safely while it is
+`UNVERIFIED`. The operator must complete the Google email verification; only a
+subsequent readback of `VERIFIED` permits alert-policy creation. Never bypass this
+gate. Budget-alert state and current Worker/Scheduler/Monitoring resource absence
+must also be read back before authorization.
+
+### 2026-08-10 Task 6 controller gate and Production preflight
+
+The earlier managed-execution limit is no longer active. Fresh controller checks
+passed focused 42/42, Unit 44 files / 374 tests, TypeScript, ESLint, Next.js Build,
+secret scan, diff check, and the seven-action dry-run.
+
+Read-only Production state:
+
+- Billing is enabled through `billingAccounts/01B794-2E6BD7-33D714`.
+- Cloud Run service `astera-security-worker` is absent in `asia-east1`.
+- Both fixed Scheduler jobs are absent in `asia-east1`.
+- No matching `Astera Security Worker email` channel exists.
+- No matching `Astera Security Worker non-2xx or timeout` policy exists.
+- `billingbudgets.googleapis.com` is disabled, so Budget Alert state is unverified.
+
+Design requires a Budget Alert before deployment. The next allowed mutation is
+only to enable `billingbudgets.googleapis.com` after explicit authorization, then
+rerun the read-only budget list. Do not run Task 6 `--apply` before this gate passes.
