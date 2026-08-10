@@ -1239,10 +1239,13 @@ four fresh readbacks pass and are reviewed.
   `auth/unauthorized-domain` error. The browser-control session cannot retain the
   OAuth opener after Google account selection, so the user must finish that
   identity interaction before the authenticated flow resumes.
-- No test member account binding, Order, Payment, CancellationRequest, refund
-  ciphertext, reveal, or vault deletion was created at this checkpoint.
-- Exact continuation: after the user confirms the member Google login, bind one
-  synthetic test account, create/confirm a clearly marked test-only payment, then
-  use the API-only mismatch/match and Owner reveal paths. Approve a full test
-  refund so Order becomes `refunded` and verify vault-field removal. Never record
-  the synthetic full account, fingerprint, ciphertext, token, or rate-limit hash.
+- OAuth later completed on the stable Preview and redirected to `/account/profile`.
+  A test-only member profile saved and redirected home. The member payment-account
+  UI moved from `0/5` to `1/5` after one synthetic test-only account was added;
+  it displayed masked data only, retained an empty full-account input, and reported
+  success. No account value, masked digits, token, fingerprint, ciphertext, or
+  secret was recorded.
+- No test Payment, CancellationRequest, refund reveal, or vault deletion was
+  created at this checkpoint. The remaining authorized refund and vault checks are
+  governed by the static Task 7 flow audit; do not extend this continuation beyond
+  that audit or deploy Production.

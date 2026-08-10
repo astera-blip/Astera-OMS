@@ -517,7 +517,7 @@ seven old Preview duplicate records. Fresh metadata inventory passed with 21 tot
 records, fixed 16/16, bad fixed 0, rate-limit secrets 2, forbidden names 0, and
 Preview overlaps 0. Step 1 is complete.
 
-- [ ] **Step 3: Redeploy Preview and verify WIF/KMS access.**
+- [ ] **Step 3: Redeploy Preview and run the authorized Preview security flow.**
 
 Run the security-only environment gate, then perform authenticated member binding,
 payment fingerprint snapshot, refund mismatch, refund match, Owner reveal, and
@@ -532,10 +532,13 @@ Authentication Authorized Domains. Therefore authenticated WIF/KMS and the
 
 2026-08-10 continuation checkpoint: with exact authorization, Firebase Console
 added only the stable Preview alias and a full reload proved the existing domain
-set was preserved. Google sign-in now reaches the account chooser, clearing the
-unauthorized-domain gate. The user must finish account selection because the
-controlled browser cannot retain the OAuth opener after the popup closes. No
-authenticated security-flow record exists yet, so Step 3 remains open.
+set was preserved. After the chooser was reached, OAuth completed on the stable
+Preview and redirected to `/account/profile`. A test-only member profile saved and
+redirected home. The member payment-account UI moved from `0/5` to `1/5` after one
+synthetic test-only account was added, while showing masked display data only, an
+empty full-account input, and a success status. This is not evidence that the
+remaining WIF or KMS runtime checks passed. No test Payment, CancellationRequest,
+refund reveal, or vault deletion record exists yet, so Step 3 remains open.
 
 - [x] **Step 4: Run the full local release gate.**
 

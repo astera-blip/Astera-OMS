@@ -518,3 +518,17 @@ when Google account selection closes, so the user must complete that identity
 interaction in the visible browser. Do not substitute a test-auth route, enable a
 new sign-in provider, or issue an Admin custom token. After member login, continue
 only on the stable Preview with synthetic test data and do not deploy Production.
+
+### 2026-08-10 Authenticated Preview checkpoint
+
+OAuth completed on the stable Preview and redirected to `/account/profile`. A
+test-only member profile saved successfully and redirected home. The member
+payment-account UI initially showed `0/5`; one synthetic test-only account was
+added, after which it showed `1/5`, masked display data only, an empty full-account
+input, and a success status. No account value, masked digits, token, fingerprint,
+ciphertext, or secret was recorded.
+
+This checkpoint verifies only the authenticated profile and member-account UI
+outcomes. It does not establish the remaining WIF or KMS runtime checks. Any
+further authorized refund, Owner, and vault testing must follow the static Task 7
+flow audit; do not deploy Production.

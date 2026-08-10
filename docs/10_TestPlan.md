@@ -225,13 +225,17 @@ or other Firebase setting was added, removed, or edited.
 
 The first Preview login attempt after the change returned
 `auth/network-request-failed`; a subsequent attempt reached the Google account
-chooser. This proves the prior `auth/unauthorized-domain` blocker is cleared, but
-does not yet prove an authenticated member session. The browser-control surface
-cannot retain the OAuth opener after account selection closes the Google popup, so
-the user must finish that account-selection interaction before the authenticated
-member/WIF/KMS checks can continue.
+chooser. The prior `auth/unauthorized-domain` blocker is therefore cleared. OAuth
+then completed on the stable Preview and redirected to `/account/profile`. A
+test-only member profile saved successfully and redirected home.
+
+The authenticated member payment-account check started at `0/5`. One synthetic
+test-only member payment account was added successfully; the UI then showed `1/5`,
+only bank-code and masked-account display data, an empty full-account input, and a
+success status. No account value, masked digits, token, fingerprint, ciphertext,
+or secret is recorded here.
 
 Read-only source audit also identified two acceptance constraints: paid refund
 mismatch/match submission and Owner refund-account reveal are currently API-only;
 immediate vault removal requires the full approved refund path to reach Order
-`refunded`. No test payment/refund record has been created at this checkpoint.
+`refunded`. No test payment or refund record has been created at this checkpoint.
