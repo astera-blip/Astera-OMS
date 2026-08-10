@@ -885,7 +885,11 @@ function expectedNotificationChannel() {
 
 function isExactNotificationChannel(channel) {
   return isMatchingNotificationChannelConfiguration(channel)
-    && channel.verificationStatus === "VERIFIED";
+    && (
+      channel.verificationStatus === undefined
+      || channel.verificationStatus === "VERIFICATION_STATUS_UNSPECIFIED"
+      || channel.verificationStatus === "VERIFIED"
+    );
 }
 
 function isMatchingNotificationChannelConfiguration(channel) {

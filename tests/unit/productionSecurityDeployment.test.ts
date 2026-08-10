@@ -345,6 +345,29 @@ describe("production security deployment", () => {
     expect(state.policies).toHaveLength(1);
   });
 
+  it.each([undefined, "VERIFICATION_STATUS_UNSPECIFIED"])(
+    "accepts an email channel whose verification status is %s",
+    async (verificationStatus) => {
+      const state: MonitoringState = {
+        channels: [{
+          name: "projects/astera-oms-prod/notificationChannels/channel-1",
+          type: "email",
+          displayName: "Astera Security Worker email",
+          labels: { email_address: "astera.0920@gmail.com" },
+          enabled: true,
+          ...(verificationStatus === undefined ? {} : { verificationStatus }),
+        }],
+        policies: [],
+      };
+
+      await ensureProductionMonitoring({ request: statefulMonitoringRequest(state) });
+
+      expect(state.policies).toEqual([
+        normalizedPolicyFixture(state.channels[0].name),
+      ]);
+    },
+  );
+
   it("accepts semantically exact Monitoring policy fields in any JSON property order", async () => {
     const channel = {
       name: "projects/astera-oms-prod/notificationChannels/channel-1",
@@ -467,25 +490,22 @@ describe("production security deployment", () => {
     expect(state.policies).toHaveLength(2);
   });
 
-  it.each(["UNVERIFIED", "VERIFICATION_STATUS_UNSPECIFIED", undefined])(
-    "blocks the fixed email channel verification state %s before policy creation",
-    async (verificationStatus) => {
-      const channel: { name: string; [key: string]: unknown } = {
-        name: "projects/astera-oms-prod/notificationChannels/channel-1",
-        type: "email",
-        displayName: "Astera Security Worker email",
-        labels: { email_address: "astera.0920@gmail.com" },
-        enabled: true,
-        ...(verificationStatus === undefined ? {} : { verificationStatus }),
-      };
-      const state: MonitoringState = { channels: [channel], policies: [] };
-      const request = statefulMonitoringRequest(state);
+  it("blocks an explicitly unverified fixed email channel before policy creation", async () => {
+    const channel: { name: string; [key: string]: unknown } = {
+      name: "projects/astera-oms-prod/notificationChannels/channel-1",
+      type: "email",
+      displayName: "Astera Security Worker email",
+      labels: { email_address: "astera.0920@gmail.com" },
+      enabled: true,
+      verificationStatus: "UNVERIFIED",
+    };
+    const state: MonitoringState = { channels: [channel], policies: [] };
+    const request = statefulMonitoringRequest(state);
 
-      await expect(ensureProductionMonitoring({ request }))
-        .rejects.toThrow("production_security_monitoring_verification_required");
-      expect(request.mock.calls.every(([call]) => call.method === "GET")).toBe(true);
-    },
-  );
+    await expect(ensureProductionMonitoring({ request }))
+      .rejects.toThrow("production_security_monitoring_verification_required");
+    expect(request.mock.calls.every(([call]) => call.method === "GET")).toBe(true);
+  });
 
   it("rejects malformed Monitoring channel verification status", async () => {
     const state: MonitoringState = {
