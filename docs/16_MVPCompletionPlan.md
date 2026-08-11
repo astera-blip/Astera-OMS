@@ -1323,3 +1323,22 @@ four fresh readbacks pass and are reviewed.
   already-authorized stable Preview hostname. Then deploy Preview only and repeat
   the sign-in test. Do not change Production, create a new authorized domain, or
   create new payment/refund test records until authenticated state persists.
+
+## 2026-08-11 Preview authDomain replacement safety stop
+
+- The transparent Auth-helper rewrite is committed as `6398a22` after a red/green
+  regression test. Focused Unit, TypeScript, ESLint, Next build (39 routes), secret
+  scan, and diff check passed. Git push can trigger Preview only; Production was
+  not deployed.
+- Vercel Preview's old `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` record was removed under
+  the approved Preview-only scope. The replacement-add command was rejected before
+  execution because its hostname letter case did not exactly match the approved
+  stable alias. No replacement value, Firebase setting, authorized domain, or
+  Production setting was written.
+- The currently deployed Preview remains unchanged until a future deployment; do
+  not trigger another deployment while the Preview build variable is absent.
+- Exact next action requires fresh confirmation due to the rejected command: add
+  only the Preview non-sensitive variable
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=astera-oms-astera-blip-astera-oms.vercel.app`
+  with the exact lowercase hostname, then verify metadata and continue the
+  Preview-only deployment. Do not change Production.

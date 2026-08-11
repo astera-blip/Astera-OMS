@@ -1384,3 +1384,20 @@ domain, or change any other Firebase/Vercel setting.
   hostname, deploy Preview, and retest sign-in. Do not modify Production, add a
   Firebase authorized domain, or start the payment/refund acceptance data flow
   before the session persists.
+
+## 2026-08-11 Preview authDomain safety checkpoint
+
+- Commit `6398a22` adds the documented transparent Firebase helper rewrite. The
+  focused regression test first failed and then passed; TypeScript, ESLint, Next
+  build (39 routes), secret scan, and diff check passed. The branch was pushed;
+  Production was not deployed.
+- Only the existing Vercel Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` record was
+  removed. The intended replacement was rejected before execution by the safety
+  layer because the entered hostname differed in case from the approved stable
+  alias. No replacement was written and no Firebase/Production mutation occurred.
+- Do not trigger another Preview deployment while this build-time value is absent.
+  Resume after the user explicitly confirms the exact lowercase replacement:
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=astera-oms-astera-blip-astera-oms.vercel.app`
+  for Preview only. Then re-check metadata, wait for a Ready Preview, assign only
+  the existing stable alias, and repeat sign-in. No test banking/payment data may be
+  created before session persistence is proven.

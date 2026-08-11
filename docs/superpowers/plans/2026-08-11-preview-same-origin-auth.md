@@ -90,7 +90,7 @@ Expected: all commands exit 0. Commit only `next.config.ts` and
   `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<stable-preview-hostname>` and a Ready Preview
   deployment assigned to that same stable alias.
 
-- [ ] **Step 1: Read Vercel Preview environment metadata without showing values**
+- [x] **Step 1: Read Vercel Preview environment metadata without showing values**
 
 Run the existing Vercel environment inventory/check tooling and confirm exactly one
 Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` record is present before mutation.
@@ -100,6 +100,12 @@ Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` record is present before mutation.
 Use Vercel CLI in the existing project/team scope. Remove the Preview record only,
 then add the stable authorized Preview hostname via stdin. Do not list, print, or
 change any Production variable.
+
+> 2026-08-11 checkpoint: the old Preview record was removed. The add command was
+> rejected by the execution safety layer before it ran because its hostname spelling
+> differed in letter case from the approved hostname. No replacement value was
+> written. Resume only with fresh explicit authorization for the exact lowercase
+> hostname below.
 
 - [ ] **Step 3: Push the source commit and wait for the Git-integrated Preview**
 
