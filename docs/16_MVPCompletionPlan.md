@@ -2040,3 +2040,20 @@ four fresh readbacks pass and are reviewed.
 - [ ] Prepare a separate, clearly labelled paid-cancellation test case. Obtain new
   action-time approval before cancellation review, refund match/mismatch, reveal,
   approval, or vault deletion.
+
+## 2026-08-11 Paid-cancellation member UI checkpoint
+
+- [x] Use only `AST-20260811-0001` / `測試專用會員` for the next paid-cancellation
+  path; submit and Owner-confirm a new `NT$ 520` test Payment.
+- [x] Reproduce and trace the missing paid-item cancellation control to
+  `OrderDetailBoard`, which incorrectly accepted only `awaitingPayment` items.
+- [x] Add red/green API and UI regressions.
+- [x] Add sanitized confirmed-Payment options to the protected Order-detail API;
+  exclude HMAC fingerprints and all full account values from its response.
+- [x] Add paid-item selection, original Payment selection, bank-code/full-account
+  verification inputs, 14-day retention copy, and safe Chinese failure messages.
+- [x] Pass focused 12/12, full Unit 420/420, TypeScript, ESLint, and Next Build.
+- [ ] Push and wait for a Ready Preview, then verify the deployed form. The member
+  enters the exact original full account directly in the password field; never send
+  it through chat. Obtain fresh confirmation immediately before the final POST if
+  the user has not personally clicked submit.

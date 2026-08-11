@@ -2160,3 +2160,30 @@ domain, or change any other Firebase/Vercel setting.
 - Exact continuation: create or identify a separately labelled paid-cancellation
   test case, then obtain fresh approval immediately before its refund-related write.
   Do not reuse or mutate unrelated historical records.
+
+## 2026-08-11 Paid-cancellation UI root cause and repair
+
+- A separate safe case was identified: `AST-20260811-0001`, recipient
+  `測試專用會員`, total `NT$ 520`. A new Payment Report was submitted from the
+  account selector and confirmed by Owner; its Payment reached `confirmed` and the
+  Order reached `paid`. Notification delivery again failed without rolling back the
+  financial transaction.
+- Browser acceptance then exposed a real frontend defect: the Order detail UI only
+  allowed `awaitingPayment` items to be selected and filtered `paid` items out again
+  before POST. The Server already supports paid cancellation with refund-account
+  verification, so this was a client integration gap rather than a data-state issue.
+- Test-first repair now allows `awaitingPayment` and `paid` items, returns only a
+  sanitized list of the member's confirmed Payments from the protected Order-detail
+  API, and supplies `targetPaymentId`, bank code, and the one-time full refund account
+  only to the protected cancellation POST. Fingerprints and full account numbers are
+  never returned by the Order-detail API.
+- The paid-item form explains the 14-day maximum encrypted retention, masks the
+  account field, handles mismatch/rate-limit/reverification errors in Chinese, and
+  clears the full account state after a successful request.
+- Red evidence: the new API/UI regressions failed because `confirmedPayments` and
+  paid-item controls were absent. Green evidence: focused 12/12, full Unit 420/420,
+  TypeScript, ESLint, and Next Build with 42 routes passed.
+- The code is not yet on the stable Preview at this checkpoint. After push and a
+  Ready Vercel Preview, return to `AST-20260811-0001`. The member must personally
+  enter the exact original full account for the selected confirmed Payment; do not
+  place that value in chat, logs, documentation, screenshots, or test fixtures.

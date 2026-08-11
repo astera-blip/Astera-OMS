@@ -108,6 +108,22 @@ describe("production data-source boundary", () => {
     expect(source).not.toContain("listMemberCancellationRequests");
   });
 
+  it("lets paid order items submit the protected refund-account cancellation flow", () => {
+    const source = readFileSync(
+      resolve("src/components/storefront/OrderDetailBoard.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain('item.status === "awaitingPayment" || item.status === "paid"');
+    expect(source).toContain("confirmedPayments");
+    expect(source).toContain("targetPaymentId");
+    expect(source).toContain("refundBankCode");
+    expect(source).toContain("refundAccountNumberFull");
+    expect(source).toContain("退款完整銀行帳號");
+    expect(source).toContain("退款帳號與原付款帳號不一致");
+    expect(source).toContain("退款帳號驗證嘗試次數過多");
+  });
+
   it("shows the formal order number to members instead of the internal document id", () => {
     for (const file of [
       "src/components/storefront/OrderHistoryBoard.tsx",

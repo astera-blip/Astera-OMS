@@ -62,6 +62,20 @@ describe("GET /api/orders/[id]", () => {
       createdAt: { seconds: 1785369600, nanoseconds: 0 },
       createdBy: "member-a",
     }];
+    const payments = [{
+      id: "payment-a",
+      memberUid: "member-a",
+      paymentRequestId: "request-a",
+      status: "confirmed",
+      receivedAmountTwd: 1,
+      memberPaymentAccount: {
+        bankCode: "012",
+        accountNumberLast5: "56789",
+        payerName: "Preview Test",
+        accountFingerprint: "must-not-leak",
+        fingerprintKeyVersion: 3,
+      },
+    }];
     const orderDoc = { get: vi.fn().mockResolvedValue({ exists: true, data: () => order }) };
     const querySnapshot = (records: unknown[]) => ({
       get: vi.fn().mockResolvedValue({ docs: records.map((data) => ({ data: () => data })) }),
@@ -77,6 +91,9 @@ describe("GET /api/orders/[id]", () => {
         if (name === "paymentRequests") {
           return { where: vi.fn(() => querySnapshot(paymentRequests)) };
         }
+        if (name === "payments") {
+          return { where: vi.fn(() => querySnapshot(payments)) };
+        }
         return { where: vi.fn(() => querySnapshot(cancellationRequests)) };
       }),
     });
@@ -86,12 +103,22 @@ describe("GET /api/orders/[id]", () => {
     });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
+    const payload = await response.json();
+    expect(payload).toMatchObject({
       order: { id: "order-a", createdAt: "2026-07-30T00:00:00.000Z" },
       items: [{ id: "item-a", createdAt: "2026-07-30T00:00:00.000Z" }],
       paymentRequest: { id: "request-a", status: "open" },
       cancellationRequests: [{ id: "cancel-a", createdAt: "2026-07-30T00:00:00.000Z" }],
+      confirmedPayments: [{
+        id: "payment-a",
+        paymentRequestId: "request-a",
+        receivedAmountTwd: 1,
+        bankCode: "012",
+        accountNumberLast5: "56789",
+        payerName: "Preview Test",
+      }],
     });
+    expect(JSON.stringify(payload)).not.toContain("must-not-leak");
   });
 
   it("rejects another member before returning any order detail", async () => {

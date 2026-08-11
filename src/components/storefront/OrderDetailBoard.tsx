@@ -22,6 +22,16 @@ type Props = {
 type MemberOrderDetailResponse = OrderBundle & {
   paymentRequest: LocalPaymentRequest | null;
   cancellationRequests: CancellationRequestRecord[];
+  confirmedPayments: ConfirmedPaymentOption[];
+};
+
+type ConfirmedPaymentOption = {
+  id: string;
+  paymentRequestId: string;
+  receivedAmountTwd: number;
+  bankCode: string;
+  accountNumberLast5: string;
+  payerName: string;
 };
 
 export function OrderDetailBoard({ orderId }: Props) {
@@ -31,7 +41,11 @@ export function OrderDetailBoard({ orderId }: Props) {
   const [bundle, setBundle] = useState<OrderBundle | null>(null);
   const [paymentRequest, setPaymentRequest] = useState<LocalPaymentRequest | null>(null);
   const [cancellationRequests, setCancellationRequests] = useState<CancellationRequestRecord[]>([]);
+  const [confirmedPayments, setConfirmedPayments] = useState<ConfirmedPaymentOption[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [targetPaymentId, setTargetPaymentId] = useState("");
+  const [refundBankCode, setRefundBankCode] = useState("");
+  const [refundAccountNumberFull, setRefundAccountNumberFull] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,6 +54,7 @@ export function OrderDetailBoard({ orderId }: Props) {
       setBundle(null);
       setPaymentRequest(null);
       setCancellationRequests([]);
+      setConfirmedPayments([]);
       setStatus("idle");
       return;
     }
@@ -61,12 +76,16 @@ export function OrderDetailBoard({ orderId }: Props) {
       setBundle({ order: detail.order, items: detail.items });
       setPaymentRequest(detail.paymentRequest);
       setCancellationRequests(detail.cancellationRequests);
+      setConfirmedPayments(detail.confirmedPayments ?? []);
+      setTargetPaymentId(detail.confirmedPayments?.[0]?.id ?? "");
+      setRefundBankCode(detail.confirmedPayments?.[0]?.bankCode ?? "");
       setStatus("ready");
     } catch (error) {
       console.warn("member_order_detail_load_failed", error instanceof Error ? error.message : "unknown");
       setBundle(null);
       setPaymentRequest(null);
       setCancellationRequests([]);
+      setConfirmedPayments([]);
       setStatus("error");
       setMessage("無法讀取雲端訂單，請稍後再試。");
     }
@@ -96,7 +115,9 @@ export function OrderDetailBoard({ orderId }: Props) {
   useEffect(() => {
     if (order) {
       queueMicrotask(() => {
-        setSelectedItemIds(order.items.filter((item) => item.status === "awaitingPayment").map((item) => item.id));
+        setSelectedItemIds(order.items.filter((item) =>
+          item.status === "awaitingPayment" || item.status === "paid"
+        ).map((item) => item.id));
       });
     }
   }, [order]);
@@ -117,10 +138,17 @@ export function OrderDetailBoard({ orderId }: Props) {
       return;
     }
 
-    const selectable = order.items.filter((item) => item.status === "awaitingPayment").map((item) => item.id);
+    const selectable = order.items.filter((item) =>
+      item.status === "awaitingPayment" || item.status === "paid"
+    ).map((item) => item.id);
     const itemIds = selectedItemIds.filter((itemId) => selectable.includes(itemId));
     if (itemIds.length === 0) {
-      setMessage("請至少選擇一個尚未付款的項目。");
+      setMessage("請至少選擇一個可取消的項目。");
+      return;
+    }
+    const hasPaidItems = order.items.some((item) => itemIds.includes(item.id) && item.status === "paid");
+    if (hasPaidItems && (!targetPaymentId || !refundBankCode.trim() || !refundAccountNumberFull.trim())) {
+      setMessage("已付款項目請選擇原付款紀錄，並填寫退款銀行代碼與完整銀行帳號。");
       return;
     }
 
@@ -130,6 +158,13 @@ export function OrderDetailBoard({ orderId }: Props) {
       orderItemIds: itemIds,
       memberUid: user.uid,
       reason: trimmedReason,
+      ...(hasPaidItems
+        ? {
+            targetPaymentId,
+            refundBankCode: refundBankCode.trim(),
+            refundAccountLast5: refundAccountNumberFull.replace(/[ -]/g, "").slice(-5),
+          }
+        : {}),
       createdAt: new Date().toISOString(),
       createdBy: user.uid,
     });
@@ -154,14 +189,35 @@ export function OrderDetailBoard({ orderId }: Props) {
           orderItemIds: itemIds,
           reason: trimmedReason,
           idempotencyKey: `${orderId}_${itemIds.join("_")}`,
+          ...(hasPaidItems
+            ? {
+                targetPaymentId,
+                refundBankCode: refundBankCode.trim(),
+                refundAccountNumberFull: refundAccountNumberFull.trim(),
+              }
+            : {}),
         }),
       });
 
       if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "request_failed" })) as { error?: string };
+        if (payload.error === "refund_account_mismatch") {
+          setMessage("退款帳號與原付款帳號不一致，請確認銀行代碼與完整帳號。");
+          return;
+        }
+        if (payload.error === "refund_account_rate_limited") {
+          setMessage("退款帳號驗證嘗試次數過多，請稍後再試或聯繫客服。");
+          return;
+        }
+        if (payload.error === "refund_account_reverification_required") {
+          setMessage("原付款帳戶需要重新驗證，請聯繫客服協助處理。");
+          return;
+        }
         throw new Error("request_failed");
       }
 
       setCancellationRequests((current) => [request, ...current.filter((item) => item.id !== request.id)]);
+      setRefundAccountNumberFull("");
       await loadOrder();
       setMessage("取消申請已處理，訂單狀態已更新。");
     } catch {
@@ -247,7 +303,7 @@ export function OrderDetailBoard({ orderId }: Props) {
 
         <div className="mt-6 grid gap-3">
           {order.items.map((item) => {
-            const canCancel = item.status === "awaitingPayment";
+            const canCancel = item.status === "awaitingPayment" || item.status === "paid";
             const hasPendingRequest = pendingItemIds.has(item.id);
 
             return (
@@ -299,6 +355,57 @@ export function OrderDetailBoard({ orderId }: Props) {
                 className="min-h-28 rounded-2xl border border-slate-300 px-4 py-3 text-sm"
                 placeholder="請說明取消原因"
               />
+              {order.items.some((item) => selectedItemIds.includes(item.id) && item.status === "paid") ? (
+                <div className="grid gap-3 rounded-2xl border border-astera-service/30 bg-astera-service/5 p-4">
+                  <p className="text-sm leading-6 text-astera-secondary">
+                    已付款項目需重新輸入原匯款帳號進行比對。完整帳號只會加密暫存最多 14 天；完成退款後立即刪除。
+                  </p>
+                  <label className="grid gap-2 text-sm font-medium">
+                    原付款紀錄
+                    {confirmedPayments.length > 0 ? (
+                      <select
+                        value={targetPaymentId}
+                        onChange={(event) => {
+                          const paymentId = event.target.value;
+                          setTargetPaymentId(paymentId);
+                          setRefundBankCode(confirmedPayments.find((payment) => payment.id === paymentId)?.bankCode ?? "");
+                        }}
+                        className="min-h-11 rounded-2xl border border-astera-border bg-white px-4"
+                      >
+                        {confirmedPayments.map((payment) => (
+                          <option key={payment.id} value={payment.id}>
+                            NT$ {payment.receivedAmountTwd.toLocaleString()} · 銀行 {payment.bankCode} · ***{payment.accountNumberLast5} · {payment.payerName}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="rounded-2xl bg-amber-50 px-4 py-3 text-amber-800">
+                        找不到可用的已確認付款紀錄，請聯繫客服。
+                      </span>
+                    )}
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium">
+                    退款銀行代碼
+                    <input
+                      inputMode="numeric"
+                      value={refundBankCode}
+                      onChange={(event) => setRefundBankCode(event.target.value)}
+                      className="min-h-11 rounded-2xl border border-astera-border bg-white px-4"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium">
+                    退款完整銀行帳號
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={refundAccountNumberFull}
+                      onChange={(event) => setRefundAccountNumberFull(event.target.value)}
+                      className="min-h-11 rounded-2xl border border-astera-border bg-white px-4"
+                    />
+                  </label>
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void submitCancellationRequest()}

@@ -4,7 +4,7 @@ import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 import { sanitizeCancellationRequest } from "@/lib/order/repository";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
-import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -38,6 +38,20 @@ export async function GET(request: Request, context: RouteContext) {
     const paymentRequest = paymentRequestsSnapshot.docs
       .map((snapshot) => snapshot.data() as LocalPaymentRequest)
       .find((candidate) => candidate.memberUid === claims.uid) ?? null;
+    const paymentsSnapshot = paymentRequest
+      ? await db.collection("payments").where("paymentRequestId", "==", paymentRequest.id).get()
+      : null;
+    const confirmedPayments = (paymentsSnapshot?.docs ?? [])
+      .map((snapshot) => snapshot.data() as LocalPayment)
+      .filter((payment) => payment.memberUid === claims.uid && payment.status === "confirmed")
+      .map((payment) => ({
+        id: payment.id,
+        paymentRequestId: payment.paymentRequestId,
+        receivedAmountTwd: payment.receivedAmountTwd,
+        bankCode: payment.memberPaymentAccount?.bankCode ?? "",
+        accountNumberLast5: payment.memberPaymentAccount?.accountNumberLast5 ?? "",
+        payerName: payment.memberPaymentAccount?.payerName ?? payment.payerName,
+      }));
     const cancellationRequests = cancellationRequestsSnapshot.docs
       .map((snapshot) => sanitizeCancellationRequest(snapshot.data() as CancellationRequestRecord))
       .filter((candidate) => candidate.memberUid === claims.uid);
@@ -47,6 +61,7 @@ export async function GET(request: Request, context: RouteContext) {
       items,
       paymentRequest,
       cancellationRequests,
+      confirmedPayments,
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
