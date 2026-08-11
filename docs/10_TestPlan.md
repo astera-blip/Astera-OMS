@@ -239,3 +239,15 @@ Read-only source audit also identified two acceptance constraints: paid refund
 mismatch/match submission and Owner refund-account reveal are currently API-only;
 immediate vault removal requires the full approved refund path to reach Order
 `refunded`. No test payment or refund record has been created at this checkpoint.
+
+The next authenticated acceptance segment verified that a member receives the
+owner/helper gate at `/workspace`, and that a clearly labelled test checkout can
+create an NT$520 Order and PaymentRequest without a real transfer. A second
+synthetic account was saved and created one `pendingReview` Payment. A narrowly
+scoped ADC Firestore read timed out with no result and no write; a later browser
+process reset made active synthetic full values unavailable. One value briefly
+appeared only in browser-tool output, not in tracked documentation or application
+storage. A fresh one-pass account/order/payment is therefore required for
+refund-match acceptance. The remaining expected sequence is Owner confirm, one
+mismatch rejection, one match, reveal without response capture, full approved
+refund, and vault-field absence. Outputs remain boolean/aggregate only.

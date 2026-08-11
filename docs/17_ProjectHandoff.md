@@ -1297,3 +1297,26 @@ vault deletion has been created.
 The remaining authorized refund, Owner, and vault work is limited to the static
 Task 7 flow audit. Do not add operational detail here beyond that audit, and do not
 push, deploy Production, add another domain, or change any other Firebase setting.
+
+## 2026-08-10 Preview payment/refund handoff
+
+The signed-in test member was denied `/workspace` as expected. A clearly marked
+test-only checkout then created one NT$520 Order and PaymentRequest. A second
+synthetic member account was saved and used to create one `pendingReview` Payment;
+no real transfer occurred.
+
+Complete synthetic values were not written to the repository or application
+storage. One value briefly appeared in browser-tool output during automation, but
+was never copied into tracked documentation. A narrowly scoped ADC Firestore read
+timed out before returning data and made no write. A later browser process reset
+made the active complete values unavailable, so neither account can be used for a
+successful refund match. This is the expected irreversibility property of stored
+HMAC data, not a reason to attempt recovery.
+
+Exact next action: log in as the test member again, bind one new synthetic account,
+and create a fresh clearly labelled test Order/Payment. Keep that complete value
+only in the active process through Owner confirm, one mismatch and one match, reveal
+without capturing the response body, full refund approval, and vault-field absence.
+Do not record account digits, masked digits, IDs, token, fingerprint, ciphertext,
+KMS material, or rate-limit material. Do not push, deploy Production, add another
+domain, or change any other Firebase/Vercel setting.

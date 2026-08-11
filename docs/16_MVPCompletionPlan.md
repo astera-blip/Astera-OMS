@@ -18,9 +18,13 @@ Last updated: 2026-08-10 Asia/Taipei
 - Current local release gate: TypeScript, ESLint, Build, 374 Unit tests, 32 Rules
   tests, 34 Emulator Playwright tests, secret scan, and production dependency
   audit pass.
-- Current Task 7 gate: Vercel security variables are normalized and Preview is
-  Ready; authenticated verification is blocked only by the stable Preview alias
-  missing from Firebase Authentication Authorized Domains.
+- Current Task 7 gate: Vercel security variables are normalized, Preview is Ready,
+  the stable alias is authorized, and Google OAuth, profile save, member
+  payment-account binding, member workspace rejection, a test-only Order/PaymentRequest,
+  and one `pendingReview` Payment are verified. The remaining Preview flow needs a
+  fresh one-pass test account/order/payment for refund mismatch/match, Owner reveal,
+  and vault deletion because full synthetic account values are intentionally not
+  stored.
 - Production has not been redeployed or promoted by Task 7. Domain/DNS, Resend,
   final Production data and mobile acceptance remain separate release gates.
 
@@ -1245,7 +1249,27 @@ four fresh readbacks pass and are reviewed.
   it displayed masked data only, retained an empty full-account input, and reported
   success. No account value, masked digits, token, fingerprint, ciphertext, or
   secret was recorded.
-- No test Payment, CancellationRequest, refund reveal, or vault deletion was
-  created at this checkpoint. The remaining authorized refund and vault checks are
-  governed by the static Task 7 flow audit; do not extend this continuation beyond
-  that audit or deploy Production.
+- No CancellationRequest, refund reveal, or vault deletion was created at this
+  checkpoint. The remaining authorized refund and vault checks are governed by the
+  static Task 7 flow audit; do not extend this continuation beyond that audit or
+  deploy Production.
+
+## 2026-08-10 Preview payment/refund continuation gate
+
+- The authenticated member was correctly denied `/workspace`, which displayed the
+  owner/helper permission gate.
+- A clearly labelled test-only checkout created one Order and PaymentRequest for
+  NT$520. A second synthetic member account was then saved and used to create one
+  `pendingReview` Payment. No real transfer occurred.
+- Complete synthetic values were not written to the repository or application
+  storage. One value briefly appeared in browser-tool output during automation, but
+  it was never copied into tracked documentation. A narrowly scoped ADC Firestore
+  read timed out without returning data or performing a write; a later browser
+  process reset made the active complete values unavailable. They cannot and must
+  not be reconstructed from the stored HMAC.
+- Exact continuation: log in as the test member again, create one fresh synthetic
+  account, and use a fresh clearly labelled test Order/Payment so the complete value
+  stays available through the entire mismatch/match, Owner reveal, full-refund, and
+  vault-absence sequence. Never print or document account digits, document IDs,
+  token, fingerprint, ciphertext, key material, or rate-limit material. Do not add
+  a domain, deploy Production, or change another Firebase/Vercel setting.

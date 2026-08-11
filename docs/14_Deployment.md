@@ -532,3 +532,19 @@ This checkpoint verifies only the authenticated profile and member-account UI
 outcomes. It does not establish the remaining WIF or KMS runtime checks. Any
 further authorized refund, Owner, and vault testing must follow the static Task 7
 flow audit; do not deploy Production.
+
+### 2026-08-10 Preview test-data continuation; no deployment
+
+The stable Preview correctly denied the signed-in member `/workspace`. A labelled
+test-only checkout created one NT$520 Order and PaymentRequest; a second synthetic
+account then created one `pendingReview` Payment. No real transfer occurred. A
+narrow ADC read attempt timed out without result or write; a later browser process
+reset made active synthetic complete values unavailable. One value briefly appeared
+only in browser-tool output, not in tracked documentation or application storage.
+No recovery was attempted.
+
+The remaining authorized flow requires one fresh account/order/payment in a single
+active process, then Owner confirmation, mismatch/match, reveal without capture,
+full refund, and vault-field absence. This checkpoint made no Vercel deployment,
+Production promotion, domain addition, or other Firebase/Vercel configuration
+change.

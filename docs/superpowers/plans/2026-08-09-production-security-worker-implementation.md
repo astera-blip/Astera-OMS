@@ -540,6 +540,18 @@ empty full-account input, and a success status. This is not evidence that the
 remaining WIF or KMS runtime checks passed. No test Payment, CancellationRequest,
 refund reveal, or vault deletion record exists yet, so Step 3 remains open.
 
+2026-08-10 continuation gate: the authenticated member was correctly rejected at
+`/workspace`. A clearly labelled test-only checkout created one NT$520 Order and
+PaymentRequest; a second synthetic account then created one `pendingReview`
+Payment, with no real transfer. A narrow ADC Firestore read timed out without
+result or write. A later browser process reset made active synthetic complete values
+unavailable; one value had briefly appeared only in browser-tool output and was not
+copied into tracked documentation or application storage. The complete values must
+not be reconstructed from stored HMAC data. Step 3 remains open: create a fresh
+synthetic account/order/payment in one active process, then Owner confirm,
+mismatch/match, reveal without capture, full refund, and vault absence. No Production
+deployment, new domain, or other Firebase/Vercel mutation is authorized.
+
 - [x] **Step 4: Run the full local release gate.**
 
 Run:
