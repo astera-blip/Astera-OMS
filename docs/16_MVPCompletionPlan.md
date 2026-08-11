@@ -1342,3 +1342,13 @@ four fresh readbacks pass and are reviewed.
   `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=astera-oms-astera-blip-astera-oms.vercel.app`
   with the exact lowercase hostname, then verify metadata and continue the
   Preview-only deployment. Do not change Production.
+
+## 2026-08-11 Preview authDomain replacement resumed
+
+- After fresh explicit authorization, Vercel confirmed the exact lowercase
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` was added as a non-sensitive **Preview-only**
+  variable. Production and all other variables were not changed.
+- The source rewrite was already committed and pushed. The next Git-integrated
+  Preview must be built after this environment replacement, reach Ready, and then
+  receive only the existing stable Preview alias before the same-origin helper and
+  Google redirect session are retested.

@@ -1401,3 +1401,14 @@ domain, or change any other Firebase/Vercel setting.
   for Preview only. Then re-check metadata, wait for a Ready Preview, assign only
   the existing stable alias, and repeat sign-in. No test banking/payment data may be
   created before session persistence is proven.
+
+## 2026-08-11 Preview authDomain restored
+
+- Fresh explicit authorization was received after the safety rejection. Vercel
+  confirmed the exact lowercase stable Preview hostname was added to
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` as Preview-only non-sensitive configuration.
+  Production and all other environment variables remain unchanged.
+- Exact continuation: trigger a Git-integrated Preview after this replacement,
+  wait for Ready, attach only the existing stable Preview alias, then verify
+  `/__/auth/iframe` and retained Google redirect login. Do not create test
+  banking/payment/refund data before authenticated state is retained.
