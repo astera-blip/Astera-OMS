@@ -1872,3 +1872,17 @@ four fresh readbacks pass and are reviewed.
   Payment Report account selector automatically links the masked last five digits
   and payer name. Do not submit a Payment Report without separate action-time
   authorization.
+
+## 2026-08-11 Preview payer-name acceptance completed
+
+- With explicit action-time approval, the clearly test-only bank-code `000` legacy
+  account received the one-time payer name `測試專用匯款人` through the protected
+  member API. The account page returned a success status and no longer exposed the
+  completion input.
+- A fresh `/payments` readback showed the account in the member-account selector.
+  Its masked last-five value and payer name were populated from the selected Server
+  account. DOM verification confirmed both linked fields are `readOnly`; they are
+  not separate client-authoritative inputs.
+- No Payment Report was submitted, no payment request was modified, and no
+  Production deployment occurred. Testing a switch between two usable accounts
+  still requires a second explicitly authorised synthetic account.

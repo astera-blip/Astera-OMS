@@ -1988,3 +1988,18 @@ domain, or change any other Firebase/Vercel setting.
   `/payments` and verify account selection, masked last-five linkage, and payer-name
   linkage without submitting a financial report. A Payment submission still needs
   its own action-time authorization.
+
+## 2026-08-11 Preview payer-name completion result
+
+- The user explicitly approved a one-time payer-name write for the existing clearly
+  test-only bank-code `000` account. `測試專用匯款人` was saved successfully; the
+  account page confirmed it is now available for Payment Reports.
+- Read-only follow-up on `/payments` confirmed the account appears in the member
+  selector. Selecting it supplies the masked last five digits and payer name from
+  the account record. Both rendered fields have the DOM `readOnly` property set.
+- No Payment Report was submitted and no Order, PaymentRequest, Payment,
+  Cancellation, refund, Owner action, Vercel Production deployment, or Firebase
+  configuration was changed in this acceptance step.
+- Remaining optional acceptance for this feature: add a separately authorised
+  second synthetic account and verify switching the selector updates both fields.
+  Any account creation or Payment submission requires its own action-time approval.
