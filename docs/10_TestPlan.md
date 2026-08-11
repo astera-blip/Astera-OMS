@@ -252,6 +252,15 @@ refund-match acceptance. The remaining expected sequence is Owner confirm, one
 mismatch rejection, one match, reveal without response capture, full approved
 refund, and vault-field absence. Outputs remain boolean/aggregate only.
 
+### 2026-08-11 Redirect diagnostic build gate
+
+The diagnostic error-retention fix is committed as `abf88be`. Its regression test
+was red then green; Unit 44 files / 375 tests, TypeScript, ESLint, Build (39 pages),
+secret scan, and diff check passed locally. A direct Vercel Preview deployment
+remained `UNKNOWN` with a zero-ms build and no logs, so it is invalid evidence. The
+stable Preview alias was restored to the earlier Ready deployment. The next test
+gate is a Git-integrated Preview after explicit branch-push authorization.
+
 ### 2026-08-11 Stable Preview session-retention retest
 
 Google account selection was completed on the stable Preview, but subsequent

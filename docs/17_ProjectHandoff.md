@@ -1342,3 +1342,24 @@ domain, or change any other Firebase/Vercel setting.
   payment flow already documented above. If the same failure occurs in a normal
   browser, create a narrowly scoped diagnostic fix and test before retrying; do not
   bypass Firebase Auth with test auth, custom tokens, or client storage access.
+
+## 2026-08-11 Redirect-error visibility fix and Preview deployment recovery
+
+- The minimal client fix is committed as `abf88be`: a Google redirect-result error
+  is retained when the following Firebase state is signed-out, and cleared only
+  when there is no redirect error or a real Firebase user is present. The static
+  regression test first failed, then passed. Fresh local verification: Unit 44
+  files / 375 tests, TypeScript, ESLint, Next build (39 static pages), secret
+  scan, and diff check all passed.
+- A direct local Vercel Preview deployment created
+  `dpl_G5ALjYiQMUnEQxJ4baZFqnzwtxNS`, but Vercel reported `UNKNOWN` with a
+  zero-ms build and no logs after the CLI upload timed out. It is not a valid
+  release.
+- The stable Preview alias was automatically pointed to that unknown deployment,
+  then immediately restored to the prior Ready Preview. Production was not
+  deployed or changed; no Firebase setting or domain changed.
+- Exact continuation requires explicit authorization to push
+  `codex/production-security-worker` to the existing GitHub remote so Vercel Git
+  integration can build the Preview normally. After that Preview is Ready, repeat
+  Google login and record the retained Firebase redirect error code or authenticated
+  state before creating any new test data.

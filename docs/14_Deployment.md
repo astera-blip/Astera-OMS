@@ -549,6 +549,15 @@ full refund, and vault-field absence. This checkpoint made no Vercel deployment,
 Production promotion, domain addition, or other Firebase/Vercel configuration
 change.
 
+### 2026-08-11 Preview deployment recovery
+
+Commit `abf88be` contains the verified redirect-error visibility fix. A direct
+Preview upload created a Vercel deployment that remained `UNKNOWN` with no build
+logs, so its automatic stable-alias assignment was restored to the prior Ready
+Preview immediately. This was Preview-only recovery: no Production deployment,
+Firebase/domain change, or data mutation. Redeploy through Vercel Git integration
+only after explicit authorization to push `codex/production-security-worker`.
+
 ### 2026-08-11 Stable Preview authentication retest
 
 The stable Preview returned to the application after Google account selection, but

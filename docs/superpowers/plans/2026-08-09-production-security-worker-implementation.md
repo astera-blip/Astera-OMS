@@ -595,6 +595,14 @@ in the documentation commit. Independent diff review found no unrelated or secre
 change. The branch has no upstream and was not pushed because push authorization
 was not granted.
 
+2026-08-11 redirect-observability fix: `abf88be` preserves a Google redirect-result
+error when the following Firebase auth event is signed-out. The regression was
+red-green verified and local release checks passed. Direct Vercel Preview upload
+created an `UNKNOWN` zero-ms deployment with no logs; the stable Preview alias was
+restored to the prior Ready deployment. Do not use that unknown deployment. Step 3
+remains open pending explicit push authorization for this branch and a Git-integrated
+Preview build.
+
 2026-08-11 authenticated-session retest: Google account selection returned to the
 stable Preview, but application navigation rendered a signed-out state and the
 member payment-account route again required login. No mutation followed. The client

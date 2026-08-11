@@ -1286,3 +1286,17 @@ four fresh readbacks pass and are reviewed.
 - Keep the one-pass payment/refund acceptance gate blocked. Resume only after a
   retained authenticated session is available, or after a separately scoped,
   test-first diagnostic change proves the underlying redirect failure.
+
+## 2026-08-11 Redirect diagnostic fix; Preview restored
+
+- Commit `abf88be` preserves redirect-result error context through a subsequent
+  signed-out Firebase state. The regression test was red before the fix and green
+  afterwards; fresh Unit (44 files / 375 tests), TypeScript, ESLint, Build (39
+  pages), secret scan, and diff check passed.
+- A direct Vercel Preview deploy produced an `UNKNOWN` / zero-ms-build deployment
+  with no logs. Its automatic stable-alias assignment was reverted immediately to
+  the previous Ready Preview. No Production, Firebase, domain, or data mutation
+  occurred.
+- Next exact step: obtain explicit GitHub push authorization for
+  `codex/production-security-worker`, allow Vercel Git integration to create the
+  replacement Preview, and retest authentication before any new test data.
