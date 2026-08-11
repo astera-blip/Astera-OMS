@@ -69,11 +69,11 @@
 - Create: `tests/unit/paymentRejectApi.test.ts`
 - Reuse patterns from: `src/app/api/workspace/payments/[id]/confirm/route.ts`
 
-- [ ] Add failing tests for missing token, Member/Helper denial, required reason, missing Payment, pending rejection, repeated rejection idempotency, and confirmed/reversed conflict.
-- [ ] Implement Owner custom-claim authorization and a Firestore transaction.
-- [ ] Change only `pendingReview` to `rejected`, save a safe Owner reason, and append immutable `payment.rejected` Audit Log metadata without account secrets.
-- [ ] Ensure rejection does not create allocations or change PaymentRequest, Order, or OrderItem financial state.
-- [ ] Run focused tests and commit the task.
+- [x] Add failing tests for missing token, Member/Helper denial, required reason, missing Payment, pending rejection, repeated rejection idempotency, and confirmed/reversed conflict.
+- [x] Implement Owner custom-claim authorization and a Firestore transaction.
+- [x] Change only `pendingReview` to `rejected`, save a safe Owner reason, and append immutable `payment.rejected` Audit Log metadata without account secrets.
+- [x] Ensure rejection does not create allocations or change PaymentRequest, Order, or OrderItem financial state.
+- [x] Run focused tests and commit the task.
 
 ## Task 5: Owner rejection UI
 
