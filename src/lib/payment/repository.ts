@@ -9,7 +9,7 @@ import {
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
 import type { NotificationEvent } from "@/lib/notification/events";
 import type {
   LocalAuditLog,
@@ -17,6 +17,7 @@ import type {
   LocalPaymentAllocation,
   LocalPaymentRequest,
 } from "./manualBankTransfer";
+import { withPaymentFingerprintReviewCapability } from "./manualBankTransfer";
 
 export async function listMemberPaymentRequests(
   db: Firestore,
@@ -26,19 +27,31 @@ export async function listMemberPaymentRequests(
     query(collection(db, "paymentRequests"), where("memberUid", "==", memberUid)),
   );
 
-  return snapshot.docs.map((document) => document.data() as LocalPaymentRequest);
+  return snapshot.docs.map((document) =>
+    normalizePaymentRequest(document.data() as LocalPaymentRequest),
+  );
 }
 
 export async function listAllPaymentRequests(db: Firestore): Promise<LocalPaymentRequest[]> {
   const snapshot = await getDocs(collection(db, "paymentRequests"));
 
-  return snapshot.docs.map((document) => document.data() as LocalPaymentRequest);
+  return snapshot.docs.map((document) =>
+    normalizePaymentRequest(document.data() as LocalPaymentRequest),
+  );
+}
+
+export async function listAllPayments(db: Firestore): Promise<LocalPayment[]> {
+  const snapshot = await getDocs(collection(db, "payments"));
+
+  return snapshot.docs.map((document) =>
+    withPaymentFingerprintReviewCapability(document.data() as LocalPayment),
+  );
 }
 
 export async function confirmPaymentBundle(
   db: Firestore,
   input: {
-    orderBundle: StoredOrderBundle;
+    orderBundle: OrderBundle;
     paymentRequest: LocalPaymentRequest;
     payment: LocalPayment;
     allocation: LocalPaymentAllocation;
@@ -99,4 +112,39 @@ export async function updatePaymentRequestStatus(
     updatedAt: serverTimestamp(),
     updatedBy,
   });
+}
+
+function normalizePaymentRequest(request: LocalPaymentRequest): LocalPaymentRequest {
+  return {
+    ...request,
+    createdAt: normalizeFirestoreTimestamp(request.createdAt),
+    ...(request.dueAt ? { dueAt: normalizeFirestoreTimestamp(request.dueAt) } : {}),
+    ...(request.updatedAt ? { updatedAt: normalizeFirestoreTimestamp(request.updatedAt) } : {}),
+  };
+}
+
+function normalizeFirestoreTimestamp(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (
+    value
+    && typeof value === "object"
+    && "toDate" in value
+    && typeof (value as { toDate?: unknown }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  if (
+    value
+    && typeof value === "object"
+    && "seconds" in value
+    && typeof (value as { seconds?: unknown }).seconds === "number"
+  ) {
+    const { seconds, nanoseconds = 0 } = value as { seconds: number; nanoseconds?: unknown };
+    const milliseconds = seconds * 1000
+      + (typeof nanoseconds === "number" ? Math.floor(nanoseconds / 1_000_000) : 0);
+    return new Date(milliseconds).toISOString();
+  }
+  return "";
 }

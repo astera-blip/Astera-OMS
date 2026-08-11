@@ -2,7 +2,24 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Day 1 baseline: deny all access until public/private paths are designed and tested.
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.role is string
+        && request.auth.token.role == 'owner';
+    }
+
+    match /product-images/{productId}/{imageId} {
+      allow read: if true;
+      allow write: if isOwner()
+        && imageId.matches('^[A-Za-z0-9_-]+[.](jpg|jpeg|png|webp)$')
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType in [
+          'image/jpeg',
+          'image/png',
+          'image/webp'
+        ];
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

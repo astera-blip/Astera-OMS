@@ -2,17 +2,44 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
-import { createCancellationRequest, markCancellationRequested } from "@/lib/order/cancellation";
+import {
+  applyDirectUnpaidCancellation,
+  createCancellationRequest,
+  deriveSourceSpecificRefundAllocation,
+  markCancellationRequested,
+  splitCancellationItems,
+  verifyRefundAccountForPayment,
+  type CancellationRequestRecord,
+} from "@/lib/order/cancellation";
+import { normalizeAccountNumber, normalizeBankCode } from "@/lib/payment/accountIdentity";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
+import type {
+  LocalPayment,
+  LocalPaymentAllocation,
+  LocalPaymentRequest,
+} from "@/lib/payment/manualBankTransfer";
+import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
+import { encryptRefundAccount } from "@/lib/payment/refundAccountVault";
+import {
+  buildRefundVerificationScopes,
+  releaseRefundVerificationReservation,
+  reserveAndVerifyRefundAccount,
+} from "@/lib/order/refundVerificationAttempts";
 
 type CancellationRequestBody = {
   orderId?: string;
   orderItemIds?: string[];
   reason?: string;
   idempotencyKey?: string;
+  targetPaymentId?: string;
+  refundBankCode?: string;
+  refundAccountNumberFull?: string;
 };
 
 export async function POST(request: Request) {
+  let reservationToRelease:
+    | { db: FirebaseFirestore.Firestore; reservationId: string }
+    | undefined;
   try {
     const claims = await requireFirebaseUser(request);
     const body = (await request.json()) as CancellationRequestBody;
@@ -20,6 +47,9 @@ export async function POST(request: Request) {
     const reason = body.reason?.trim() ?? "";
     const orderItemIds = [...new Set(body.orderItemIds ?? [])].filter(Boolean);
     const idempotencyKey = body.idempotencyKey?.trim() ?? "";
+    const targetPaymentId = body.targetPaymentId?.trim() ?? "";
+    const refundBankCodeInput = body.refundBankCode;
+    const refundAccountNumberInput = body.refundAccountNumberFull;
 
     if (!orderId || orderItemIds.length === 0 || !reason || !idempotencyKey) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
@@ -28,11 +58,124 @@ export async function POST(request: Request) {
     const db = getAdminFirestore();
     const timestamp = new Date().toISOString();
     const requestId = `cancel_${idempotencyKey}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const requestIp = getRequestIp(request);
+    const verificationPreflight = await readCancellationVerificationPreflight({
+      db,
+      requestId,
+      memberUid: claims.uid,
+      orderId,
+      orderItemIds,
+      reason,
+      targetPaymentId,
+      refundBankCodeInput,
+      refundAccountNumberInput,
+    });
+    if (verificationPreflight.kind === "replay") {
+      return NextResponse.json({ ok: true, requestId, alreadyExists: true });
+    }
+
+    let verifiedRefundAccount: {
+      bankCode: string;
+      accountNumberFull: string;
+      accountNumberLast5: string;
+      encrypted: Awaited<ReturnType<typeof encryptRefundAccount>>;
+    } | undefined;
+    if (verificationPreflight.kind === "verify") {
+      const verificationScopes = buildRefundVerificationScopes({
+        requestId,
+        memberUid: claims.uid,
+        requestIp,
+      });
+      const verificationResult = await reserveAndVerifyRefundAccount({
+        db,
+        scopes: verificationScopes,
+        requestId,
+        actorUid: claims.uid,
+        verify: () => verifyRefundAccountForPayment({
+          refundBankCode: verificationPreflight.refundBankCode,
+          refundAccountNumberFull: verificationPreflight.refundAccountNumberFull,
+          payment: verificationPreflight.payment,
+          macClient: new CloudKmsMac(),
+        }),
+      });
+      if (verificationResult.limited) {
+        throw new Error("refund_account_rate_limited");
+      }
+      if (verificationResult.verification !== "match" || !verificationResult.reservation) {
+        throw new Error(verificationResult.verification === "needsReverification"
+          ? "refund_account_reverification_required"
+          : "refund_account_mismatch");
+      }
+      reservationToRelease = {
+        db,
+        reservationId: verificationResult.reservation.id,
+      };
+      const encrypted = await encryptRefundAccount(
+        requestId,
+        verificationPreflight.refundAccountNumberFull,
+        new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      );
+      verifiedRefundAccount = {
+        bankCode: verificationPreflight.refundBankCode,
+        accountNumberFull: verificationPreflight.refundAccountNumberFull,
+        accountNumberLast5: verificationPreflight.refundAccountNumberFull.slice(-5),
+        encrypted,
+      };
+    }
+
     const result = await db.runTransaction(async (transaction) => {
       const requestRef = db.collection("cancellationRequests").doc(requestId);
       const existingRequest = await transaction.get(requestRef);
       if (existingRequest.exists) {
-        return { requestId, alreadyExists: true };
+        const existing = existingRequest.data() as CancellationRequestRecord;
+        const idempotentRefundAccount = validateIdempotentCancellationRequest({
+          existing,
+          memberUid: claims.uid,
+          orderId,
+          orderItemIds,
+          reason,
+          targetPaymentId,
+          refundBankCodeInput,
+          refundAccountNumberInput,
+        });
+        if (existing.refundAccountCiphertext || existing.status !== "pending") {
+          if (reservationToRelease) {
+            transaction.delete(db.collection("auditLogs").doc(reservationToRelease.reservationId));
+          }
+          return { requestId, alreadyExists: true };
+        }
+        const { refundBankCode, refundAccountNumberFull } = idempotentRefundAccount;
+        const paymentSnapshot = await transaction.get(db.collection("payments").doc(targetPaymentId));
+        if (!paymentSnapshot.exists) {
+          throw new Error("payment_not_found");
+        }
+        const payment = paymentSnapshot.data() as LocalPayment;
+        const paymentRequestSnapshot = await transaction.get(
+          db.collection("paymentRequests").doc(payment.paymentRequestId),
+        );
+        if (!paymentRequestSnapshot.exists) {
+          throw new Error("payment_request_not_found");
+        }
+        const paymentRequest = paymentRequestSnapshot.data() as LocalPaymentRequest;
+        if (
+          payment.memberUid !== claims.uid
+          || payment.status !== "confirmed"
+          || paymentRequest.memberUid !== claims.uid
+          || paymentRequest.orderId !== orderId
+        ) {
+          throw new Error("forbidden");
+        }
+        if (
+          !verifiedRefundAccount
+          || verifiedRefundAccount.bankCode !== refundBankCode
+          || verifiedRefundAccount.accountNumberFull !== refundAccountNumberFull
+          || !reservationToRelease
+        ) {
+          throw new Error("refund_account_state_changed");
+        }
+        transaction.update(requestRef, verifiedRefundAccount.encrypted);
+        transaction.delete(db.collection("auditLogs").doc(reservationToRelease.reservationId));
+        return { requestId, alreadyExists: true, repaired: true };
       }
 
       const orderRef = db.collection("orders").doc(orderId);
@@ -46,61 +189,181 @@ export async function POST(request: Request) {
         throw new Error("forbidden");
       }
 
-      const itemSnapshots = await Promise.all(
-        orderItemIds.map((itemId) => transaction.get(db.collection("orderItems").doc(itemId))),
-      );
-      const selectedItems = itemSnapshots.map((snapshot) => {
-        if (!snapshot.exists) {
-          throw new Error("item_not_found");
-        }
-        return snapshot.data() as OrderItemRecord;
-      });
+      const [allItemsSnapshot, paymentRequestsSnapshot] = await Promise.all([
+        transaction.get(db.collection("orderItems").where("orderId", "==", orderId)),
+        transaction.get(db.collection("paymentRequests").where("orderId", "==", orderId)),
+      ]);
+      const allItems = allItemsSnapshot.docs.map((snapshot) => snapshot.data() as OrderItemRecord);
+      const selectedItems = allItems.filter((item) => orderItemIds.includes(item.id));
+      if (selectedItems.length !== orderItemIds.length) {
+        throw new Error("item_not_found");
+      }
 
       if (selectedItems.some((item) => item.orderId !== orderId || item.memberUid !== claims.uid)) {
         throw new Error("invalid_items");
       }
 
-      const pendingSnapshot = await transaction.get(
+      const existingCancellationSnapshot = await transaction.get(
         db
           .collection("cancellationRequests")
           .where("orderId", "==", orderId)
-          .where("memberUid", "==", claims.uid)
-          .where("status", "==", "pending"),
+          .where("memberUid", "==", claims.uid),
       );
-      const selectedItemSet = new Set(orderItemIds);
-      const hasDuplicatePendingItem = pendingSnapshot.docs.some((snapshot) => {
-        const pending = snapshot.data() as { orderItemIds?: string[] };
-        return (pending.orderItemIds ?? []).some((itemId) => selectedItemSet.has(itemId));
-      });
-      if (hasDuplicatePendingItem) {
-        throw new Error("duplicate_pending_request");
+      const existingCancellationRequests = existingCancellationSnapshot.docs
+        .map((snapshot) => snapshot.data() as CancellationRequestRecord);
+
+      const split = splitCancellationItems(allItems, orderItemIds);
+      const paymentRequests = paymentRequestsSnapshot.docs.map((snapshot) => snapshot.data() as LocalPaymentRequest);
+      let verifiedRefundAllocation: {
+        targetPaymentRequestId: string;
+        refundRequestedAmountTwd: number;
+        refundItemAllocations: Array<{ orderItemId: string; amountTwd: number }>;
+      } | undefined;
+      if (split.paidItems.length > 0) {
+        if (!targetPaymentId || refundBankCodeInput === undefined || refundAccountNumberInput === undefined) {
+          throw new Error("refund_account_required");
+        }
+        const refundBankCode = normalizeBankCode(refundBankCodeInput);
+        const refundAccountNumberFull = normalizeAccountNumber(refundAccountNumberInput);
+        const targetPaymentSnapshot = await transaction.get(
+          db.collection("payments").doc(targetPaymentId),
+        );
+        if (!targetPaymentSnapshot.exists) {
+          throw new Error("payment_not_found");
+        }
+        const targetPayment = targetPaymentSnapshot.data() as LocalPayment;
+        const targetPaymentRequestSnapshot = await transaction.get(
+          db.collection("paymentRequests").doc(targetPayment.paymentRequestId),
+        );
+        if (!targetPaymentRequestSnapshot.exists) {
+          throw new Error("payment_request_not_found");
+        }
+        const targetPaymentRequest = targetPaymentRequestSnapshot.data() as LocalPaymentRequest;
+        if (
+          targetPayment.memberUid !== claims.uid
+          || targetPayment.status !== "confirmed"
+          || targetPaymentRequest.memberUid !== claims.uid
+          || targetPaymentRequest.orderId !== orderId
+        ) {
+          throw new Error("forbidden");
+        }
+
+        const allocationsSnapshot = await transaction.get(
+          db.collection("paymentAllocations").where("paymentId", "==", targetPaymentId),
+        );
+        const refundableAllocationTwd = allocationsSnapshot.docs
+          .map((snapshot) => snapshot.data() as LocalPaymentAllocation)
+          .filter((allocation) =>
+            allocation.kind === "payment"
+            && allocation.targetType === "paymentRequest"
+            && allocation.targetId === targetPayment.paymentRequestId)
+          .reduce((total, allocation) => total + Math.max(0, allocation.amountTwd), 0);
+        const {
+          refundRequestedAmountTwd,
+          refundItemAllocations,
+        } = deriveSourceSpecificRefundAllocation(
+          allItems,
+          split.paidItems.map((item) => item.id),
+          existingCancellationRequests,
+          {
+            targetPaymentId,
+            sourceAllocatedAmountTwd: refundableAllocationTwd,
+          },
+        );
+        if (refundRequestedAmountTwd <= 0) {
+          throw new Error("refund_payment_allocation_exceeded");
+        }
+
+        if (
+          !verifiedRefundAccount
+          || verifiedRefundAccount.bankCode !== refundBankCode
+          || verifiedRefundAccount.accountNumberFull !== refundAccountNumberFull
+          || !reservationToRelease
+        ) {
+          throw new Error("refund_account_state_changed");
+        }
+        verifiedRefundAllocation = {
+          targetPaymentRequestId: targetPayment.paymentRequestId,
+          refundRequestedAmountTwd,
+          refundItemAllocations,
+        };
       }
+      const directCancellation = split.unpaidItems.length > 0
+        ? applyDirectUnpaidCancellation(order, allItems, paymentRequests, {
+            orderItemIds: split.unpaidItems.map((item) => item.id),
+            updatedAt: timestamp,
+            updatedBy: claims.uid,
+          })
+        : null;
+      const paidCancellationRequest = split.paidItems.length > 0
+        ? createCancellationRequest({
+            id: requestId,
+            orderId,
+            orderItemIds: split.paidItems.map((item) => item.id),
+            requestedOrderItemIds: orderItemIds,
+            memberUid: claims.uid,
+            reason,
+            ...(verifiedRefundAccount && verifiedRefundAllocation
+              ? {
+                  targetPaymentId,
+                  targetPaymentRequestId: verifiedRefundAllocation.targetPaymentRequestId,
+                  refundRequestedAmountTwd: verifiedRefundAllocation.refundRequestedAmountTwd,
+                  refundItemAllocations: verifiedRefundAllocation.refundItemAllocations,
+                  refundBankCode: verifiedRefundAccount.bankCode,
+                  refundAccountLast5: verifiedRefundAccount.accountNumberLast5,
+                }
+              : {}),
+            createdAt: timestamp,
+            createdBy: claims.uid,
+          })
+        : null;
+      const requestedItems = paidCancellationRequest
+        ? markCancellationRequested(directCancellation?.items ?? allItems, paidCancellationRequest, {
+            updatedAt: timestamp,
+            updatedBy: claims.uid,
+          })
+        : directCancellation?.items ?? allItems;
 
-      const cancellationRequest = createCancellationRequest({
-        id: requestId,
-        orderId,
-        orderItemIds,
-        memberUid: claims.uid,
-        reason,
-        createdAt: timestamp,
-        createdBy: claims.uid,
-      });
-      const requestedItems = markCancellationRequested(selectedItems, cancellationRequest, {
-        updatedAt: timestamp,
-        updatedBy: claims.uid,
-      });
-
-      transaction.set(requestRef, {
-        ...cancellationRequest,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      for (const snapshot of itemSnapshots) {
+      if (paidCancellationRequest) {
+        if (!verifiedRefundAccount || !reservationToRelease) {
+          throw new Error("refund_account_state_changed");
+        }
+        transaction.set(requestRef, {
+          ...paidCancellationRequest,
+          ...verifiedRefundAccount.encrypted,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        transaction.delete(db.collection("auditLogs").doc(reservationToRelease.reservationId));
+      }
+      for (const snapshot of allItemsSnapshot.docs) {
         const nextItem = requestedItems.find((item) => item.id === snapshot.id);
+        if (!nextItem || nextItem.status === (snapshot.data() as OrderItemRecord).status) {
+          continue;
+        }
         transaction.update(snapshot.ref, {
-          status: nextItem?.status ?? "cancelRequested",
+          status: nextItem.status,
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: claims.uid,
         });
+      }
+      if (directCancellation) {
+        transaction.update(orderRef, {
+          status: directCancellation.order.status,
+          totalTwd: directCancellation.order.totalTwd,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: claims.uid,
+        });
+        for (const paymentSnapshot of paymentRequestsSnapshot.docs) {
+          const nextPaymentRequest = directCancellation.paymentRequests.find(
+            (paymentRequest) => paymentRequest.id === paymentSnapshot.id,
+          );
+          transaction.update(paymentSnapshot.ref, {
+            amountTwd: nextPaymentRequest?.amountTwd ?? paymentSnapshot.data().amountTwd,
+            status: nextPaymentRequest?.status ?? paymentSnapshot.data().status,
+            updatedAt: FieldValue.serverTimestamp(),
+            updatedBy: claims.uid,
+          });
+        }
       }
       transaction.set(db.collection("auditLogs").doc(`audit_${requestId}`), {
         id: `audit_${requestId}`,
@@ -108,26 +371,235 @@ export async function POST(request: Request) {
         actorUid: claims.uid,
         targetType: "order",
         targetId: orderId,
-        reason: `cancellation requested: ${reason}`,
+        reason: paidCancellationRequest
+          ? `cancellation requested: ${reason}`
+          : `direct cancellation: ${reason}`,
         createdAt: FieldValue.serverTimestamp(),
       });
 
-      return { requestId, alreadyExists: false };
+      return {
+        requestId: paidCancellationRequest?.id ?? null,
+        directlyCancelledItemIds: split.unpaidItems.map((item) => item.id),
+        pendingReviewItemIds: split.paidItems.map((item) => item.id),
+        alreadyExists: false,
+      };
     });
 
+    if ("error" in result) {
+      throw new Error(String(result.error));
+    }
+    reservationToRelease = undefined;
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    if (reservationToRelease) {
+      await releaseRefundVerificationReservation(reservationToRelease).catch(() => undefined);
+      reservationToRelease = undefined;
+    }
     const message = error instanceof Error ? error.message : "unknown_error";
     const status =
       message === "missing_token"
         ? 401
         : message === "forbidden"
           ? 403
+          : message === "refund_account_rate_limited"
+            ? 429
           : message.endsWith("_not_found")
             ? 404
-            : message === "invalid_items" || message === "duplicate_pending_request"
-              ? 400
+            : message === "duplicate_pending_request"
+              ? 409
+              : message === "idempotency_conflict"
+                ? 409
+              : message === "refund_account_state_changed"
+                ? 409
+              : message === "invalid_items"
+                || message === "refund_account_required"
+                || message === "refund_account_mismatch"
+                || message === "refund_account_reverification_required"
+                || message === "refund_payment_allocation_exceeded"
+                || message === "invalid_bank_code"
+                || message === "invalid_account_number"
+                ? 400
               : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
+  }
+}
+
+function getRequestIp(request: Request) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || request.headers.get("x-real-ip")?.trim()
+    || "unknown";
+}
+
+function sameIds(left: readonly string[], right: readonly string[]) {
+  return left.length === right.length
+    && new Set(left).size === left.length
+    && left.every((id) => right.includes(id));
+}
+
+async function readCancellationVerificationPreflight(input: {
+  db: FirebaseFirestore.Firestore;
+  requestId: string;
+  memberUid: string;
+  orderId: string;
+  orderItemIds: string[];
+  reason: string;
+  targetPaymentId: string;
+  refundBankCodeInput: unknown;
+  refundAccountNumberInput: unknown;
+}): Promise<
+  | { kind: "none" }
+  | { kind: "replay" }
+  | {
+      kind: "verify";
+      refundBankCode: string;
+      refundAccountNumberFull: string;
+      payment: LocalPayment;
+    }
+> {
+  return input.db.runTransaction(async (transaction) => {
+    const requestRef = input.db.collection("cancellationRequests").doc(input.requestId);
+    const existingSnapshot = await transaction.get(requestRef);
+    if (existingSnapshot.exists) {
+      const existing = existingSnapshot.data() as CancellationRequestRecord;
+      const normalized = validateIdempotentCancellationRequest({
+        existing,
+        memberUid: input.memberUid,
+        orderId: input.orderId,
+        orderItemIds: input.orderItemIds,
+        reason: input.reason,
+        targetPaymentId: input.targetPaymentId,
+        refundBankCodeInput: input.refundBankCodeInput,
+        refundAccountNumberInput: input.refundAccountNumberInput,
+      });
+      if (existing.refundAccountCiphertext || existing.status !== "pending") {
+        return { kind: "replay" };
+      }
+      const paymentSnapshot = await transaction.get(
+        input.db.collection("payments").doc(input.targetPaymentId),
+      );
+      if (!paymentSnapshot.exists) {
+        throw new Error("payment_not_found");
+      }
+      const payment = paymentSnapshot.data() as LocalPayment;
+      const paymentRequestSnapshot = await transaction.get(
+        input.db.collection("paymentRequests").doc(payment.paymentRequestId),
+      );
+      if (!paymentRequestSnapshot.exists) {
+        throw new Error("payment_request_not_found");
+      }
+      const paymentRequest = paymentRequestSnapshot.data() as LocalPaymentRequest;
+      if (
+        payment.memberUid !== input.memberUid
+        || payment.status !== "confirmed"
+        || paymentRequest.memberUid !== input.memberUid
+        || paymentRequest.orderId !== input.orderId
+      ) {
+        throw new Error("forbidden");
+      }
+      return { kind: "verify", ...normalized, payment };
+    }
+
+    const orderSnapshot = await transaction.get(
+      input.db.collection("orders").doc(input.orderId),
+    );
+    if (!orderSnapshot.exists) {
+      throw new Error("order_not_found");
+    }
+    const order = orderSnapshot.data() as OrderRecord;
+    if (order.memberUid !== input.memberUid) {
+      throw new Error("forbidden");
+    }
+    const itemsSnapshot = await transaction.get(
+      input.db.collection("orderItems").where("orderId", "==", input.orderId),
+    );
+    const allItems = itemsSnapshot.docs.map((snapshot) => snapshot.data() as OrderItemRecord);
+    const selectedItems = allItems.filter((item) => input.orderItemIds.includes(item.id));
+    if (selectedItems.length !== input.orderItemIds.length) {
+      throw new Error("item_not_found");
+    }
+    if (selectedItems.some((item) => item.orderId !== input.orderId || item.memberUid !== input.memberUid)) {
+      throw new Error("invalid_items");
+    }
+    if (splitCancellationItems(allItems, input.orderItemIds).paidItems.length === 0) {
+      return { kind: "none" };
+    }
+    if (
+      !input.targetPaymentId
+      || input.refundBankCodeInput === undefined
+      || input.refundAccountNumberInput === undefined
+    ) {
+      throw new Error("refund_account_required");
+    }
+    const refundBankCode = normalizeBankCode(input.refundBankCodeInput);
+    const refundAccountNumberFull = normalizeAccountNumber(input.refundAccountNumberInput);
+    const paymentSnapshot = await transaction.get(
+      input.db.collection("payments").doc(input.targetPaymentId),
+    );
+    if (!paymentSnapshot.exists) {
+      throw new Error("payment_not_found");
+    }
+    const payment = paymentSnapshot.data() as LocalPayment;
+    const paymentRequestSnapshot = await transaction.get(
+      input.db.collection("paymentRequests").doc(payment.paymentRequestId),
+    );
+    if (!paymentRequestSnapshot.exists) {
+      throw new Error("payment_request_not_found");
+    }
+    const paymentRequest = paymentRequestSnapshot.data() as LocalPaymentRequest;
+    if (
+      payment.memberUid !== input.memberUid
+      || payment.status !== "confirmed"
+      || paymentRequest.memberUid !== input.memberUid
+      || paymentRequest.orderId !== input.orderId
+    ) {
+      throw new Error("forbidden");
+    }
+    return { kind: "verify", refundBankCode, refundAccountNumberFull, payment };
+  });
+}
+
+function validateIdempotentCancellationRequest(input: {
+  existing: CancellationRequestRecord;
+  memberUid: string;
+  orderId: string;
+  orderItemIds: string[];
+  reason: string;
+  targetPaymentId: string;
+  refundBankCodeInput: unknown;
+  refundAccountNumberInput: unknown;
+}) {
+  if (
+    input.existing.memberUid !== input.memberUid
+    || input.existing.orderId !== input.orderId
+    || input.existing.targetPaymentId !== input.targetPaymentId
+    || input.existing.reason !== input.reason
+    || input.refundBankCodeInput === undefined
+    || input.refundAccountNumberInput === undefined
+  ) {
+    throw new Error("idempotency_conflict");
+  }
+  if (
+    !input.existing.requestedOrderItemIds
+    || !sameIds(input.existing.requestedOrderItemIds, input.orderItemIds)
+  ) {
+    // Pre-fix records did not retain the complete immutable selection. Never
+    // infer it from the paid review scope or mutable order-item state.
+    throw new Error("idempotency_conflict");
+  }
+  try {
+    const refundBankCode = normalizeBankCode(input.refundBankCodeInput);
+    const refundAccountNumberFull = normalizeAccountNumber(input.refundAccountNumberInput);
+    if (
+      input.existing.refundBankCode !== refundBankCode
+      || input.existing.refundAccountLast5 !== refundAccountNumberFull.slice(-5)
+    ) {
+      throw new Error("idempotency_conflict");
+    }
+    return { refundBankCode, refundAccountNumberFull };
+  } catch {
+    throw new Error("idempotency_conflict");
   }
 }

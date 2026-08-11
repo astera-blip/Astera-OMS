@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
-import { applyCancellationReview, reviewCancellationRequest } from "@/lib/order/cancellation";
+import {
+  applyCancellationReview,
+  reviewCancellationRequest,
+  type CancellationRequestRecord,
+} from "@/lib/order/cancellation";
 import type { OrderItemRecord, OrderRecord } from "@/lib/order/checkout";
 import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import { deletedRefundVaultFields } from "@/lib/payment/refundAccountVault";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -17,13 +22,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = (await request.json()) as {
       status?: "approved" | "rejected";
       reviewNote?: string;
+      refundAmountTwd?: number;
+      refundCompletedAt?: string;
+      refundReference?: string;
     };
 
     const reviewStatus = body.status;
     const reviewNote = body.reviewNote?.trim() ?? "";
+    const refundAmountTwd = body.refundAmountTwd;
+    const refundCompletedAt = body.refundCompletedAt?.trim() ?? "";
+    const refundReference = body.refundReference?.trim() ?? "";
 
     if (!reviewStatus || !reviewNote) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+    if (
+      reviewStatus === "approved"
+      && (
+        typeof refundAmountTwd !== "number"
+        || !Number.isInteger(refundAmountTwd)
+        || refundAmountTwd <= 0
+        || !refundCompletedAt
+        || !refundReference
+      )
+    ) {
+      return NextResponse.json({ error: "missing_refund_metadata" }, { status: 400 });
     }
 
     const db = getAdminFirestore();
@@ -45,12 +68,28 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         reviewedBy: claims.uid,
         reviewNote,
       });
+      const reviewedWithRefundMetadata = {
+        ...reviewed,
+        ...(reviewStatus === "approved"
+          ? {
+              refundAmountTwd,
+              refundCompletedAt,
+              refundReference,
+            }
+          : {}),
+      };
 
       const orderRef = db.collection("orders").doc(reviewed.orderId);
-      const [orderSnapshot, itemsSnapshot, paymentRequestsSnapshot] = await Promise.all([
+      const [
+        orderSnapshot,
+        itemsSnapshot,
+        paymentRequestsSnapshot,
+        relatedRequestsSnapshot,
+      ] = await Promise.all([
         transaction.get(orderRef),
         transaction.get(db.collection("orderItems").where("orderId", "==", reviewed.orderId)),
         transaction.get(db.collection("paymentRequests").where("orderId", "==", reviewed.orderId)),
+        transaction.get(db.collection("cancellationRequests").where("orderId", "==", reviewed.orderId)),
       ]);
       if (!orderSnapshot.exists) {
         throw new Error("order_not_found");
@@ -64,9 +103,37 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         status: reviewStatus,
         updatedAt: new Date().toISOString(),
         updatedBy: claims.uid,
+        ...(typeof refundAmountTwd === "number" ? { refundAmountTwd } : {}),
+        ...(refundCompletedAt ? { refundCompletedAt } : {}),
+        ...(refundReference ? { refundReference } : {}),
+        relatedRequests: relatedRequestsSnapshot.docs.map(
+          (snapshot) => snapshot.data() as CancellationRequestRecord,
+        ),
       });
 
-      transaction.set(requestRef, reviewed);
+      const refundVaultDeletes = reviewedBundle.order.status === "refunded"
+        ? deletedRefundVaultFields()
+        : undefined;
+      transaction.update(requestRef, {
+        ...reviewedWithRefundMetadata,
+        ...refundVaultDeletes,
+      });
+      if (refundVaultDeletes) {
+        for (const relatedSnapshot of relatedRequestsSnapshot.docs) {
+          if (relatedSnapshot.id === id) {
+            continue;
+          }
+          const related = relatedSnapshot.data() as CancellationRequestRecord;
+          if (
+            related.refundAccountCiphertext === undefined
+            && related.refundEncryptionKeyVersion === undefined
+            && related.refundAccountExpiresAt === undefined
+          ) {
+            continue;
+          }
+          transaction.update(relatedSnapshot.ref, refundVaultDeletes);
+        }
+      }
       for (const snapshot of itemsSnapshot.docs) {
         const item = snapshot.data() as OrderItemRecord;
         if (!targetItemIds.has(snapshot.id)) {
@@ -98,6 +165,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           updatedBy: claims.uid,
         });
       }
+      if (reviewedBundle.adjustment) {
+        transaction.set(db.collection("paymentAllocations").doc(reviewedBundle.adjustment.id), {
+          ...reviewedBundle.adjustment,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       transaction.set(db.collection("auditLogs").doc(`audit_${reviewed.id}_${reviewStatus}`), {
         id: `audit_${reviewed.id}_${reviewStatus}`,
@@ -108,6 +181,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         reason: reviewNote,
         createdAt: FieldValue.serverTimestamp(),
       });
+      if (reviewedBundle.auditLog) {
+        transaction.set(db.collection("auditLogs").doc(reviewedBundle.auditLog.id), {
+          ...reviewedBundle.auditLog,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       return {
         status: reviewed.status,
@@ -124,9 +203,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         ? 401
         : message === "not_found" || message === "order_not_found"
           ? 404
-          : message === "already_reviewed" || message === "invalid_items"
-            ? 400
+          : message === "already_reviewed"
+            ? 409
+            : message === "invalid_items"
+              ? 400
             : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: status === 500 ? "internal_error" : message },
+      { status },
+    );
   }
 }

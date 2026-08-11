@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { validateMemberProfileDraft } from "../../src/lib/member/profile";
 
@@ -56,5 +57,32 @@ describe("validateMemberProfileDraft", () => {
         birthday: "請輸入有效日期。",
       },
     });
+  });
+});
+
+describe("member profile persistence diagnostics", () => {
+  it("records a safe server diagnostic when profile persistence fails", () => {
+    const routeSource = readFileSync("src/app/api/member/profile/route.ts", "utf8");
+
+    expect(routeSource).toContain('console.error("member_profile_save_failed", { message })');
+  });
+
+  it("preserves the original storefront route through profile completion", () => {
+    const authSource = readFileSync("src/components/auth/AuthProvider.tsx", "utf8");
+    const pageSource = readFileSync("src/app/account/profile/page.tsx", "utf8");
+    expect(authSource).toContain("returnTo");
+    expect(pageSource).toContain("useSearchParams");
+    expect(pageSource).toContain("router.replace(returnTo)");
+  });
+
+  it("does not redirect to profile completion when profile loading failed", () => {
+    const authSource = readFileSync("src/components/auth/AuthProvider.tsx", "utf8");
+
+    expect(authSource).toMatch(
+      /const \{ status, profile, error \} = useAuth\(\)/,
+    );
+    expect(authSource).toMatch(
+      /status === "signedIn"\s*&&\s*!error\s*&&\s*!profile/,
+    );
   });
 });

@@ -1,13 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --astera-page: #F7F3F2;
+  --astera-surface: #FFFFFF;
+  --astera-ink: #20242B;
+  --astera-border: #DED7D6;
+  --astera-secondary: #6C6B70;
+  --astera-brand: #6E4E64;
+  --astera-brand-soft: #E7DDDF;
+  --astera-service: #466060;
+  --astera-campaign: #F8C7CC;
+  --astera-catalog: #81A684;
+  --background: var(--astera-page);
+  --foreground: var(--astera-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-astera-page: var(--astera-page);
+  --color-astera-surface: var(--astera-surface);
+  --color-astera-ink: var(--astera-ink);
+  --color-astera-border: var(--astera-border);
+  --color-astera-secondary: var(--astera-secondary);
+  --color-astera-brand: var(--astera-brand);
+  --color-astera-brand-soft: var(--astera-brand-soft);
+  --color-astera-service: var(--astera-service);
+  --color-astera-campaign: var(--astera-campaign);
+  --color-astera-catalog: var(--astera-catalog);
   --font-sans: "Segoe UI", Arial, Helvetica, sans-serif;
   --font-mono: "Cascadia Mono", "Courier New", Courier, monospace;
 }
@@ -26,4 +46,131 @@ body {
   color: var(--foreground);
   font-family: "Segoe UI", Arial, Helvetica, sans-serif;
   margin: 0;
+}
+
+.font-serif {
+  font-family: Georgia, "Times New Roman", "Noto Serif TC", serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:where(a, button) {
+  touch-action: manipulation;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--astera-brand);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.75rem;
+  background: var(--astera-ink);
+  color: white;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+}
+
+/*
+ * Legacy utility compatibility layer. Existing screens keep their component
+ * structure while rendering through the approved Astera visual system. New
+ * components should use the `astera-*` tokens directly.
+ */
+[class~="min-h-screen"] {
+  min-height: 100dvh !important;
+}
+
+[class~="bg-slate-50"] {
+  background-color: var(--astera-page) !important;
+}
+
+[class~="bg-slate-100"],
+[class~="bg-slate-200"] {
+  background-color: var(--astera-brand-soft) !important;
+}
+
+[class~="bg-slate-950"] {
+  background-color: var(--astera-ink) !important;
+}
+
+[class~="bg-white"] {
+  background-color: var(--astera-surface) !important;
+}
+
+[class~="text-slate-950"],
+[class~="text-slate-900"],
+[class~="text-slate-800"],
+[class~="text-slate-700"] {
+  color: var(--astera-ink) !important;
+}
+
+[class~="text-slate-600"],
+[class~="text-slate-500"],
+[class~="text-slate-400"] {
+  color: var(--astera-secondary) !important;
+}
+
+[class~="text-slate-50"],
+[class~="text-slate-100"],
+[class~="text-slate-200"] {
+  color: var(--astera-surface) !important;
+}
+
+[class~="border-slate-200"],
+[class~="border-slate-300"] {
+  border-color: var(--astera-border) !important;
+}
+
+[class~="border-slate-800"],
+[class~="border-slate-700"] {
+  border-color: color-mix(in srgb, var(--astera-surface) 24%, transparent) !important;
+}
+
+[class~="bg-amber-50"],
+[class~="bg-amber-100"] {
+  background-color: var(--astera-brand-soft) !important;
+}
+
+[class~="bg-amber-400"] {
+  background-color: var(--astera-brand) !important;
+}
+
+[class~="text-amber-700"],
+[class~="text-amber-600"],
+[class~="text-amber-500"] {
+  color: var(--astera-brand) !important;
+}
+
+[class~="text-amber-900"],
+[class~="text-amber-950"] {
+  color: var(--astera-ink) !important;
+}
+
+[class~="text-amber-300"] {
+  color: var(--astera-campaign) !important;
+}
+
+[class~="border-amber-200"],
+[class~="border-amber-300"] {
+  border-color: var(--astera-brand) !important;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

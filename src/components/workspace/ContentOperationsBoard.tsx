@@ -14,12 +14,11 @@ import {
   type BrandFaq,
   type SiteSettings,
 } from "@/lib/content/brandContent";
-import { saveBrandContent } from "@/lib/content/repository";
 
 const channelKeys: BrandChannelKey[] = ["lineCommunity", "lineOfficial", "instagram"];
 
 export function ContentOperationsBoard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [content, setContent] = useState<BrandContentBundle>(emptyBrandContent);
   const [message, setMessage] = useState("品牌內容載入中。");
 
@@ -62,16 +61,36 @@ export function ContentOperationsBoard() {
     }
 
     try {
-      const { db } = await import("@/lib/firebase/client");
-      await saveBrandContent(db, {
-        siteSettings: {
-          ...content.siteSettings,
-          updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+
+      if (!token) {
+        setMessage("請重新登入後再儲存。");
+        return;
+      }
+
+      const response = await fetch("/api/workspace/content", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        channels: content.channels,
-        faqs: content.faqs,
-        announcements: content.announcements,
+        body: JSON.stringify({
+          content: {
+            siteSettings: {
+              ...content.siteSettings,
+              updatedAt: new Date().toISOString(),
+            },
+            channels: content.channels,
+            faqs: content.faqs,
+            announcements: content.announcements,
+          },
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("save_content_failed");
+      }
+
       setMessage("已儲存品牌內容。");
     } catch {
       setMessage("儲存品牌內容失敗。");
@@ -92,7 +111,9 @@ export function ContentOperationsBoard() {
   return (
     <section className="grid gap-5">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">Content</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+          Content（內容）
+        </p>
         <h2 className="mt-2 text-2xl font-semibold">品牌與公告內容</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           管理前台品牌頁與 Footer 會讀取的 siteSettings、社群入口、FAQ 與公告。

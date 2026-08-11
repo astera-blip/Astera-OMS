@@ -58,9 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     let unsubscribe = () => {};
+    let redirectResultError: string | null = null;
 
     async function subscribe() {
-      const [{ auth }, { onAuthStateChanged }] = await Promise.all([
+      const [{ auth }, { getRedirectResult, onAuthStateChanged }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("firebase/auth"),
       ]);
@@ -69,12 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      await getRedirectResult(auth).catch((error: unknown) => {
+        if (active) {
+          redirectResultError = getGoogleSignInErrorMessage(error);
+          setError(redirectResultError);
+        }
+      });
+
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (!active) {
           return;
         }
 
-        setError(null);
+        if (!redirectResultError) {
+          setError(null);
+        } else if (currentUser) {
+          setError(null);
+        }
         setUser(currentUser);
 
         if (!currentUser) {
@@ -121,16 +133,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     setError(null);
-    const [{ auth }, { GoogleAuthProvider, signInWithPopup }] =
-      await Promise.all([
-        import("@/lib/firebase/client"),
-        import("firebase/auth"),
-      ]);
-
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch {
-      setError("Google 登入未完成，請再試一次。");
+      const [{ auth }, { GoogleAuthProvider, signInWithRedirect }] =
+        await Promise.all([
+          import("@/lib/firebase/client"),
+          import("firebase/auth"),
+        ]);
+      const provider = new GoogleAuthProvider();
+
+      await signInWithRedirect(auth, provider);
+    } catch (error) {
+      setError(getGoogleSignInErrorMessage(error));
     }
   }, []);
 
@@ -174,19 +187,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 function ProfileCompletionGuard({ children }: { children: ReactNode }) {
-  const { status, profile } = useAuth();
+  const { status, profile, error } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const canPreviewWithoutProfile = pathname === "/account/profile" || pathname === "/ux-acceptance";
 
   useEffect(() => {
     if (
       status === "signedIn" &&
+      !error &&
       !profile &&
-      pathname !== "/account/profile"
+      !canPreviewWithoutProfile
     ) {
-      router.replace("/account/profile");
+      const returnTo = pathname.startsWith("/") ? pathname : "/";
+      router.replace(`/account/profile?returnTo=${encodeURIComponent(returnTo)}`);
     }
-  }, [pathname, profile, router, status]);
+  }, [canPreviewWithoutProfile, error, pathname, profile, router, status]);
 
   return children;
 }
@@ -199,4 +215,31 @@ export function useAuth() {
   }
 
   return context;
+}
+
+function isFirebaseError(error: unknown): error is { code: string } {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof (error as { code?: unknown }).code === "string";
+}
+
+function getGoogleSignInErrorMessage(error: unknown) {
+  if (!isFirebaseError(error)) {
+    return "Google 登入未完成，請再試一次。";
+  }
+
+  if (error.code === "auth/unauthorized-domain") {
+    return "這個網址尚未允許 Google 登入，請改用正式測試網址或請管理員加入 Firebase 授權網域。";
+  }
+
+  if (error.code === "auth/popup-blocked") {
+    return "瀏覽器封鎖了 Google 登入視窗，請允許彈出視窗或改用重新導向登入。";
+  }
+
+  if (error.code === "auth/popup-closed-by-user") {
+    return "Google 登入視窗已關閉，請重新點選登入。";
+  }
+
+  return `Google 登入未完成（${error.code}），請再試一次。`;
 }

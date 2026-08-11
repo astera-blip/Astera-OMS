@@ -43,12 +43,12 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(db, "members/example")));
   });
 
-  it("allows a member to create and read their own valid profile", async () => {
+  it("denies client profile writes but allows members to read their own seeded profile", async () => {
     const db = testEnv
       .authenticatedContext("member-a", { email: "member@example.com" })
       .firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(db, "members/member-a"), {
         uid: "member-a",
         email: "member@example.com",
@@ -60,6 +60,19 @@ describe("Day 1 Firestore rules", () => {
         updatedAt: serverTimestamp(),
       }),
     );
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "members/member-a"), {
+        uid: "member-a",
+        email: "member@example.com",
+        displayName: "Example Member",
+        communityId: "example-01",
+        mobilePhone: "0912345678",
+        completedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
 
     await assertSucceeds(getDoc(doc(db, "members/member-a")));
   });
@@ -128,76 +141,71 @@ describe("Day 1 Firestore rules", () => {
     );
   });
 
-  it("persists a normalized profile through the member repository", async () => {
+  it("denies member profile writes through the Client SDK repository path", async () => {
     const db = testEnv
       .authenticatedContext("member-a", { email: "member@example.com" })
       .firestore();
 
-    const result = await saveMemberProfile(
-      db as unknown as Firestore,
-      { uid: "member-a", email: "member@example.com" },
-      {
-        displayName: "  Example Member  ",
-        communityId: "  example-01  ",
-        mobilePhone: "+886 912-345-678",
-        birthday: "",
-      },
-    );
+    await expect(
+      saveMemberProfile(
+        db as unknown as Firestore,
+        { uid: "member-a", email: "member@example.com" },
+        {
+          displayName: "  Example Member  ",
+          communityId: "  example-01  ",
+          mobilePhone: "+886 912-345-678",
+          birthday: "",
+        },
+      ),
+    ).rejects.toThrow();
 
     const snapshot = await getDoc(doc(db, "members/member-a"));
 
-    expect(result).toEqual({ ok: true });
-    expect(snapshot.data()).toMatchObject({
-      uid: "member-a",
-      email: "member@example.com",
-      displayName: "Example Member",
-      communityId: "example-01",
-      mobilePhone: "0912345678",
-    });
-    expect(snapshot.data()).not.toHaveProperty("birthday");
+    expect(snapshot.exists()).toBe(false);
   });
 
-  it("updates only editable profile fields through the member repository", async () => {
+  it("denies profile updates through the Client SDK repository path", async () => {
     const db = testEnv
       .authenticatedContext("member-a", { email: "member@example.com" })
       .firestore();
     const firestore = db as unknown as Firestore;
 
-    await saveMemberProfile(
-      firestore,
-      { uid: "member-a", email: "member@example.com" },
-      {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "members/member-a"), {
+        uid: "member-a",
+        email: "member@example.com",
         displayName: "Original Name",
         communityId: "original-id",
         mobilePhone: "0912345678",
-        birthday: "",
-      },
-    );
-    const before = await getDoc(doc(db, "members/member-a"));
+        completedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
 
-    const result = await saveMemberProfile(
-      firestore,
-      { uid: "member-a", email: "member@example.com" },
-      {
-        displayName: "Updated Name",
-        communityId: "updated-id",
-        mobilePhone: "0987654321",
-        birthday: "1995-09-20",
-      },
-    );
+    await expect(
+      saveMemberProfile(
+        firestore,
+        { uid: "member-a", email: "member@example.com" },
+        {
+          displayName: "Updated Name",
+          communityId: "updated-id",
+          mobilePhone: "0987654321",
+          birthday: "1995-09-20",
+        },
+      ),
+    ).rejects.toThrow();
+
     const after = await getDoc(doc(db, "members/member-a"));
 
-    expect(result).toEqual({ ok: true });
     expect(after.data()).toMatchObject({
       uid: "member-a",
       email: "member@example.com",
-      displayName: "Updated Name",
-      communityId: "updated-id",
-      mobilePhone: "0987654321",
-      birthday: "1995-09-20",
+      displayName: "Original Name",
+      communityId: "original-id",
+      mobilePhone: "0912345678",
     });
-    expect(after.data()?.createdAt).toEqual(before.data()?.createdAt);
-    expect(after.data()?.completedAt).toEqual(before.data()?.completedAt);
+    expect(after.data()).not.toHaveProperty("birthday");
   });
 
   it("allows owner reads but denies helper access to another member", async () => {
@@ -218,7 +226,7 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(helperDb, "members/member-a")));
   });
 
-  it("requires a custom claim for owner-only reads", async () => {
+  it("keeps audit logs behind the custom-claim protected Server API", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "auditLogs/audit-bootstrap"), {
         id: "audit-bootstrap",
@@ -232,8 +240,53 @@ describe("Day 1 Firestore rules", () => {
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a", { email: "astera.0920@gmail.com" }).firestore();
 
-    await assertSucceeds(getDoc(doc(ownerDb, "auditLogs/audit-bootstrap")));
+    await assertFails(getDoc(doc(ownerDb, "auditLogs/audit-bootstrap")));
     await assertFails(getDoc(doc(memberDb, "auditLogs/audit-bootstrap")));
+  });
+
+  it("denies the full Client SDK role by read/write matrix for protected refund collections", async () => {
+    const collections = [
+      "cancellationRequests",
+      "memberPaymentAccounts",
+      "notificationEvents",
+      "auditLogs",
+    ] as const;
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      for (const collectionName of collections) {
+        await setDoc(doc(context.firestore(), `${collectionName}/matrix-seeded`), {
+          id: "matrix-seeded",
+          memberUid: "member-a",
+          status: "pending",
+        });
+      }
+      await setDoc(doc(context.firestore(), "productsPublic/matrix-published"), {
+        id: "matrix-published",
+        publishState: "published",
+      });
+    });
+
+    const contexts = [
+      { label: "anonymous", db: testEnv.unauthenticatedContext().firestore() },
+      { label: "member", db: testEnv.authenticatedContext("member-a").firestore() },
+      {
+        label: "helper",
+        db: testEnv.authenticatedContext("helper-a", { role: "helper" }).firestore(),
+      },
+      {
+        label: "owner",
+        db: testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore(),
+      },
+    ];
+
+    for (const { label, db } of contexts) {
+      for (const collectionName of collections) {
+        await assertFails(getDoc(doc(db, `${collectionName}/matrix-seeded`)));
+        await assertFails(setDoc(doc(db, `${collectionName}/matrix-${label}`), {
+          id: `matrix-${label}`,
+        }));
+      }
+      await assertSucceeds(getDoc(doc(db, "productsPublic/matrix-published")));
+    }
   });
 
   it("allows public reads of published product projections but denies internal product reads", async () => {
@@ -254,13 +307,13 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(db, "productsInternal/prod_001")));
   });
 
-  it("allows owner product writes and denies member product writes", async () => {
+  it("denies all client product projection writes, including owner clients", async () => {
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "productsPublic/prod_001"), {
         id: "prod_001",
         name: "Published Product",
@@ -315,19 +368,19 @@ describe("Day 1 Firestore rules", () => {
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
 
-    await assertSucceeds(getDoc(doc(publicDb, "productVariants/var_001")));
-    await assertSucceeds(getDoc(doc(publicDb, "saleCampaigns/camp_001")));
+    await assertFails(getDoc(doc(publicDb, "productVariants/var_001")));
+    await assertFails(getDoc(doc(publicDb, "saleCampaigns/camp_001")));
     await assertFails(getDoc(doc(memberDb, "productsInternal/prod_001")));
     await assertSucceeds(getDoc(doc(ownerDb, "productsInternal/prod_001")));
   });
 
-  it("allows only owners to create product variants and sale campaigns", async () => {
+  it("denies all client writes to product variants and sale campaigns", async () => {
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "productVariants/var_001"), {
         id: "var_001",
         productId: "prod_001",
@@ -339,7 +392,7 @@ describe("Day 1 Firestore rules", () => {
         updatedAt: serverTimestamp(),
       }),
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "saleCampaigns/camp_001"), {
         id: "camp_001",
         productId: "prod_001",
@@ -365,13 +418,13 @@ describe("Day 1 Firestore rules", () => {
     );
   });
 
-  it("allows owners to manage catalog classification masters but denies member writes", async () => {
+  it("denies all client writes to catalog classification masters", async () => {
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "catalogCompanies/company_001"), {
         id: "company_001",
         label: "Astera Goods",
@@ -390,13 +443,10 @@ describe("Day 1 Firestore rules", () => {
   });
 
   it("allows product projections to include public classifications", async () => {
-    const ownerDb = testEnv
-      .authenticatedContext("owner-a", { role: "owner" })
-      .firestore();
     const publicDb = testEnv.unauthenticatedContext().firestore();
 
-    await assertSucceeds(
-      setDoc(doc(ownerDb, "productsPublic/prod_003"), {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "productsPublic/prod_003"), {
         id: "prod_003",
         name: "應援手燈",
         publicDescription: "小圈測試商品",
@@ -408,38 +458,60 @@ describe("Day 1 Firestore rules", () => {
         variants: [],
         campaigns: [],
         updatedAt: serverTimestamp(),
-      }),
-    );
+      });
+    });
     await assertSucceeds(getDoc(doc(publicDb, "productsPublic/prod_003")));
   });
 
-  it("keeps notification events owner-only", async () => {
+  it("keeps notification events behind Owner Server APIs", async () => {
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "notificationEvents/notif_order_001"), {
         id: "notif_order_001",
         type: "order.created",
         channel: "email",
-        status: "recorded",
-        provider: "manual",
+        status: "pending",
+        provider: "resend",
         memberUid: "member-a",
+        recipientEmail: "member@example.com",
         orderId: "order_001",
+        orderNumber: "AST-20260727-0001",
         paymentRequestId: "pr_order_001",
+        attemptCount: 0,
         createdAt: serverTimestamp(),
       }),
     );
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "notificationEvents/notif_order_001"), {
+        id: "notif_order_001",
+        type: "order.created",
+        channel: "email",
+        status: "pending",
+        provider: "resend",
+        memberUid: "member-a",
+        recipientEmail: "member@example.com",
+        orderId: "order_001",
+        orderNumber: "AST-20260727-0001",
+        paymentRequestId: "pr_order_001",
+        attemptCount: 0,
+        createdAt: serverTimestamp(),
+      });
+    });
+
+    await assertFails(getDoc(doc(ownerDb, "notificationEvents/notif_order_001")));
     await assertFails(getDoc(doc(memberDb, "notificationEvents/notif_order_001")));
   });
 
-  it("allows members to read and write only their own cart", async () => {
+  it("denies client cart writes but allows members to read their own seeded cart", async () => {
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
     const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberDb, "carts/member-a"), {
         memberUid: "member-a",
         items: [
@@ -453,6 +525,21 @@ describe("Day 1 Firestore rules", () => {
         updatedAt: serverTimestamp(),
       }),
     );
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "carts/member-a"), {
+        memberUid: "member-a",
+        items: [
+          {
+            productId: "prod_001",
+            variantId: "var_001",
+            saleCampaignId: "camp_001",
+            quantity: 1,
+          },
+        ],
+        updatedAt: serverTimestamp(),
+      });
+    });
 
     await assertSucceeds(getDoc(doc(memberDb, "carts/member-a")));
     await assertFails(getDoc(doc(otherMemberDb, "carts/member-a")));
@@ -492,11 +579,11 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(otherMemberDb, "orderItems/item-a")));
   });
 
-  it("allows members to create their own orders but denies changing another member order", async () => {
+  it("denies client order creates because checkout must use the protected API", async () => {
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
     const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberDb, "orders/order-a"), {
         id: "order-a",
         memberUid: "member-a",
@@ -572,13 +659,14 @@ describe("Day 1 Firestore rules", () => {
         memberUid: "member-a",
         orderId: "order-extra",
         legalVersionIds: ["terms-v1"],
+        acceptedSupplementRule: true,
         acceptedAt: "2026-07-26T00:00:00.000Z",
         marketingOptIn: true,
       }),
     );
   });
 
-  it("allows member payment request reads but only owner payment writes and audit reads", async () => {
+  it("allows member payment request reads while denying client payment and audit writes", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "paymentRequests/pr-a"), {
         id: "pr-a",
@@ -595,6 +683,14 @@ describe("Day 1 Firestore rules", () => {
         actorUid: "owner-a",
         targetId: "pr-a",
       });
+      await setDoc(doc(context.firestore(), "paymentAccounts/account-a"), {
+        id: "account-a",
+        bankName: "測試銀行",
+        accountName: "Astera OMS",
+        accountNumberLast5: "12345",
+        currency: "TWD",
+        status: "active",
+      });
     });
 
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
@@ -606,14 +702,15 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(memberDb, "paymentRequests/pr-a")));
     await assertFails(getDoc(doc(otherMemberDb, "paymentRequests/pr-a")));
     await assertFails(getDoc(doc(memberDb, "auditLogs/audit-a")));
-    await assertSucceeds(getDoc(doc(ownerDb, "auditLogs/audit-a")));
-    await assertSucceeds(
+    await assertFails(getDoc(doc(ownerDb, "auditLogs/audit-a")));
+    await assertFails(
       setDoc(doc(ownerDb, "payments/pay-a"), {
         id: "pay-a",
         memberUid: "member-a",
         paymentRequestId: "pr-a",
         receivedAmountTwd: 880,
         receivedAt: "2026-07-26T00:00:00.000Z",
+        receivingPaymentAccountId: "account-a",
         status: "confirmed",
         createdAt: serverTimestamp(),
         createdBy: "owner-a",
@@ -626,6 +723,7 @@ describe("Day 1 Firestore rules", () => {
         paymentRequestId: "pr-a",
         receivedAmountTwd: 880,
         receivedAt: "2026-07-26T00:00:00.000Z",
+        receivingPaymentAccountId: "account-a",
         status: "confirmed",
         createdAt: serverTimestamp(),
         createdBy: "member-a",
@@ -640,6 +738,7 @@ describe("Day 1 Firestore rules", () => {
         memberUid: "member-a",
         orderId: "order-a",
         legalVersionIds: ["terms-v1"],
+        acceptedSupplementRule: true,
         acceptedAt: "2026-07-26T00:00:00.000Z",
       });
       await setDoc(doc(context.firestore(), "legalDocumentVersions/terms-v1"), {
@@ -661,14 +760,14 @@ describe("Day 1 Firestore rules", () => {
     await assertSucceeds(getDoc(doc(publicDb, "legalDocumentVersions/terms-v1")));
   });
 
-  it("allows public reads of brand content but only owners can write it", async () => {
+  it("allows public reads of brand content but denies all client writes", async () => {
     const publicDb = testEnv.unauthenticatedContext().firestore();
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "siteSettings/site-default"), {
         id: "site-default",
         brandName: "Astera OMS",
@@ -680,6 +779,7 @@ describe("Day 1 Firestore rules", () => {
         updatedAt: "2026-07-26T00:00:00.000Z",
       }),
     );
+
     await assertFails(
       setDoc(doc(memberDb, "siteSettings/site-default"), {
         id: "site-default",
@@ -694,6 +794,16 @@ describe("Day 1 Firestore rules", () => {
     );
 
     await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "siteSettings/site-default"), {
+        id: "site-default",
+        brandName: "Astera OMS",
+        heroTitle: "代購品牌中心",
+        heroDescription: "這裡集中放品牌入口、社群、客服與公告。",
+        contactEmail: "astera.0920@gmail.com",
+        supportHours: "平日晚上與週末為主",
+        shippingNote: "小圈測試先以賣貨便為主。",
+        updatedAt: "2026-07-26T00:00:00.000Z",
+      });
       await setDoc(doc(context.firestore(), "socialLinks/lineCommunity"), {
         key: "lineCommunity",
         title: "LINE 社群",
@@ -703,17 +813,21 @@ describe("Day 1 Firestore rules", () => {
       });
     });
 
+    await assertSucceeds(getDoc(doc(publicDb, "siteSettings/site-default")));
     await assertSucceeds(getDoc(doc(publicDb, "socialLinks/lineCommunity")));
   });
 
-  it("allows members to create their own cancellation request and denies others", async () => {
+  it("denies every Client SDK role access to cancellation requests that may contain ciphertext", async () => {
+    const anonymousDb = testEnv.unauthenticatedContext().firestore();
     const memberDb = testEnv.authenticatedContext("member-a").firestore();
-    const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
+    const helperDb = testEnv
+      .authenticatedContext("helper-a", { role: "helper" })
+      .firestore();
     const ownerDb = testEnv
       .authenticatedContext("owner-a", { role: "owner" })
       .firestore();
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(memberDb, "cancellationRequests/cancel-a"), {
         id: "cancel-a",
         orderId: "order-a",
@@ -725,8 +839,9 @@ describe("Day 1 Firestore rules", () => {
         createdBy: "member-a",
       }),
     );
+
     await assertFails(
-      setDoc(doc(otherMemberDb, "cancellationRequests/cancel-b"), {
+      setDoc(doc(helperDb, "cancellationRequests/cancel-b"), {
         id: "cancel-b",
         orderId: "order-a",
         orderItemIds: ["item-a"],
@@ -734,13 +849,40 @@ describe("Day 1 Firestore rules", () => {
         reason: "不需要了",
         status: "pending",
         createdAt: serverTimestamp(),
-        createdBy: "member-b",
+        createdBy: "helper-a",
       }),
     );
-    await assertSucceeds(getDoc(doc(ownerDb, "cancellationRequests/cancel-a")));
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "cancellationRequests/cancel-a"), {
+        id: "cancel-a",
+        orderId: "order-a",
+        orderItemIds: ["item-a"],
+        memberUid: "member-a",
+        reason: "不需要了",
+        status: "pending",
+        refundBankCode: "012",
+        refundAccountLast5: "56789",
+        refundAccountCiphertext: "kms-ciphertext",
+        refundEncryptionKeyVersion: 4,
+        refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+        createdAt: serverTimestamp(),
+        createdBy: "member-a",
+      });
+    });
+
+    await assertFails(getDoc(doc(anonymousDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(memberDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(helperDb, "cancellationRequests/cancel-a")));
+    await assertFails(getDoc(doc(ownerDb, "cancellationRequests/cancel-a")));
+    await assertFails(
+      setDoc(doc(ownerDb, "cancellationRequests/cancel-a"), {
+        status: "approved",
+      }, { merge: true }),
+    );
   });
 
-  it("keeps member private notes owner-only", async () => {
+  it("keeps member private notes owner-readable and denies client writes", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "memberPrivateNotes/member-a"), {
         uid: "member-a",
@@ -755,8 +897,9 @@ describe("Day 1 Firestore rules", () => {
       .firestore();
 
     await assertFails(getDoc(doc(memberDb, "memberPrivateNotes/member-a")));
+    await assertFails(getDoc(doc(memberDb, "memberPrivateNotes/member-b")));
     await assertSucceeds(getDoc(doc(ownerDb, "memberPrivateNotes/member-a")));
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(ownerDb, "memberPrivateNotes/member-a"), {
         uid: "member-a",
         riskState: "blacklisted",
@@ -764,5 +907,52 @@ describe("Day 1 Firestore rules", () => {
         updatedAt: serverTimestamp(),
       }),
     );
+  });
+
+  it("keeps receiving payment accounts behind the server API", async () => {
+    const memberDb = testEnv.authenticatedContext("member-a").firestore();
+    const ownerDb = testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "paymentAccounts/account-a"), {
+        id: "account-a",
+        bankName: "國泰世華銀行",
+        accountName: "Astera OMS",
+        accountNumberLast5: "12345",
+        currency: "TWD",
+        status: "active",
+      });
+    });
+
+    await assertFails(getDoc(doc(memberDb, "paymentAccounts/account-a")));
+    await assertFails(getDoc(doc(ownerDb, "paymentAccounts/account-a")));
+    await assertFails(setDoc(doc(memberDb, "paymentAccounts/account-b"), { status: "active" }));
+  });
+
+  it("keeps member source payment accounts behind the protected API", async () => {
+    const memberDb = testEnv.authenticatedContext("member-a").firestore();
+    const otherMemberDb = testEnv.authenticatedContext("member-b").firestore();
+    const ownerDb = testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "memberPaymentAccounts/member-account-a"), {
+        memberUid: "member-a",
+        bankCode: "012",
+        accountNumberLast5: "89012",
+        accountFingerprint: "rules-test-member-account-fingerprint",
+        fingerprintAlgorithm: "HMAC-SHA-256",
+        fingerprintKeyVersion: 7,
+        payerName: "規則測試匯款人",
+        status: "active",
+      });
+    });
+
+    await assertFails(getDoc(doc(memberDb, "memberPaymentAccounts/member-account-a")));
+    await assertFails(getDoc(doc(otherMemberDb, "memberPaymentAccounts/member-account-a")));
+    await assertFails(getDoc(doc(ownerDb, "memberPaymentAccounts/member-account-a")));
+    await assertFails(setDoc(doc(memberDb, "memberPaymentAccounts/member-account-b"), {
+      memberUid: "member-a",
+      payerName: "不可由 Client 寫入",
+    }));
   });
 });

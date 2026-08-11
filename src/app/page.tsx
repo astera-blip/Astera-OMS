@@ -1,158 +1,154 @@
 import Link from "next/link";
-import { AccountActions } from "@/components/auth/AccountActions";
 import { FeaturedProductsBoard } from "@/components/storefront/FeaturedProductsBoard";
 
-const highlights = [
+const shoppingSteps = [
   {
-    title: "熟客小圈測試",
-    description: "Google 登入、補資料、下單、付款確認、訂單追蹤。",
+    number: "01",
+    title: "使用 Google 登入",
+    detail: "首次登入先完成會員資料，之後即可加入商品並建立訂單。",
   },
   {
-    title: "清楚商品入口",
-    description: "公開商品、活動與規格分開，先看詳情再加入購物車。",
+    number: "02",
+    title: "確認活動與結單",
+    detail: "選擇商品規格，確認 Campaign、售價、結單時間與二補提醒。",
   },
   {
-    title: "人工營運流程",
-    description: "先保留手動匯款與 owner 確認機制，穩定後再逐步自動化。",
+    number: "03",
+    title: "完成銀行匯款",
+    detail: "下單後依付款請求匯款，再到付款頁選擇帳戶並送出回報。",
+  },
+  {
+    number: "04",
+    title: "等待確認與通知",
+    detail: "付款確認、二補與配送進度會依訂單狀態持續更新。",
   },
 ];
 
-const quickLinks = [
+const faqLinks = [
   {
-    href: "/products",
-    title: "商品列表",
-    detail: "查看已發布商品與活動。",
+    title: "如何完成付款？",
+    detail: "目前只支援銀行匯款；下單後請依付款請求完成匯款與回報。",
+    href: "/brand#faq",
   },
   {
-    href: "/brand",
-    title: "品牌中心",
-    detail: "社群入口、公告、客服與 FAQ。",
+    title: "什麼是二補？",
+    detail: "國際運費、匯率或官方配貨結果可能產生實際代購成本差額。",
+    href: "#supplement",
   },
   {
-    href: "/account/profile",
-    title: "會員資料",
-    detail: "補齊姓名、社群內 ID 與手機。",
-  },
-  {
-    href: "/workspace",
-    title: "Owner 後台",
-    detail: "商品、訂單、付款與內容管理。",
+    title: "需要協助時怎麼聯繫？",
+    detail: "可從品牌中心查看客服資訊；登入後也能從訂單頁確認處理進度。",
+    href: "/brand#faq",
   },
 ];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.24),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(15,23,42,0.12),_transparent_24%),linear-gradient(180deg,_#fffaf0_0%,_#f8fafc_45%,_#eef2ff_100%)] text-slate-900">
-      <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-6 sm:px-8 lg:px-10">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">
-              Astera OMS
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">
-              泰國 GL / 藝人周邊代購
+    <main className="min-h-dvh overflow-x-clip bg-astera-page text-astera-ink">
+      <section className="border-b border-astera-border">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-8 sm:py-20 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-end lg:px-10 lg:py-24">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold tracking-[0.24em] text-astera-brand">ASTERA SELECT</p>
+            <h1 className="mt-5 font-serif text-4xl leading-tight tracking-[-0.025em] sm:text-6xl">
+              泰國 GL／藝人周邊代購
             </h1>
+            <p className="mt-6 max-w-2xl text-base leading-8 text-astera-secondary sm:text-lg">
+              從官方周邊、限定活動到收藏商品，清楚整理每個 Campaign、售價與結單時間。
+              選好商品後使用 Google 登入，下單並以銀行匯款完成付款。
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="#featured-products"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-astera-brand px-6 text-sm font-semibold text-white transition-colors hover:bg-astera-ink"
+              >
+                立即看商品
+              </Link>
+              <Link
+                href="#shopping-guide"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-astera-border bg-astera-surface px-6 text-sm font-semibold text-astera-ink transition-colors hover:border-astera-brand hover:bg-astera-brand-soft"
+              >
+                了解購買流程
+              </Link>
+            </div>
           </div>
-          <AccountActions />
-        </header>
 
-        <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[1.35fr_0.85fr]">
-          <section className="flex flex-col gap-6">
-            <div className="rounded-[2rem] border border-amber-200 bg-white/90 p-7 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-              <p className="text-sm font-medium text-amber-700">Small-circle MVP</p>
-              <p className="mt-4 max-w-3xl text-2xl font-semibold leading-10 sm:text-4xl">
-                先讓熟客可以安全地下單、看訂單、追付款，之後才擴成完整營運系統。
-              </p>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
-                目前已支援 Google 登入、會員資料補齊、公開商品、購物車、訂單、付款請求、
-                owner 付款確認與 audit log。公開頁面現在以真實商品詳情與品牌入口為主。
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/products"
-                  className="inline-flex h-11 items-center rounded-full bg-slate-950 px-5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-                >
-                  立即看商品
-                </Link>
-                <Link
-                  href="/brand"
-                  className="inline-flex h-11 items-center rounded-full border border-slate-300 bg-white px-5 text-sm font-medium text-slate-900 transition-colors hover:border-slate-400 hover:bg-slate-50"
-                >
-                  品牌中心
-                </Link>
-              </div>
-            </div>
+          <div className="grid gap-3 border-l border-astera-border pl-5 sm:grid-cols-3 lg:grid-cols-1 lg:pl-8" aria-label="服務摘要">
+            <p className="border-b border-astera-border pb-3 text-sm leading-6 text-astera-secondary">
+              <span className="block font-semibold text-astera-ink">商品資訊</span>
+              公開售價、規格與活動集中呈現
+            </p>
+            <p className="border-b border-astera-border pb-3 text-sm leading-6 text-astera-secondary">
+              <span className="block font-semibold text-astera-ink">時間清楚</span>
+              結單日期與剩餘時間即時可見
+            </p>
+            <p className="pb-1 text-sm leading-6 text-astera-secondary">
+              <span className="block font-semibold text-astera-ink">銀行匯款</span>
+              回報後由 Astera 核對付款狀態
+            </p>
+          </div>
+        </div>
+      </section>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              {highlights.map((item) => (
-                <article
-                  key={item.title}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <h2 className="text-base font-semibold">{item.title}</h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
-                </article>
-              ))}
-            </div>
+      <section id="featured-products" className="scroll-mt-24">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8 sm:py-18 lg:px-10">
+          <FeaturedProductsBoard />
+        </div>
+      </section>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {quickLinks.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:border-slate-300"
-                >
-                  <p className="text-sm font-medium text-slate-500">{item.title}</p>
-                  <p className="mt-2 text-lg font-semibold text-slate-900">{item.detail}</p>
-                </Link>
-              ))}
-            </div>
+      <section id="shopping-guide" className="scroll-mt-24 border-y border-astera-border bg-astera-surface">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8 sm:py-18 lg:px-10">
+          <p className="text-xs font-semibold tracking-[0.2em] text-astera-service">SHOPPING GUIDE</p>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+            <h2 className="font-serif text-3xl sm:text-4xl">從選購到付款，四個步驟</h2>
+            <p className="max-w-xl text-sm leading-6 text-astera-secondary">每筆商品與活動皆以頁面顯示的正式資訊為準。</p>
+          </div>
+          <ol className="mt-9 grid gap-px overflow-hidden rounded-xl border border-astera-border bg-astera-border sm:grid-cols-2 lg:grid-cols-4">
+            {shoppingSteps.map((step) => (
+              <li key={step.number} className="min-w-0 bg-astera-surface p-6">
+                <p className="font-serif text-2xl text-astera-brand">{step.number}</p>
+                <h3 className="mt-5 font-semibold">{step.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-astera-secondary">{step.detail}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
 
-            <div className="grid gap-4">
-              <FeaturedProductsBoard />
+      <section id="supplement" className="scroll-mt-24">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8 sm:py-18 lg:px-10">
+          <div className="grid gap-8 rounded-xl border border-astera-border bg-astera-brand-soft p-6 sm:p-9 lg:grid-cols-[0.7fr_1.3fr]">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.2em] text-astera-brand">SUPPLEMENT</p>
+              <h2 className="mt-3 font-serif text-3xl">關於二補</h2>
             </div>
-          </section>
+            <div className="grid gap-4 text-sm leading-7 text-astera-ink sm:grid-cols-2">
+              <p>部分預購、代搶與候補商品，可能因國際運費、匯率波動、官方配貨或包材產生實際代購成本差額。</p>
+              <p>若需二補，Astera 會說明補款金額、原因與期限；請依商品頁、活動公告及後續通知為準。</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-          <aside className="flex flex-col gap-6">
-            <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-slate-50 shadow-sm">
-              <p className="text-sm font-medium text-slate-400">Current status</p>
-              <div className="mt-5 grid gap-4">
-                <div className="rounded-2xl bg-white/6 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Products
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
-                    商品列表與詳情頁已接上 Firestore 公開資料，但仍以小圈測試驗證為主。
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white/6 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Checkout
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
-                    加入購物車後可建立訂單與付款請求，正式流程已改成受保護 API。
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-white/6 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-                    Owner
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
-                    owner custom claim 已上線，後台權限不再依賴 email 後門。
-                  </p>
-                </div>
-              </div>
+      <section id="faq-support" className="scroll-mt-24 border-t border-astera-border bg-astera-surface">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8 sm:py-18 lg:px-10">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.2em] text-astera-service">FAQ &amp; SUPPORT</p>
+              <h2 className="mt-3 font-serif text-3xl sm:text-4xl">下單前常見問題</h2>
             </div>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">小圈測試重點</h2>
-              <ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700">
-                <li className="rounded-2xl bg-slate-50 p-4">商品、活動與結單資訊以後台發布資料為準</li>
-                <li className="rounded-2xl bg-slate-50 p-4">下單、付款與取消申請會保存 Firestore 紀錄</li>
-                <li className="rounded-2xl bg-slate-50 p-4">未設定的社群入口不會顯示可點擊連結</li>
-              </ul>
-            </div>
-          </aside>
+            <Link href="/brand#faq" className="inline-flex min-h-11 items-center rounded-lg border border-astera-border px-4 text-sm font-semibold transition-colors hover:border-astera-brand hover:bg-astera-brand-soft">
+              查看全部 FAQ／客服
+            </Link>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {faqLinks.map((item) => (
+              <Link key={item.title} href={item.href} className="group rounded-xl border border-astera-border bg-astera-surface p-6 transition-colors hover:border-astera-brand">
+                <h3 className="font-semibold group-hover:text-astera-brand">{item.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-astera-secondary">{item.detail}</p>
+                <span className="mt-5 inline-flex min-h-11 items-center text-sm font-semibold text-astera-brand">了解更多</span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
     </main>

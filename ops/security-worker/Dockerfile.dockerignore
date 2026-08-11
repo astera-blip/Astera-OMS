@@ -1,0 +1,18 @@
+# Default-deny repository-root build context.
+*
+
+# Required worker runtime package.
+!ops/
+!ops/security-worker/
+!ops/security-worker/Dockerfile
+!ops/security-worker/cloudbuild.yaml
+!ops/security-worker/package.json
+!ops/security-worker/package-lock.json
+!ops/security-worker/server.mjs
+!ops/security-worker/job-functions.mjs
+
+# Pure helper imported by job-functions.mjs.
+!src/
+!src/lib/
+!src/lib/payment/
+!src/lib/payment/fingerprintIdentity.mjs

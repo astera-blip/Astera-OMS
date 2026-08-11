@@ -1,24 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { StoredOrderBundle } from "@/lib/order/localStore";
+import type { OrderBundle } from "@/lib/order/checkout";
+import { orderStatusLabel, shippingMethodLabel } from "@/lib/storefront/customerLabels";
 
 export function OrderHistoryBoard() {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<StoredOrderBundle[]>([]);
+  const [orders, setOrders] = useState<OrderBundle[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
-  useEffect(() => {
-    async function loadFirestoreOrders() {
-      if (!user) {
-        setOrders([]);
-        setStatus("idle");
-        return;
-      }
+  const loadOrders = useCallback(async () => {
+    if (!user) {
+      setOrders([]);
+      setStatus("idle");
+      return;
+    }
 
-      setStatus("loading");
+    setStatus("loading");
+    try {
       const [{ db }, { listMemberOrders }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/order/repository"),
@@ -26,13 +27,17 @@ export function OrderHistoryBoard() {
       const next = await listMemberOrders(db, user.uid);
       setOrders(next);
       setStatus("ready");
-    }
-
-    void loadFirestoreOrders().catch(() => {
+    } catch {
       setOrders([]);
       setStatus("error");
-    });
+    }
   }, [user]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadOrders();
+    });
+  }, [loadOrders]);
 
   if (!user) {
     return (
@@ -53,7 +58,14 @@ export function OrderHistoryBoard() {
   if (status === "error") {
     return (
       <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 shadow-sm text-rose-700">
-        訂單讀取失敗，請稍後再試。
+        <p role="alert">訂單讀取失敗，請確認網路後再試一次。</p>
+        <button
+          type="button"
+          onClick={() => void loadOrders()}
+          className="mt-4 min-h-11 rounded-full border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-800 transition-colors hover:bg-rose-100"
+        >
+          重新載入
+        </button>
       </div>
     );
   }
@@ -69,17 +81,17 @@ export function OrderHistoryBoard() {
           <article key={bundle.order.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold">{bundle.order.id}</h2>
+                <h2 className="text-xl font-semibold">{bundle.order.orderNumber ?? bundle.order.id}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  狀態：{bundle.order.status} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
+                  狀態：{orderStatusLabel(bundle.order.status)} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  收件人：{bundle.order.recipientName ?? "未填寫"} · {bundle.order.shippingMethod ?? "未選擇"}
+                  收件人：{bundle.order.recipientName ?? "未填寫"} · {shippingMethodLabel(bundle.order.shippingMethod)}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-slate-500">{bundle.order.createdAt}</p>
-                <Link href={`/orders/${bundle.order.id}`} className="mt-2 inline-flex text-sm font-medium text-amber-700">
+                <Link href={`/orders/${bundle.order.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-amber-700">
                   查看詳情
                 </Link>
               </div>

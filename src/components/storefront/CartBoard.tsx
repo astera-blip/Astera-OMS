@@ -1,67 +1,98 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { mergeClientAndCloudCart, shouldSyncCloudCart } from "@/lib/cart/clientCart";
+import {
+  currentLegalVersionIds,
+  legalDocumentVersions,
+  supplementRuleContent,
+} from "@/lib/legal/documents";
 import {
   buildCartSummary,
   type CartLineItem,
   validateShippingDetails,
 } from "@/lib/order/checkout";
-import type { PublicCatalogItem } from "@/lib/catalog/publicCatalog";
+import { findCatalogItem, type PublicCatalogItem } from "@/lib/catalog/publicCatalog";
 import {
-  clearCart,
-  loadCart,
-  saveCart,
-} from "@/lib/order/localStore";
+  clearAnonymousCart,
+  loadAnonymousCart,
+  saveAnonymousCart,
+} from "@/lib/cart/anonymousCart";
+import { saleTypeCustomerLabels } from "@/lib/catalog/featuredProducts";
 
 export function CartBoard() {
   const { user } = useAuth();
-  const [cart, setCart] = useState<CartLineItem[]>(() => loadCart());
+  const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [shippingMethod, setShippingMethod] = useState<"address" | "seven_eleven" | "family_mart">("address");
-  const [shippingAddress, setShippingAddress] = useState("");
-  const [shippingStoreInfo, setShippingStoreInfo] = useState("");
+  const shippingMethod = "seven_eleven" as const;
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
+  const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [loadedMemberUid, setLoadedMemberUid] = useState<string | null>(null);
 
   useEffect(() => {
     async function syncCart() {
-      if (!user) {
-        saveCart(cart);
+      if (!shouldSyncCloudCart(user?.uid, loadedMemberUid)) {
         return;
       }
 
-      const [{ db }, { saveMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      await saveMemberCart(db, user.uid, cart);
+      if (!user) {
+        saveAnonymousCart(cart);
+        return;
+      }
+
+      const token = await user.getIdToken();
+      await fetch("/api/cart", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ items: cart }),
+      });
     }
 
     void syncCart().catch(() => {
-      saveCart(cart);
-      setMessage("購物車已暫存於本機，稍後可再同步。");
+      setMessage("購物車同步失敗，請確認網路後再試一次。");
     });
-  }, [cart, user]);
+  }, [cart, loadedMemberUid, user]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadFirestoreCart() {
       if (!user) {
+        setLoadedMemberUid(null);
         return;
       }
 
-      const [{ db }, { loadMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
-      const cloudCart = await loadMemberCart(db, user.uid);
-      const localCart = loadCart();
-
-      setCart(cloudCart.length > 0 ? cloudCart : localCart);
+      const token = await user.getIdToken();
+      const response = await fetch("/api/cart", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("load_cart_failed");
+      }
+      const payload = (await response.json()) as { items?: CartLineItem[] };
+      const merged = mergeClientAndCloudCart(payload.items ?? [], loadAnonymousCart());
+      if (cancelled) {
+        return;
+      }
+      setCart(merged);
+      clearAnonymousCart();
+      setLoadedMemberUid(user.uid);
     }
 
-    void loadFirestoreCart().catch(() => setMessage("無法載入雲端購物車，先使用本機資料。"));
+    void loadFirestoreCart().catch(() => setMessage("無法載入購物車，請確認網路後再試一次。"));
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   useEffect(() => {
@@ -77,6 +108,11 @@ export function CartBoard() {
   }, []);
 
   const summary = useMemo(() => buildCartSummary(cart, catalog), [cart, catalog]);
+  const legalDocuments = legalDocumentVersions.filter(
+    (document) => document.documentType === "terms" || document.documentType === "privacy",
+  );
+  const isCartEmpty = cart.length === 0;
+  const isOrderDisabled = placingOrder || isCartEmpty || !user;
 
   function updateQuantity(index: number, quantity: number) {
     setCart((current) =>
@@ -105,13 +141,15 @@ export function CartBoard() {
       setMessage("公開商品尚未載入，無法建立訂單。");
       return;
     }
+    if (!acceptedLegalTerms || !acceptedSupplementRule) {
+      setMessage("請先同意下單條款、隱私權政策與二補規則。");
+      return;
+    }
 
     const shippingCheck = validateShippingDetails({
       recipientName,
       recipientPhone,
       shippingMethod,
-      shippingAddress,
-      shippingStoreInfo,
     });
 
     if (!shippingCheck.ok) {
@@ -122,11 +160,9 @@ export function CartBoard() {
     const timestamp = new Date().toISOString();
     const idempotencyKey = `${user.uid}_${timestamp.replaceAll(/[-:.TZ]/g, "").slice(0, 17)}`;
 
+    setPlacingOrder(true);
     try {
-      const [{ auth }, { clearMemberCart }] = await Promise.all([
-        import("@/lib/firebase/client"),
-        import("@/lib/cart/repository"),
-      ]);
+      const { auth } = await import("@/lib/firebase/client");
       const token = await auth.currentUser?.getIdToken();
 
       if (!token) {
@@ -140,16 +176,16 @@ export function CartBoard() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          cart,
-          recipientName: shippingCheck.value.recipientName,
-          recipientPhone: shippingCheck.value.recipientPhone,
-          shippingMethod,
-          ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-          ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
-          legalVersionIds: [],
-          idempotencyKey,
-        }),
+          body: JSON.stringify({
+            cart,
+            recipientName: shippingCheck.value.recipientName,
+            recipientPhone: shippingCheck.value.recipientPhone,
+            shippingMethod,
+            legalVersionIds: currentLegalVersionIds(),
+            acceptedLegalTerms,
+            acceptedSupplementRule,
+            idempotencyKey,
+          }),
       });
 
       if (!response.ok) {
@@ -158,122 +194,207 @@ export function CartBoard() {
         setMessage(details || payload?.error || "訂單建立失敗。");
         return;
       }
-      const payload = (await response.json()) as { orderId?: string };
+      const payload = (await response.json()) as {
+        orderId?: string;
+        orders?: Array<{ orderId: string; orderNumber?: string; totalTwd?: number }>;
+      };
 
-      await clearMemberCart((await import("@/lib/firebase/client")).db, user.uid);
-      clearCart();
+      await fetch("/api/cart", {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
+       clearAnonymousCart();
       setCart([]);
-      setMessage(`已建立訂單 ${payload.orderId ?? "新訂單"}，付款請求已建立。`);
+      setAcceptedLegalTerms(false);
+      setAcceptedSupplementRule(false);
+      const orderLabels = payload.orders?.map((order) => order.orderNumber ?? order.orderId).join("、");
+      setMessage(`已建立訂單 ${orderLabels || payload.orderId || "新訂單"}，付款請求已建立。`);
     } catch {
       setMessage("訂單建立失敗，請確認已登入且網路可用。");
+    } finally {
+      setPlacingOrder(false);
     }
   }
 
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="grid gap-4">
-        {cart.length === 0 ? (
+        {isCartEmpty ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            購物車目前沒有商品。
+            <p className="font-medium text-slate-900">購物車目前沒有商品。</p>
+            <p className="mt-2 text-sm text-slate-600">請先加入商品，再回到這裡確認收件資料與建立訂單。</p>
+            <Link href="/products" className="mt-4 inline-flex min-h-11 items-center rounded-full bg-slate-950 px-4 text-sm font-medium text-white">
+              前往商品列表
+            </Link>
           </div>
         ) : (
-          cart.map((item, index) => (
-            <article key={`${item.productId}-${item.variantId}-${item.saleCampaignId}`} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold">{item.productId}</h2>
-                  <p className="text-sm text-slate-600">Variant {item.variantId}</p>
+          cart.map((item, index) => {
+            const product = findCatalogItem(catalog, item.productId);
+            const variant = product?.variants.find((entry) => entry.id === item.variantId);
+
+            return (
+              <article key={`${item.productId}-${item.variantId}-${item.saleCampaignId}`} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">{product?.product.name ?? "商品資訊載入中"}</h2>
+                    <p className="text-sm text-slate-600">{variant?.name ?? "商品規格資訊載入中"}</p>
+                  </div>
+                  <button type="button" onClick={() => removeItem(index)} className="text-sm font-medium text-red-700">
+                    移除
+                  </button>
                 </div>
-                <button type="button" onClick={() => removeItem(index)} className="text-sm font-medium text-red-700">
-                  移除
-                </button>
-              </div>
-              <div className="mt-4 flex items-center gap-3">
-                <label className="text-sm font-medium">數量</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={item.quantity}
-                  onChange={(event) => updateQuantity(index, Number(event.target.value))}
-                  className="w-24 rounded-2xl border border-slate-300 px-3 py-2"
-                />
-              </div>
-            </article>
-          ))
+                <div className="mt-4 flex items-center gap-3">
+                  <label className="text-sm font-medium">數量</label>
+                  <input
+                    id={`cartQuantity-${index}`}
+                    name={`cartQuantity-${index}`}
+                    type="number"
+                    min="1"
+                    value={item.quantity}
+                    onChange={(event) => updateQuantity(index, Number(event.target.value))}
+                    className="w-24 rounded-2xl border border-slate-300 px-3 py-2"
+                  />
+                </div>
+              </article>
+            );
+          })
         )}
       </div>
 
       <aside className="grid gap-4">
+        <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
+          <p className="text-sm font-semibold text-astera-service">結帳步驟</p>
+          <p className="mt-2 text-sm leading-6 text-astera-secondary">
+            購物車確認完成後，前往獨立結帳頁填寫收件資料與條款同意。
+          </p>
+          <Link
+            href="/checkout"
+            className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold ${
+              isCartEmpty || !user
+                ? "cursor-not-allowed bg-astera-border text-astera-secondary"
+                : "bg-astera-brand text-white hover:bg-astera-ink"
+            }`}
+            aria-disabled={isCartEmpty || !user}
+            onClick={(event) => {
+              if (isCartEmpty || !user) {
+                event.preventDefault();
+              }
+            }}
+          >
+            {isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "前往結帳"}
+          </Link>
+        </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Recipient</p>
+          <p className="text-sm font-semibold text-slate-500">收件資訊</p>
           <h3 className="mt-2 text-2xl font-semibold">收件資料</h3>
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-2 text-sm">
+            <label htmlFor="recipientName" className="grid gap-2 text-sm">
               <span className="font-medium">收件人姓名</span>
               <input
+                id="recipientName"
+                name="recipientName"
+                autoComplete="name"
                 value={recipientName}
                 onChange={(event) => setRecipientName(event.target.value)}
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               />
             </label>
-            <label className="grid gap-2 text-sm">
+            <label htmlFor="recipientPhone" className="grid gap-2 text-sm">
               <span className="font-medium">收件電話</span>
               <input
+                id="recipientPhone"
+                name="recipientPhone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={recipientPhone}
                 onChange={(event) => setRecipientPhone(event.target.value)}
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               />
             </label>
-            <label className="grid gap-2 text-sm">
+            <div className="grid gap-2 text-sm">
               <span className="font-medium">配送方式</span>
-              <select
+              <input
+                id="shippingMethod"
+                name="shippingMethod"
+                type="hidden"
                 value={shippingMethod}
-                onChange={(event) => setShippingMethod(event.target.value as typeof shippingMethod)}
-                className="rounded-2xl border border-slate-300 px-4 py-3"
-              >
-                <option value="address">宅配地址</option>
-                <option value="seven_eleven">7-Eleven 賣貨便</option>
-                <option value="family_mart">全家好賣+ / 店到店</option>
-              </select>
-            </label>
-            {shippingMethod === "address" ? (
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium">收件地址</span>
-                <textarea
-                  value={shippingAddress}
-                  onChange={(event) => setShippingAddress(event.target.value)}
-                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                />
-              </label>
-            ) : (
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium">超商門市資訊</span>
-                <textarea
-                  value={shippingStoreInfo}
-                  onChange={(event) => setShippingStoreInfo(event.target.value)}
-                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                />
-              </label>
-            )}
+              />
+              <p className="rounded-2xl border border-slate-300 px-4 py-3 font-medium">7-Eleven 賣貨便</p>
+              <p className="text-xs text-slate-600">目前僅提供 7-Eleven 賣貨便。</p>
+            </div>
           </div>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-500">Checkout</p>
+          <p className="text-sm font-semibold text-slate-500">購物車摘要</p>
           <h3 className="mt-2 text-2xl font-semibold">建立訂單</h3>
           <div className="mt-4 grid gap-2 text-sm">
             <p>項目數：{summary.itemCount}</p>
             <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
-            <p>sale type：{summary.saleType ?? "尚未決定"}</p>
+            <p>
+              販售類型：
+              {summary.saleType ? saleTypeCustomerLabels[summary.saleType] : "尚未決定"}
+            </p>
+          </div>
+          <div className="mt-4 grid gap-3 text-sm text-slate-700">
+            <label htmlFor="acceptedLegalTerms" className="flex items-start gap-3">
+              <input
+                id="acceptedLegalTerms"
+                name="acceptedLegalTerms"
+                type="checkbox"
+                checked={acceptedLegalTerms}
+                onChange={(event) => setAcceptedLegalTerms(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                我同意
+                <Link className="mx-1 underline underline-offset-4" href="/terms">下單條款</Link>
+                與
+                <Link className="mx-1 underline underline-offset-4" href="/privacy">隱私權政策</Link>
+                。
+              </span>
+            </label>
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              {legalDocuments.map((document) => (
+                <div key={document.id} className="not-first:mt-4">
+                  <p className="font-medium text-slate-900">
+                    {document.title} <span className="text-xs text-slate-500">v{document.version}</span>
+                  </p>
+                  <p className="mt-1">{document.body}</p>
+                </div>
+              ))}
+            </div>
+            <label htmlFor="acceptedSupplementRule" className="flex items-start gap-3">
+              <input
+                id="acceptedSupplementRule"
+                name="acceptedSupplementRule"
+                type="checkbox"
+                checked={acceptedSupplementRule}
+                onChange={(event) => setAcceptedSupplementRule(event.target.checked)}
+                className="mt-1"
+              />
+              <span>我了解此代購商品可能依實際運費、匯率或官方配貨結果產生二補。</span>
+            </label>
+            <div className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-slate-700">
+              <p className="font-medium text-slate-900">{supplementRuleContent.title}</p>
+              <p className="mt-1">{supplementRuleContent.summary}</p>
+              <ul className="mt-2 list-disc pl-5">
+                {supplementRuleContent.points.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => void placeOrder()}
-            className="mt-5 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950"
+            disabled={isOrderDisabled}
+            className="mt-5 min-h-11 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            建立訂單
+            {placingOrder ? "建立中…" : isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "建立訂單"}
           </button>
-          <p className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
+          <p aria-live="polite" className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
         </div>
       </aside>
     </section>

@@ -2,6 +2,15 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
+import { assertSafeRuntimeMode } from "@/lib/environment/runtimeMode";
+
+assertSafeRuntimeMode({
+  NODE_ENV: process.env.NODE_ENV,
+  NEXT_PUBLIC_USE_FIREBASE_EMULATORS:
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS,
+  NEXT_PUBLIC_ENABLE_E2E_TEST_AUTH:
+    process.env.NEXT_PUBLIC_ENABLE_E2E_TEST_AUTH,
+});
 
 type FirebaseClientConfig = {
   apiKey: string;

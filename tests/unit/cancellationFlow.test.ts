@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  applyDirectUnpaidCancellation,
   applyCancellationReview,
   createCancellationRequest,
   markCancellationRequested,
+  verifyRefundAccountForPayment,
 } from "../../src/lib/order/cancellation";
 import type { OrderItemRecord, OrderRecord } from "../../src/lib/order/checkout";
 import type { LocalPaymentRequest } from "../../src/lib/payment/manualBankTransfer";
+import { sanitizeCancellationRequest } from "../../src/lib/order/repository";
 
 const order: OrderRecord = {
   id: "order_001",
@@ -93,8 +96,8 @@ describe("markCancellationRequested", () => {
     ]);
   });
 
-  it("rejects a cancellation request for a paid item", () => {
-    expect(() =>
+  it("marks paid items as cancelRequested for owner refund review", () => {
+    expect(
       markCancellationRequested(
         [{ ...items[1], status: "paid" }],
         request,
@@ -102,12 +105,37 @@ describe("markCancellationRequested", () => {
           updatedAt: "2026-07-26T01:00:00.000Z",
           updatedBy: "member-a",
         },
-      ),
-    ).toThrow("invalid_items");
+      )[0].status,
+    ).toBe("cancelRequested");
   });
 });
 
 describe("applyCancellationReview", () => {
+  it("directly cancels unpaid items and recalculates the unpaid amount", () => {
+    expect(
+      applyDirectUnpaidCancellation(order, items, [paymentRequest], {
+        orderItemIds: ["order_001-item-2"],
+        updatedAt: "2026-07-26T01:00:00.000Z",
+        updatedBy: "member-a",
+      }),
+    ).toMatchObject({
+      order: {
+        status: "awaitingPayment",
+        totalTwd: 800,
+      },
+      items: [
+        { id: "order_001-item-1", status: "awaitingPayment" },
+        { id: "order_001-item-2", status: "cancelled" },
+      ],
+      paymentRequests: [
+        {
+          id: "pr_order_001",
+          amountTwd: 800,
+        },
+      ],
+    });
+  });
+
   it("approves a partial cancellation and recalculates the unpaid amount", () => {
     const requestedItems = markCancellationRequested(items, request, {
       updatedAt: "2026-07-26T01:00:00.000Z",
@@ -139,6 +167,150 @@ describe("applyCancellationReview", () => {
     });
   });
 
+  it("approves a paid cancellation with refund adjustment metadata", () => {
+    const paidItems = items.map((item) => ({ ...item, status: "paid" as const }));
+    const paidOrder = { ...order, status: "paid" as const };
+    const paidRequest = { ...paymentRequest, status: "paid" as const };
+    const paidCancelRequest = createCancellationRequest({
+      id: "cancel_paid_001",
+      orderId: "order_001",
+      orderItemIds: ["order_001-item-2"],
+      memberUid: "member-a",
+      reason: "已付款取消其中一項",
+      targetPaymentId: "payment-original",
+      targetPaymentRequestId: "pr_order_001",
+      refundRequestedAmountTwd: 400,
+      createdAt: "2026-07-26T01:00:00.000Z",
+      createdBy: "member-a",
+    });
+    const requestedItems = markCancellationRequested(paidItems, paidCancelRequest, {
+      updatedAt: "2026-07-26T01:00:00.000Z",
+      updatedBy: "member-a",
+    });
+
+    expect(
+      applyCancellationReview(paidOrder, requestedItems, [paidRequest], paidCancelRequest, {
+        status: "approved",
+        updatedAt: "2026-07-26T02:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 400,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-001",
+      }),
+    ).toMatchObject({
+      order: {
+        status: "paid",
+        totalTwd: 800,
+      },
+      adjustment: {
+        kind: "adjustment",
+        amountTwd: -400,
+        paymentId: "payment-original",
+        targetId: "pr_order_001",
+      },
+      auditLog: {
+        reason: "refund 400 at 2026-07-26 ref BANK-001",
+      },
+    });
+  });
+
+  it("keeps a shared item open until source-specific approved refunds cover its value", () => {
+    const sharedItem = {
+      ...items[1],
+      id: "item-shared",
+      status: "cancelRequested" as const,
+      snapshot: {
+        ...items[1].snapshot,
+        unitPriceTwd: 1000,
+      },
+    };
+    const paidOrder = { ...order, status: "paid" as const, totalTwd: 1000 };
+    const paidRequest = { ...paymentRequest, amountTwd: 1000, status: "paid" as const };
+    const sourceARequest = createCancellationRequest({
+      id: "cancel-source-a",
+      orderId: order.id,
+      orderItemIds: [sharedItem.id],
+      memberUid: "member-a",
+      reason: "source A share",
+      targetPaymentId: "payment-source-a",
+      targetPaymentRequestId: paidRequest.id,
+      refundRequestedAmountTwd: 400,
+      refundItemAllocations: [{ orderItemId: sharedItem.id, amountTwd: 400 }],
+      createdAt: "2026-07-26T01:00:00.000Z",
+      createdBy: "member-a",
+    });
+    const sourceBRequest = createCancellationRequest({
+      id: "cancel-source-b",
+      orderId: order.id,
+      orderItemIds: [sharedItem.id],
+      memberUid: "member-a",
+      reason: "source B share",
+      targetPaymentId: "payment-source-b",
+      targetPaymentRequestId: paidRequest.id,
+      refundRequestedAmountTwd: 600,
+      refundItemAllocations: [{ orderItemId: sharedItem.id, amountTwd: 600 }],
+      createdAt: "2026-07-26T01:01:00.000Z",
+      createdBy: "member-a",
+    });
+
+    const sourceAReview = applyCancellationReview(
+      paidOrder,
+      [sharedItem],
+      [paidRequest],
+      sourceARequest,
+      {
+        status: "approved",
+        updatedAt: "2026-07-26T02:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 400,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-A",
+        relatedRequests: [sourceARequest, sourceBRequest],
+      },
+    );
+
+    expect(sourceAReview).toMatchObject({
+      order: { status: "paid", totalTwd: 1000 },
+      items: [{ id: "item-shared", status: "cancelRequested" }],
+      adjustment: {
+        paymentId: "payment-source-a",
+        targetId: paidRequest.id,
+        amountTwd: -400,
+      },
+    });
+
+    const approvedSourceA = {
+      ...sourceARequest,
+      status: "approved" as const,
+      refundAmountTwd: 400,
+    };
+    const sourceBReview = applyCancellationReview(
+      paidOrder,
+      sourceAReview.items,
+      [paidRequest],
+      sourceBRequest,
+      {
+        status: "approved",
+        updatedAt: "2026-07-26T03:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 600,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-B",
+        relatedRequests: [approvedSourceA, sourceBRequest],
+      },
+    );
+
+    expect(sourceBReview).toMatchObject({
+      order: { status: "refunded", totalTwd: 0 },
+      items: [{ id: "item-shared", status: "cancelled" }],
+      adjustment: {
+        paymentId: "payment-source-b",
+        targetId: paidRequest.id,
+        amountTwd: -600,
+      },
+    });
+  });
+
   it("rejects a cancellation and restores selected items to awaitingPayment", () => {
     const requestedItems = markCancellationRequested(items, request, {
       updatedAt: "2026-07-26T01:00:00.000Z",
@@ -156,4 +328,123 @@ describe("applyCancellationReview", () => {
       { id: "order_001-item-2", status: "awaitingPayment" },
     ]);
   });
+
+  it("marks a fully refunded paid order as refunded so vault ciphertext can be deleted", () => {
+    const paidItems = items.map((item) => ({ ...item, status: "cancelRequested" as const }));
+    const paidRequest = { ...paymentRequest, status: "paid" as const };
+    const paidCancelRequest = createCancellationRequest({
+      id: "cancel-paid-full",
+      orderId: order.id,
+      orderItemIds: paidItems.map((item) => item.id),
+      memberUid: "member-a",
+      reason: "full refund",
+      targetPaymentId: "payment-original",
+      refundBankCode: "012",
+      refundAccountLast5: "56789",
+      createdAt: "2026-07-26T01:00:00.000Z",
+      createdBy: "member-a",
+    });
+
+    expect(applyCancellationReview(
+      { ...order, status: "paid" },
+      paidItems,
+      [paidRequest],
+      paidCancelRequest,
+      {
+        status: "approved",
+        updatedAt: "2026-07-26T02:00:00.000Z",
+        updatedBy: "owner-a",
+        refundAmountTwd: 1200,
+        refundCompletedAt: "2026-07-26",
+        refundReference: "BANK-002",
+      },
+    ).order.status).toBe("refunded");
+  });
 });
+
+describe("verifyRefundAccountForPayment", () => {
+  it("uses the target payment snapshot's historical key version", async () => {
+    const macClient = {
+      signCanonicalAccount: vi.fn().mockResolvedValue({
+        mac: validHistoricalFingerprint,
+        keyVersion: 3,
+      }),
+    };
+
+    await expect(verifyRefundAccountForPayment({
+      refundBankCode: "012",
+      refundAccountNumberFull: "00123456789",
+      payment: {
+        memberPaymentAccount: {
+          bankCode: "012",
+          accountNumberLast5: "56789",
+          accountFingerprint: validHistoricalFingerprint,
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 3,
+        },
+      },
+      macClient,
+    })).resolves.toBe("match");
+    expect(macClient.signCanonicalAccount).toHaveBeenCalledWith(
+      "astera:bank-account:v1|012|00123456789",
+      3,
+    );
+  });
+
+  it("fails safely when a legacy payment snapshot has no fingerprint", async () => {
+    const macClient = { signCanonicalAccount: vi.fn() };
+
+    await expect(verifyRefundAccountForPayment({
+      refundBankCode: "012",
+      refundAccountNumberFull: "00123456789",
+      payment: {
+        memberPaymentAccount: {
+          bankCode: "012",
+          accountNumberLast5: "56789",
+        },
+      },
+      macClient,
+    })).resolves.toBe("needsReverification");
+    expect(macClient.signCanonicalAccount).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancellation repository privacy", () => {
+  it("strips vault ciphertext from normal cancellation reads while retaining permanent metadata", () => {
+    expect(sanitizeCancellationRequest({
+      id: "cancel-private",
+      orderId: "order-1",
+      orderItemIds: ["item-1"],
+      memberUid: "member-a",
+      reason: "refund",
+      status: "pending",
+      targetPaymentId: "payment-original",
+      refundBankCode: "012",
+      refundAccountLast5: "56789",
+      refundAccountCiphertext: "ciphertext-secret",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+      createdAt: "2026-08-04T00:00:00.000Z",
+      createdBy: "member-a",
+    })).toEqual(expect.objectContaining({
+      id: "cancel-private",
+      targetPaymentId: "payment-original",
+      refundBankCode: "012",
+      refundAccountLast5: "56789",
+    }));
+    expect(JSON.stringify(sanitizeCancellationRequest({
+      id: "cancel-private",
+      orderId: "order-1",
+      orderItemIds: ["item-1"],
+      memberUid: "member-a",
+      reason: "refund",
+      status: "pending",
+      refundAccountCiphertext: "ciphertext-secret",
+      refundEncryptionKeyVersion: 4,
+      refundAccountExpiresAt: "2026-08-18T00:00:00.000Z",
+      createdAt: "2026-08-04T00:00:00.000Z",
+      createdBy: "member-a",
+    }))).not.toContain("refundAccountCiphertext");
+  });
+});
+const validHistoricalFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";

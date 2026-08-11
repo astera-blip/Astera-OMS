@@ -32,8 +32,11 @@ const firebaseEnv = {
 };
 
 if (process.platform === "win32" && existsSync(bundledJdk21Home)) {
+  const inheritedPath = process.env.PATH ?? process.env.Path ?? "";
+
   firebaseEnv.JAVA_HOME = bundledJdk21Home;
-  firebaseEnv.PATH = `${jdk21Bin}${delimiter}${process.env.PATH ?? ""}`;
+  firebaseEnv.Path = `${jdk21Bin}${delimiter}${inheritedPath}`;
+  delete firebaseEnv.PATH;
 }
 
 const child = spawn(process.execPath, [firebaseEntry, ...process.argv.slice(2)], {

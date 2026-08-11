@@ -1,4 +1,9 @@
 import type { AuditMetadata, PublishState } from "@/domain/common";
+import type { ProductImage } from "@/lib/product/images";
+import {
+  campaignDateTimeLocalToUtc,
+  parseCampaignDateTime,
+} from "@/lib/product/campaignDates";
 
 export type ProductClassificationKey = "company" | "artist" | "cp" | "brand" | "series";
 
@@ -14,10 +19,12 @@ export type ProductClassifications = Partial<
 export type ProductDraft = {
   product: {
     id: string;
+    sku?: string;
     name: string;
     publicDescription: string;
     publishState: PublishState;
     classifications?: ProductClassifications;
+    images?: ProductImage[];
   };
   variants: Array<{
     id: string;
@@ -32,7 +39,8 @@ export type ProductDraft = {
     id: string;
     title: string;
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-    status: "draft" | "open" | "closed" | "archived";
+    status: "upcoming" | "open" | "closed" | "archived";
+    salePriceTwd?: number;
     requiresSupplement: boolean;
     startsAt?: string;
     endsAt?: string;
@@ -44,10 +52,12 @@ export type ProductDraft = {
 export type ValidProductDraft = {
   product: {
     id: string;
+    sku: string;
     name: string;
     publicDescription: string;
     publishState: PublishState;
     classifications?: ProductClassifications;
+    images?: ProductImage[];
   };
   variants: Array<{
     id: string;
@@ -64,7 +74,8 @@ export type ValidProductDraft = {
     productId: string;
     title: string;
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-    status: "draft" | "open" | "closed" | "archived";
+    status: "upcoming" | "open" | "closed" | "archived";
+    salePriceTwd?: number;
     requiresSupplement: boolean;
     startsAt?: string;
     endsAt?: string;
@@ -79,6 +90,7 @@ export type ProductCatalogError = {
   variants?: Array<{ priceTwd?: string; sku?: string; name?: string }>;
   campaigns?: Array<{
     title?: string;
+    salePriceTwd?: string;
     startsAt?: string;
     endsAt?: string;
     publicNotice?: string;
@@ -96,18 +108,21 @@ export type PublicProductProjection = {
   publicDescription: string;
   publishState: PublishState;
   classifications?: ProductClassifications;
+  images?: ProductImage[];
   variants: Array<{
     id: string;
-    sku: string;
+    productId: string;
     name: string;
     isDefault: boolean;
     priceTwd: number;
   }>;
   campaigns: Array<{
     id: string;
+    productId: string;
     title: string;
     saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-    status: "draft" | "open" | "closed" | "archived";
+    status: "upcoming" | "open" | "closed" | "archived";
+    salePriceTwd?: number;
     requiresSupplement: boolean;
     startsAt?: string;
     endsAt?: string;
@@ -140,7 +155,7 @@ export function normalizeProductDraft(
   const normalizedVariants = draft.variants.map((variant) => ({
     id: variant.id.trim(),
     productId: draft.product.id,
-    sku: variant.sku.trim(),
+    sku: variant.sku.trim() || createVariantSku(draft.product.sku?.trim() || createProductSkuFromId(draft.product.id), 1),
     name: variant.name.trim(),
     isDefault: variant.isDefault,
     priceTwd: variant.priceTwd,
@@ -180,9 +195,14 @@ export function normalizeProductDraft(
     title: campaign.title.trim(),
     saleType: campaign.saleType,
     status: campaign.status,
+    ...(typeof campaign.salePriceTwd === "number" ? { salePriceTwd: campaign.salePriceTwd } : {}),
     requiresSupplement: campaign.requiresSupplement,
-    ...(campaign.startsAt?.trim() ? { startsAt: campaign.startsAt.trim() } : {}),
-    ...(campaign.endsAt?.trim() ? { endsAt: campaign.endsAt.trim() } : {}),
+    ...(campaign.startsAt?.trim()
+      ? { startsAt: normalizeCampaignDateTime(campaign.startsAt) }
+      : {}),
+    ...(campaign.endsAt?.trim()
+      ? { endsAt: normalizeCampaignDateTime(campaign.endsAt) }
+      : {}),
     ...(campaign.publicNotice?.trim() ? { publicNotice: campaign.publicNotice.trim() } : {}),
     ...(campaign.supplementNote?.trim() ? { supplementNote: campaign.supplementNote.trim() } : {}),
   }));
@@ -194,11 +214,17 @@ export function normalizeProductDraft(
     if (!campaign.title) {
       fieldErrors.title = "請填寫活動名稱。";
     }
-    if (campaign.startsAt && !isDateTimeLocalValue(campaign.startsAt)) {
-      fieldErrors.startsAt = "開始時間格式需為 YYYY-MM-DDTHH:mm。";
+    if (
+      typeof campaign.salePriceTwd === "number"
+      && (!Number.isInteger(campaign.salePriceTwd) || campaign.salePriceTwd < 0)
+    ) {
+      fieldErrors.salePriceTwd = "活動價需為 0 以上的整數。";
     }
-    if (campaign.endsAt && !isDateTimeLocalValue(campaign.endsAt)) {
-      fieldErrors.endsAt = "結單時間格式需為 YYYY-MM-DDTHH:mm。";
+    if (campaign.startsAt && !isValidCampaignDateTime(campaign.startsAt)) {
+      fieldErrors.startsAt = "開始時間格式無效，請重新選擇時間。";
+    }
+    if (campaign.endsAt && !isValidCampaignDateTime(campaign.endsAt)) {
+      fieldErrors.endsAt = "結單時間格式無效，請重新選擇時間。";
     }
     if (campaign.startsAt && campaign.endsAt && campaign.startsAt >= campaign.endsAt) {
       fieldErrors.endsAt = "結單時間必須晚於開始時間。";
@@ -227,9 +253,11 @@ export function normalizeProductDraft(
     value: {
       product: {
         id: draft.product.id,
+        sku: draft.product.sku?.trim() || createProductSkuFromId(draft.product.id),
         name,
         publicDescription,
         publishState: draft.product.publishState,
+        ...(draft.product.images ? { images: draft.product.images } : {}),
         ...(normalizeClassifications(draft.product.classifications)
           ? { classifications: normalizeClassifications(draft.product.classifications) }
           : {}),
@@ -241,7 +269,7 @@ export function normalizeProductDraft(
               {
                 id: `${draft.product.id}-default`,
                 productId: draft.product.id,
-                sku: `${draft.product.id}-default`,
+                sku: createVariantSku(draft.product.sku?.trim() || createProductSkuFromId(draft.product.id), 1),
                 name: "Default Variant",
                 isDefault: true,
                 priceTwd: 0,
@@ -254,6 +282,7 @@ export function normalizeProductDraft(
 
 export function buildPublicProductProjection(
   record: ProductCatalogRecord,
+  now = new Date(),
 ): PublicProductProjection {
   const classifications = normalizeClassifications(record.product.classifications);
 
@@ -263,29 +292,188 @@ export function buildPublicProductProjection(
     publicDescription: record.product.publicDescription,
     publishState: record.product.publishState,
     ...(classifications ? { classifications } : {}),
+    ...(record.product.images ? { images: record.product.images } : {}),
     variants: record.variants.map((variant) => ({
       id: variant.id,
-      sku: variant.sku,
+      productId: variant.productId,
       name: variant.name,
       isDefault: variant.isDefault,
       priceTwd: variant.priceTwd,
     })),
     campaigns: record.campaigns.map((campaign) => ({
       id: campaign.id,
+      productId: campaign.productId,
       title: campaign.title.trim(),
       saleType: campaign.saleType,
-      status: campaign.status,
+      status: resolveCampaignStatus(campaign, now),
+      ...(typeof campaign.salePriceTwd === "number" ? { salePriceTwd: campaign.salePriceTwd } : {}),
       requiresSupplement: campaign.requiresSupplement,
-      ...(campaign.startsAt ? { startsAt: campaign.startsAt } : {}),
-      ...(campaign.endsAt ? { endsAt: campaign.endsAt } : {}),
+      ...(campaign.startsAt ? { startsAt: normalizeCampaignDateTime(campaign.startsAt) } : {}),
+      ...(campaign.endsAt ? { endsAt: normalizeCampaignDateTime(campaign.endsAt) } : {}),
       ...(campaign.publicNotice ? { publicNotice: campaign.publicNotice } : {}),
       ...(campaign.supplementNote ? { supplementNote: campaign.supplementNote } : {}),
     })),
   };
 }
 
-function isDateTimeLocalValue(value: string) {
-  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(value);
+export function createProductSku(sequence: number) {
+  if (!Number.isInteger(sequence) || sequence <= 0) {
+    throw new Error("Product SKU sequence must be a positive integer.");
+  }
+
+  return `AST-P${String(sequence).padStart(6, "0")}`;
+}
+
+export function createVariantSku(productSku: string, sequence: number) {
+  if (!/^AST-P[0-9]{6}$/.test(productSku)) {
+    throw new Error("Variant SKU requires a valid product SKU.");
+  }
+  if (!Number.isInteger(sequence) || sequence <= 0) {
+    throw new Error("Variant SKU sequence must be a positive integer.");
+  }
+
+  return `${productSku}-V${String(sequence).padStart(3, "0")}`;
+}
+
+export function resolveServerManagedProductSku(input: {
+  productId: string;
+  existingSku?: string;
+  nextProductSequence: number;
+}) {
+  const existingSequence = getProductSkuSequence(input.existingSku ?? "");
+  const sequence = existingSequence
+    ?? getLegacyProductSequence(input.productId)
+    ?? input.nextProductSequence;
+
+  return {
+    sku: createProductSku(sequence),
+    nextProductSequence: Math.max(input.nextProductSequence, sequence + 1),
+  };
+}
+
+export function assignServerManagedSkus(
+  draft: ProductDraft,
+  input: {
+    productSku: string;
+    existingVariantSkusById: ReadonlyMap<string, string>;
+    lockedVariantIds?: ReadonlySet<string>;
+  },
+): ProductDraft {
+  let nextVariantSequence = getHighestVariantSkuSequence(
+    input.productSku,
+    [...input.existingVariantSkusById.values()],
+  ) + 1;
+
+  return {
+    ...draft,
+    product: {
+      ...draft.product,
+      sku: input.productSku,
+    },
+    variants: draft.variants.map((variant) => {
+      const existingSku = input.existingVariantSkusById.get(variant.id);
+      const preserveExistingSku = !!existingSku && (
+        isFormalVariantSku(existingSku, input.productSku)
+        || input.lockedVariantIds?.has(variant.id)
+      );
+      const sku = preserveExistingSku
+        ? existingSku
+        : createVariantSku(input.productSku, nextVariantSequence);
+
+      if (!preserveExistingSku) {
+        nextVariantSequence += 1;
+      }
+
+      return {
+        ...variant,
+        sku,
+      };
+    }),
+  };
+}
+
+function getProductSkuSequence(value: string) {
+  const match = /^AST-P([0-9]{6})$/.exec(value.trim());
+  const sequence = match ? Number(match[1]) : NaN;
+
+  return Number.isInteger(sequence) && sequence > 0 ? sequence : null;
+}
+
+function getLegacyProductSequence(productId: string) {
+  const numericSuffix = productId.match(/([0-9]+)$/)?.[1];
+  const sequence = numericSuffix ? Number(numericSuffix) : NaN;
+
+  return Number.isInteger(sequence) && sequence > 0 ? sequence : null;
+}
+
+function isFormalVariantSku(sku: string, productSku: string) {
+  return new RegExp(`^${productSku}-V[0-9]{3}$`).test(sku.trim());
+}
+
+function getHighestVariantSkuSequence(productSku: string, skus: string[]) {
+  const prefix = `${productSku}-V`;
+
+  return skus.reduce((highest, sku) => {
+    if (!sku.startsWith(prefix)) {
+      return highest;
+    }
+    const sequence = Number(sku.slice(prefix.length));
+
+    return Number.isInteger(sequence) && sequence > highest ? sequence : highest;
+  }, 0);
+}
+
+export function resolveCampaignStatus(
+  campaign: Pick<ValidProductDraft["campaigns"][number], "status" | "startsAt" | "endsAt">,
+  now: Date,
+): ValidProductDraft["campaigns"][number]["status"] {
+  if (campaign.status === "archived") {
+    return "archived";
+  }
+
+  const nowTime = now.getTime();
+  const startsAt = campaign.startsAt ? parseCampaignDateTime(campaign.startsAt).getTime() : null;
+  const endsAt = campaign.endsAt ? parseCampaignDateTime(campaign.endsAt).getTime() : null;
+
+  if (startsAt !== null && Number.isFinite(startsAt) && startsAt > nowTime) {
+    return "upcoming";
+  }
+  if (endsAt !== null && Number.isFinite(endsAt) && endsAt <= nowTime) {
+    return "closed";
+  }
+
+  return campaign.status === "upcoming" ? "upcoming" : "open";
+}
+
+export function getEffectiveVariantPriceTwd(
+  variant: Pick<ValidProductDraft["variants"][number], "priceTwd">,
+  campaign?: Pick<ValidProductDraft["campaigns"][number], "salePriceTwd"> | null,
+) {
+  return typeof campaign?.salePriceTwd === "number" ? campaign.salePriceTwd : variant.priceTwd;
+}
+
+function normalizeCampaignDateTime(value: string) {
+  const trimmed = value.trim();
+  try {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)
+      ? campaignDateTimeLocalToUtc(trimmed)
+      : parseCampaignDateTime(trimmed).toISOString();
+  } catch {
+    return trimmed;
+  }
+}
+
+function isValidCampaignDateTime(value: string) {
+  try {
+    parseCampaignDateTime(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function createProductSkuFromId(productId: string) {
+  return createProductSku(getLegacyProductSequence(productId) ?? 1);
 }
 
 function normalizeClassifications(
@@ -296,15 +484,21 @@ function normalizeClassifications(
   }
 
   const entries = (Object.entries(classifications) as Array<
-    [ProductClassificationKey, ProductClassificationLink]
+    [ProductClassificationKey, ProductClassificationLink | undefined]
   >)
-    .map(([key, value]): [ProductClassificationKey, ProductClassificationLink] => [
-      key,
-      {
-        id: value.id.trim(),
-        label: value.label.trim(),
-      },
-    ])
+    .flatMap(([key, value]) => {
+      if (!value) {
+        return [];
+      }
+
+      return [[
+        key,
+        {
+          id: value.id.trim(),
+          label: value.label.trim(),
+        },
+      ] satisfies [ProductClassificationKey, ProductClassificationLink]];
+    })
     .filter(([, value]) => value.id && value.label);
 
   return entries.length > 0

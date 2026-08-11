@@ -64,10 +64,12 @@ export async function listMemberOrders(
     getDocs(query(collection(db, "orders"), where("memberUid", "==", memberUid))),
     getDocs(query(collection(db, "orderItems"), where("memberUid", "==", memberUid))),
   ]);
-  const items = itemsSnapshot.docs.map((snapshot) => snapshot.data() as OrderItemRecord);
+  const items = itemsSnapshot.docs.map((snapshot) =>
+    normalizeOrderItemRecord(snapshot.data() as OrderItemRecord),
+  );
 
   return ordersSnapshot.docs.map((snapshot) => {
-    const order = snapshot.data() as OrderRecord;
+    const order = normalizeOrderRecord(snapshot.data() as OrderRecord);
     return {
       order,
       items: items.filter((item) => item.orderId === order.id),
@@ -82,10 +84,12 @@ export async function listAllOrders(
     getDocs(collection(db, "orders")),
     getDocs(collection(db, "orderItems")),
   ]);
-  const items = itemsSnapshot.docs.map((snapshot) => snapshot.data() as OrderItemRecord);
+  const items = itemsSnapshot.docs.map((snapshot) =>
+    normalizeOrderItemRecord(snapshot.data() as OrderItemRecord),
+  );
 
   return ordersSnapshot.docs.map((snapshot) => {
-    const order = snapshot.data() as OrderRecord;
+    const order = normalizeOrderRecord(snapshot.data() as OrderRecord);
     return {
       order,
       items: items.filter((item) => item.orderId === order.id),
@@ -127,7 +131,9 @@ export async function saveCancellationRequest(
 export async function listCancellationRequests(db: Firestore): Promise<CancellationRequestRecord[]> {
   const snapshot = await getDocs(collection(db, "cancellationRequests"));
 
-  return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
+  return snapshot.docs.map((document) =>
+    normalizeCancellationRequestRecord(document.data() as CancellationRequestRecord),
+  );
 }
 
 export async function listMemberCancellationRequests(
@@ -138,7 +144,9 @@ export async function listMemberCancellationRequests(
     query(collection(db, "cancellationRequests"), where("memberUid", "==", memberUid)),
   );
 
-  return snapshot.docs.map((document) => document.data() as CancellationRequestRecord);
+  return snapshot.docs.map((document) =>
+    normalizeCancellationRequestRecord(document.data() as CancellationRequestRecord),
+  );
 }
 
 export async function reviewCancellationRequest(
@@ -149,4 +157,99 @@ export async function reviewCancellationRequest(
     ...request,
     createdAt: serverTimestamp(),
   });
+}
+
+function normalizeOrderRecord(record: OrderRecord): OrderRecord {
+  return {
+    ...record,
+    createdAt: normalizeFirestoreTimestamp(record.createdAt),
+    ...(record.updatedAt ? { updatedAt: normalizeFirestoreTimestamp(record.updatedAt) } : {}),
+  };
+}
+
+function normalizeOrderItemRecord(record: OrderItemRecord): OrderItemRecord {
+  return {
+    ...record,
+    createdAt: normalizeFirestoreTimestamp(record.createdAt),
+    ...(record.updatedAt ? { updatedAt: normalizeFirestoreTimestamp(record.updatedAt) } : {}),
+  };
+}
+
+function normalizeCancellationRequestRecord(
+  record: CancellationRequestRecord,
+): CancellationRequestRecord {
+  const safeRecord = sanitizeCancellationRequest(record);
+  return {
+    ...safeRecord,
+    createdAt: normalizeFirestoreTimestamp(safeRecord.createdAt),
+    ...(safeRecord.reviewedAt ? { reviewedAt: normalizeFirestoreTimestamp(safeRecord.reviewedAt) } : {}),
+    ...(safeRecord.refundCompletedAt
+      ? { refundCompletedAt: normalizeFirestoreTimestamp(safeRecord.refundCompletedAt) }
+      : {}),
+  };
+}
+
+export function sanitizeCancellationRequest(
+  record: CancellationRequestRecord,
+): CancellationRequestRecord {
+  return {
+    id: record.id,
+    orderId: record.orderId,
+    orderItemIds: [...record.orderItemIds],
+    ...(record.requestedOrderItemIds !== undefined
+      ? { requestedOrderItemIds: [...record.requestedOrderItemIds] }
+      : {}),
+    memberUid: record.memberUid,
+    reason: record.reason,
+    status: record.status,
+    createdAt: record.createdAt,
+    createdBy: record.createdBy,
+    ...(record.reviewedAt !== undefined ? { reviewedAt: record.reviewedAt } : {}),
+    ...(record.reviewedBy !== undefined ? { reviewedBy: record.reviewedBy } : {}),
+    ...(record.reviewNote !== undefined ? { reviewNote: record.reviewNote } : {}),
+    ...(record.refundAmountTwd !== undefined ? { refundAmountTwd: record.refundAmountTwd } : {}),
+    ...(record.refundCompletedAt !== undefined
+      ? { refundCompletedAt: record.refundCompletedAt }
+      : {}),
+    ...(record.refundReference !== undefined ? { refundReference: record.refundReference } : {}),
+    ...(record.targetPaymentId !== undefined ? { targetPaymentId: record.targetPaymentId } : {}),
+    ...(record.targetPaymentRequestId !== undefined
+      ? { targetPaymentRequestId: record.targetPaymentRequestId }
+      : {}),
+    ...(record.refundRequestedAmountTwd !== undefined
+      ? { refundRequestedAmountTwd: record.refundRequestedAmountTwd }
+      : {}),
+    ...(record.refundItemAllocations !== undefined
+      ? { refundItemAllocations: record.refundItemAllocations.map((item) => ({ ...item })) }
+      : {}),
+    ...(record.refundBankCode !== undefined ? { refundBankCode: record.refundBankCode } : {}),
+    ...(record.refundAccountLast5 !== undefined
+      ? { refundAccountLast5: record.refundAccountLast5 }
+      : {}),
+  };
+}
+
+function normalizeFirestoreTimestamp(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (
+    value
+    && typeof value === "object"
+    && "toDate" in value
+    && typeof (value as { toDate?: unknown }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  if (
+    value
+    && typeof value === "object"
+    && "seconds" in value
+    && typeof (value as { seconds?: unknown }).seconds === "number"
+  ) {
+    const { seconds, nanoseconds = 0 } = value as { seconds: number; nanoseconds?: unknown };
+    const milliseconds = seconds * 1000 + (typeof nanoseconds === "number" ? Math.floor(nanoseconds / 1_000_000) : 0);
+    return new Date(milliseconds).toISOString();
+  }
+  return "";
 }

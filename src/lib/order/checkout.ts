@@ -1,9 +1,10 @@
 import { normalizeTaiwanMobile } from "@/lib/phone/taiwanMobile";
+import { getEffectiveCatalogPriceTwd } from "@/lib/catalog/publicCatalog";
 
 type CatalogVariant = {
   id: string;
   productId: string;
-  sku: string;
+  sku?: string;
   name: string;
   isDefault: boolean;
   priceTwd: number;
@@ -14,7 +15,8 @@ type CatalogCampaign = {
   productId: string;
   title: string;
   saleType: "inStock" | "preorder" | "rushPurchase" | "waitlist";
-  status: "draft" | "open" | "closed" | "archived";
+  status: "upcoming" | "open" | "closed" | "archived";
+  salePriceTwd?: number;
   requiresSupplement: boolean;
 };
 
@@ -37,9 +39,12 @@ export type CartLineItem = {
 };
 
 export type ShippingMethod = "address" | "seven_eleven" | "family_mart";
+export type CheckoutShippingMethod = "seven_eleven";
 
 type CheckoutContext = {
   orderId: string;
+  orderNumber?: string;
+  checkoutGroupId?: string;
   memberUid: string;
   createdAt: string;
   recipientName: string;
@@ -59,6 +64,8 @@ type OrderSnapshot = {
 
 export type OrderRecord = {
   id: string;
+  orderNumber?: string;
+  checkoutGroupId?: string;
   memberUid: string;
   status: "awaitingPayment" | "partiallyPaid" | "paid" | "cancelled";
   totalTwd: number;
@@ -87,6 +94,11 @@ export type OrderItemRecord = {
   createdBy: string;
   updatedAt?: string;
   updatedBy?: string;
+};
+
+export type OrderBundle = {
+  order: OrderRecord;
+  items: OrderItemRecord[];
 };
 
 type ValidationResult =
@@ -133,32 +145,18 @@ export function validateCheckoutCart(
     }
   }
 
-  const saleTypes = new Set(
-    items
-      .map((item) => getSaleTypeForItem(item, catalog))
-      .filter((saleType): saleType is CatalogCampaign["saleType"] => saleType !== null),
-  );
-  if (saleTypes.size !== 1) {
-    return { ok: false, error: "不同 sale type 不能混在同一張訂單。" };
-  }
-
   return { ok: true };
 }
 
 export function validateCartAddition(
-  currentItems: readonly CartLineItem[],
+  _currentItems: readonly CartLineItem[],
   nextItem: CartLineItem,
   catalog: readonly CatalogProduct[],
 ): ValidationResult {
-  const currentSaleType = getCartSaleType(currentItems, catalog);
   const nextSaleType = getSaleTypeForItem(nextItem, catalog);
 
   if (!nextSaleType) {
     return { ok: false, error: "找不到可售活動。" };
-  }
-
-  if (currentSaleType && currentSaleType !== nextSaleType) {
-    return { ok: false, error: "不同 sale type 不能混在同一張訂單。" };
   }
 
   return { ok: true };
@@ -175,11 +173,14 @@ export function buildCartSummary(
   return items.reduce(
     (summary, item) => {
       const variant = findVariant(catalog, item.variantId);
+      const campaign = findCampaign(catalog, item.saleCampaignId);
       const saleType = getSaleTypeForItem(item, catalog);
 
       return {
         itemCount: summary.itemCount + item.quantity,
-        totalTwd: summary.totalTwd + (variant?.priceTwd ?? 0) * item.quantity,
+        totalTwd:
+          summary.totalTwd
+          + (variant ? getEffectiveCatalogPriceTwd(variant, campaign) : 0) * item.quantity,
         saleType: summary.saleType ?? saleType ?? null,
       };
     },
@@ -211,7 +212,7 @@ export function createOrderFromCart(
         productName: product?.product.name ?? "",
         variantName: variant?.name ?? "",
         sku: variant?.sku ?? "",
-        unitPriceTwd: variant?.priceTwd ?? 0,
+        unitPriceTwd: variant ? getEffectiveCatalogPriceTwd(variant, campaign) : 0,
         ...(campaign?.title ? { publicSaleNotes: campaign.title } : {}),
       },
       createdAt: context.createdAt,
@@ -222,6 +223,8 @@ export function createOrderFromCart(
   return {
     order: {
       id: context.orderId,
+      ...(context.orderNumber ? { orderNumber: context.orderNumber } : {}),
+      ...(context.checkoutGroupId ? { checkoutGroupId: context.checkoutGroupId } : {}),
       memberUid: context.memberUid,
       status: "awaitingPayment",
       totalTwd: summary.totalTwd,
@@ -237,6 +240,33 @@ export function createOrderFromCart(
   };
 }
 
+export function groupCartItemsByCampaign(items: readonly CartLineItem[]) {
+  const groups = new Map<string, CartLineItem[]>();
+
+  items.forEach((item) => {
+    const current = groups.get(item.saleCampaignId) ?? [];
+    current.push(item);
+    groups.set(item.saleCampaignId, current);
+  });
+
+  return [...groups.entries()].map(([saleCampaignId, groupItems]) => ({
+    saleCampaignId,
+    items: groupItems,
+  }));
+}
+
+export function createOrderNumber(date: Date, sequence: number) {
+  if (!Number.isInteger(sequence) || sequence <= 0) {
+    throw new Error("Order number sequence must be a positive integer.");
+  }
+
+  const yyyy = String(date.getUTCFullYear());
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+
+  return `AST-${yyyy}${mm}${dd}-${String(sequence).padStart(4, "0")}`;
+}
+
 export function normalizeRecipientPhone(input: string) {
   const normalized = normalizeTaiwanMobile(input);
 
@@ -247,14 +277,10 @@ export function validateShippingDetails(input: {
   recipientName: string;
   recipientPhone: string;
   shippingMethod: ShippingMethod;
-  shippingAddress?: string;
-  shippingStoreInfo?: string;
 }) {
-  const errors: Partial<Record<"recipientName" | "recipientPhone" | "shippingAddress" | "shippingStoreInfo", string>> = {};
+  const errors: Partial<Record<"recipientName" | "recipientPhone" | "shippingMethod", string>> = {};
   const recipientName = input.recipientName.trim();
   const recipientPhone = normalizeRecipientPhone(input.recipientPhone);
-  const shippingAddress = input.shippingAddress?.trim() ?? "";
-  const shippingStoreInfo = input.shippingStoreInfo?.trim() ?? "";
 
   if (!recipientName) {
     errors.recipientName = "請填寫收件人姓名。";
@@ -266,16 +292,8 @@ export function validateShippingDetails(input: {
     errors.recipientPhone = "請輸入有效的台灣手機號碼。";
   }
 
-  if (input.shippingMethod === "address") {
-    if (!shippingAddress) {
-      errors.shippingAddress = "請填寫收件地址。";
-    } else if (shippingAddress.length > 200) {
-      errors.shippingAddress = "收件地址不可超過 200 個字元。";
-    }
-  } else if (!shippingStoreInfo) {
-    errors.shippingStoreInfo = "請填寫超商門市資訊。";
-  } else if (shippingStoreInfo.length > 200) {
-    errors.shippingStoreInfo = "門市資訊不可超過 200 個字元。";
+  if (input.shippingMethod !== "seven_eleven") {
+    errors.shippingMethod = "目前僅提供 7-Eleven 賣貨便。";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -287,23 +305,8 @@ export function validateShippingDetails(input: {
     value: {
       recipientName,
       recipientPhone,
-      ...(input.shippingMethod === "address" ? { shippingAddress } : {}),
-      ...(input.shippingMethod !== "address" ? { shippingStoreInfo } : {}),
     },
   };
-}
-
-function getCartSaleType(
-  items: readonly CartLineItem[],
-  catalog: readonly CatalogProduct[],
-): CatalogCampaign["saleType"] | null {
-  return items.reduce<CatalogCampaign["saleType"] | null>((current, item) => {
-    const next = getSaleTypeForItem(item, catalog);
-    if (!next) {
-      return current;
-    }
-    return current ?? next;
-  }, null);
 }
 
 function getSaleTypeForItem(

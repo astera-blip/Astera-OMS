@@ -6,13 +6,13 @@ import { ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 const navigation = [
-  { href: "/workspace", label: "Workspace" },
-  { href: "/workspace/products", label: "Products" },
-  { href: "/workspace/members", label: "Members" },
-  { href: "/workspace/orders", label: "Orders" },
-  { href: "/workspace/payments", label: "Payments" },
-  { href: "/workspace/content", label: "Content" },
-  { href: "/workspace/audit-logs", label: "Audit Logs" },
+  { href: "/workspace", label: "工作區 Workspace" },
+  { href: "/workspace/products", label: "商品 Products" },
+  { href: "/workspace/members", label: "會員 Members" },
+  { href: "/workspace/orders", label: "訂單 Orders" },
+  { href: "/workspace/payments", label: "付款 Payments" },
+  { href: "/workspace/content", label: "內容 Content" },
+  { href: "/workspace/audit-logs", label: "稽核紀錄 Audit Logs" },
 ];
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
@@ -31,7 +31,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   if (status === "loading") {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-5 text-slate-700">
+      <main className="grid min-h-dvh place-items-center bg-astera-page px-5 text-astera-secondary">
         正在載入工作區權限...
       </main>
     );
@@ -39,20 +39,20 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   if (!canUseWorkspace) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-50 px-5 text-slate-900">
-        <section className="max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+      <main className="grid min-h-dvh place-items-center bg-astera-page px-5 text-astera-ink">
+        <section className="max-w-md rounded-3xl border border-astera-border bg-astera-surface p-6 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-astera-brand">
             Workspace
           </p>
           <h1 className="mt-2 text-2xl font-semibold">需要後台權限</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-astera-secondary">
             請使用 owner 或 helper 帳號進入工作區。
           </p>
           {status === "signedOut" ? (
             <button
               type="button"
               onClick={() => void signInWithGoogle()}
-              className="mt-5 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+              className="mt-5 min-h-11 rounded-full bg-astera-brand px-4 py-2 text-sm font-medium text-white"
             >
               使用 Google 登入
             </button>
@@ -63,37 +63,37 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#0f172a_0%,#111827_35%,#f8fafc_35%,#f8fafc_100%)] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
+    <main className="min-h-dvh bg-astera-page px-4 py-4 text-astera-ink sm:px-6 lg:px-8">
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-        <header className="rounded-3xl border border-white/10 bg-slate-950 px-5 py-4 text-white shadow-lg shadow-slate-950/15">
+        <header className="rounded-xl border border-astera-border bg-astera-surface px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-astera-service">
                 Astera OMS
               </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-                Operations Workspace
+              <h1 className="mt-1 font-serif text-2xl tracking-tight text-astera-ink">
+                Owner 營運工作區
               </h1>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/"
-                className="rounded-full border border-white/15 px-4 py-2 text-sm text-slate-100 transition-colors hover:bg-white/10"
+                className="min-h-11 rounded-lg border border-astera-border px-4 py-2 text-sm text-astera-ink transition-colors hover:border-astera-brand hover:bg-astera-brand-soft"
               >
-                Home
+                回到前台
               </Link>
               <Link
                 href="/products"
-                className="rounded-full bg-amber-400 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-amber-300"
+                className="min-h-11 rounded-lg bg-astera-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-astera-ink"
               >
-                Public Products
+                查看公開商品
               </Link>
             </div>
           </div>
         </header>
 
         <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <aside className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <aside className="rounded-3xl border border-astera-border bg-astera-surface p-4 shadow-sm">
             <nav className="grid gap-1">
               {visibleNavigation.map((item) => {
                 const active =
@@ -107,8 +107,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                     className={[
                       "rounded-2xl px-4 py-3 text-sm font-medium transition-colors",
                       active
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-700 hover:bg-slate-100",
+                        ? "bg-astera-brand text-white"
+                        : "text-astera-ink hover:bg-astera-brand-soft",
                     ].join(" ")}
                   >
                     {item.label}

@@ -1,0 +1,279 @@
+import { createHmac } from "node:crypto";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
+
+const projectId = "demo-astera-oms";
+const password = "Password123!";
+const fingerprintKeyVersion = 7;
+const fingerprintKeys = new Map([
+  [3, "e2e-fingerprint-key-version-3"],
+  [7, "e2e-fingerprint-key-version-7"],
+]);
+const exactAccountNumber = "00123456789";
+
+export default async function globalSetup() {
+  if (process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS !== "true") {
+    return;
+  }
+
+  process.env.FIREBASE_AUTH_EMULATOR_HOST ??= "127.0.0.1:9099";
+  process.env.FIRESTORE_EMULATOR_HOST ??= "127.0.0.1:8080";
+  process.env.GCLOUD_PROJECT ??= projectId;
+  process.env.GOOGLE_CLOUD_PROJECT ??= projectId;
+
+  if (getApps().length === 0) {
+    initializeApp({ projectId });
+  }
+
+  const auth = getAuth();
+  const db = getFirestore();
+
+  await Promise.all([
+    seedUser(auth, {
+      uid: "owner-e2e",
+      email: "owner-e2e@example.test",
+      displayName: "Owner E2E",
+      role: "owner",
+    }),
+    seedUser(auth, {
+      uid: "member-e2e",
+      email: "member-e2e@example.test",
+      displayName: "Member E2E",
+      role: "member",
+    }),
+    seedUser(auth, {
+      uid: "member-duplicate-e2e",
+      email: "member-duplicate-e2e@example.test",
+      displayName: "Member Duplicate E2E",
+      role: "member",
+    }),
+    seedUser(auth, {
+      uid: "helper-e2e",
+      email: "helper-e2e@example.test",
+      displayName: "Helper E2E",
+      role: "helper",
+    }),
+  ]);
+
+  await Promise.all([
+    db.collection("members").doc("owner-e2e").set({
+      uid: "owner-e2e",
+      email: "owner-e2e@example.test",
+      displayName: "Owner E2E",
+      communityId: "owner-e2e",
+      mobilePhone: "0911111111",
+      completedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    db.collection("members").doc("member-e2e").set({
+      uid: "member-e2e",
+      email: "member-e2e@example.test",
+      displayName: "Member E2E",
+      communityId: "member-e2e",
+      mobilePhone: "0922222222",
+      completedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    db.collection("members").doc("member-duplicate-e2e").set({
+      uid: "member-duplicate-e2e",
+      email: "member-duplicate-e2e@example.test",
+      displayName: "Member Duplicate E2E",
+      communityId: "member-duplicate-e2e",
+      mobilePhone: "+886 922-222-222",
+      completedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    db.collection("members").doc("helper-e2e").set({
+      uid: "helper-e2e",
+      email: "helper-e2e@example.test",
+      displayName: "Helper E2E",
+      communityId: "helper-e2e",
+      mobilePhone: "0933333333",
+      completedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+  ]);
+
+  await Promise.all([
+    db.collection("paymentAccounts").doc("e2e-account").set({
+      id: "e2e-account",
+      bankName: "E2E 測試銀行",
+      branchName: "測試分行",
+      accountName: "Astera OMS 測試專用",
+      accountNumberLast5: "67890",
+      currency: "TWD",
+      status: "active",
+      createdAt: new Date(),
+      createdBy: "system",
+      updatedAt: new Date(),
+      updatedBy: "system",
+    }),
+    db.collection("memberPaymentAccounts").doc("member-e2e-account").set({
+      id: "member-e2e-account",
+      memberUid: "member-e2e",
+      bankCode: "012",
+      accountNumberLast5: "12345",
+      accountFingerprint: fingerprintFor("012", "00123412345"),
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion,
+      payerName: "測試會員甲",
+      verificationStatus: "verified",
+      status: "active",
+      createdAt: new Date(),
+      createdBy: "system",
+      updatedAt: new Date(),
+      updatedBy: "system",
+    }),
+    db.collection("memberPaymentAccounts").doc("member-a-exact-e2e").set(
+      accountFixture("member-a-exact-e2e", "member-e2e", exactAccountNumber, 3, "測試會員乙"),
+    ),
+    db.collection("memberPaymentAccounts").doc("member-e2e-legacy-name").set(
+      accountFixture("member-e2e-legacy-name", "member-e2e", "00123433333"),
+    ),
+    db.collection("productsInternal").doc("prod_e2e_flow").set({
+      id: "prod_e2e_flow",
+      sku: "AST-P999001",
+      images: [],
+      updatedAt: new Date(),
+      updatedBy: "system",
+    }, { merge: true }),
+    db.collection("productsPublic").doc("prod_e2e_flow").set({
+      id: "prod_e2e_flow",
+      name: "E2E 流程商品",
+      publicDescription: "用於 checkout、付款與取消流程的 emulator 測試商品。",
+      publishState: "published",
+      variants: [
+        {
+          id: "var_e2e_flow_default",
+          productId: "prod_e2e_flow",
+          name: "預設款",
+          isDefault: true,
+          priceTwd: 800,
+        },
+      ],
+      campaigns: [
+        {
+          id: "camp_e2e_flow_preorder",
+          productId: "prod_e2e_flow",
+          title: "E2E 預購",
+          saleType: "preorder",
+          status: "open",
+          salePriceTwd: 640,
+          requiresSupplement: true,
+        },
+        {
+          id: "camp_e2e_flow_rush",
+          productId: "prod_e2e_flow",
+          title: "E2E 代搶",
+          saleType: "rushPurchase",
+          status: "open",
+          salePriceTwd: 750,
+          requiresSupplement: true,
+        },
+      ],
+      updatedAt: new Date(),
+    }),
+    db.collection("productVariants").doc("var_e2e_flow_default").set({
+      id: "var_e2e_flow_default",
+      productId: "prod_e2e_flow",
+      sku: "AST-P999001-V001",
+      name: "預設款",
+      isDefault: true,
+      priceTwd: 800,
+      publishState: "published",
+      updatedAt: new Date(),
+    }),
+    ...["desktop", "mobile"].flatMap((target) => {
+      const productId = `prod_e2e_image_${target}`;
+      const name = `E2E 圖片商品 ${target}`;
+      return [
+        db.collection("productsInternal").doc(productId).set({
+          id: productId,
+          sku: target === "desktop" ? "AST-P999002" : "AST-P999003",
+          images: [],
+          updatedAt: new Date(),
+          updatedBy: "system",
+        }),
+        db.collection("productsPublic").doc(productId).set({
+          id: productId,
+          name,
+          publicDescription: "用於 Storage Emulator 商品圖片驗收。",
+          publishState: "draft",
+          images: [],
+          variants: [],
+          campaigns: [],
+          updatedAt: new Date(),
+        }),
+      ];
+    }),
+  ]);
+}
+
+async function seedUser(
+  auth: ReturnType<typeof getAuth>,
+  input: { uid: string; email: string; displayName: string; role: "owner" | "helper" | "member" },
+) {
+  try {
+    await auth.updateUser(input.uid, {
+      email: input.email,
+      password,
+      displayName: input.displayName,
+      emailVerified: true,
+      disabled: false,
+    });
+  } catch {
+    await auth.createUser({
+      uid: input.uid,
+      email: input.email,
+      password,
+      displayName: input.displayName,
+      emailVerified: true,
+    });
+  }
+
+  await auth.setCustomUserClaims(input.uid, { role: input.role });
+}
+
+function accountFixture(
+  id: string,
+  memberUid: string,
+  accountNumber: string,
+  keyVersion = fingerprintKeyVersion,
+  payerName?: string,
+) {
+  return {
+    id,
+    memberUid,
+    bankCode: "012",
+    accountNumberLast5: accountNumber.slice(-5),
+    accountFingerprint: fingerprintFor("012", accountNumber, keyVersion),
+    fingerprintAlgorithm: "HMAC-SHA-256",
+    fingerprintKeyVersion: keyVersion,
+    ...(payerName ? { payerName } : {}),
+    verificationStatus: "verified",
+    status: "active",
+    createdAt: new Date(),
+    createdBy: "system",
+    updatedAt: new Date(),
+    updatedBy: "system",
+  };
+}
+
+function fingerprintFor(
+  bankCode: string,
+  accountNumber: string,
+  keyVersion = fingerprintKeyVersion,
+) {
+  const key = fingerprintKeys.get(keyVersion);
+  if (!key) {
+    throw new Error("unknown_e2e_fingerprint_key");
+  }
+  return createHmac("sha256", key)
+    .update(`astera:bank-account:v1|${bankCode}|${accountNumber}`)
+    .digest("base64");
+}
