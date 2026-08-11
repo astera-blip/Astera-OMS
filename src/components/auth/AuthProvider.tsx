@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     let unsubscribe = () => {};
+    let redirectResultError: string | null = null;
 
     async function subscribe() {
       const [{ auth }, { getRedirectResult, onAuthStateChanged }] = await Promise.all([
@@ -71,7 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await getRedirectResult(auth).catch((error: unknown) => {
         if (active) {
-          setError(getGoogleSignInErrorMessage(error));
+          redirectResultError = getGoogleSignInErrorMessage(error);
+          setError(redirectResultError);
         }
       });
 
@@ -80,7 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        setError(null);
+        if (!redirectResultError) {
+          setError(null);
+        } else if (currentUser) {
+          setError(null);
+        }
         setUser(currentUser);
 
         if (!currentUser) {

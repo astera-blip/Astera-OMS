@@ -82,6 +82,13 @@ describe("shared UI accessibility contract", () => {
     expect(authProvider).toContain("這個網址尚未允許 Google 登入");
   });
 
+  it("keeps a Google redirect failure visible when Firebase reports signed-out afterwards", () => {
+    const authProvider = read("src/components/auth/AuthProvider.tsx");
+
+    expect(authProvider).toContain("redirectResultError");
+    expect(authProvider).toContain("if (!redirectResultError)");
+  });
+
   it("places storefront brand text before the large buyer title", () => {
     const home = read("src/app/page.tsx");
 
