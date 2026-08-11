@@ -29,7 +29,7 @@
 - Produces: `NextConfig.rewrites()` with `beforeFiles[0]` forwarding
   `/__/auth/:path*` to `https://astera-oms-prod.firebaseapp.com/__/auth/:path*`.
 
-- [ ] **Step 1: Write the failing regression test**
+- [x] **Step 1: Write the failing regression test**
 
 ```ts
 test("proxies Firebase Auth helpers before application routes", () => {
@@ -44,13 +44,13 @@ test("proxies Firebase Auth helpers before application routes", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm it fails because the rewrite is absent**
+- [x] **Step 2: Run the focused test and confirm it fails because the rewrite is absent**
 
 Run: `npx vitest run tests/unit/nextRuntimeConfig.test.ts`
 
 Expected: FAIL because `next.config.ts` does not contain `async rewrites()`.
 
-- [ ] **Step 3: Add the minimal Next.js `beforeFiles` external rewrite**
+- [x] **Step 3: Add the minimal Next.js `beforeFiles` external rewrite**
 
 ```ts
 async rewrites() {
@@ -65,13 +65,13 @@ async rewrites() {
 },
 ```
 
-- [ ] **Step 4: Run the focused test and confirm it passes**
+- [x] **Step 4: Run the focused test and confirm it passes**
 
 Run: `npx vitest run tests/unit/nextRuntimeConfig.test.ts`
 
 Expected: PASS with every test in the file green.
 
-- [ ] **Step 5: Run local release checks and commit the source change**
+- [x] **Step 5: Run local release checks and commit the source change**
 
 Run: `npm run typecheck; npm run lint; npm run build; npm run check:secrets; git diff --check`
 
