@@ -74,4 +74,15 @@ describe("member profile persistence diagnostics", () => {
     expect(pageSource).toContain("useSearchParams");
     expect(pageSource).toContain("router.replace(returnTo)");
   });
+
+  it("does not redirect to profile completion when profile loading failed", () => {
+    const authSource = readFileSync("src/components/auth/AuthProvider.tsx", "utf8");
+
+    expect(authSource).toMatch(
+      /const \{ status, profile, error \} = useAuth\(\)/,
+    );
+    expect(authSource).toMatch(
+      /status === "signedIn"\s*&&\s*!error\s*&&\s*!profile/,
+    );
+  });
 });

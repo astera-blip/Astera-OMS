@@ -1900,3 +1900,25 @@ four fresh readbacks pass and are reviewed.
   with birthday blank, then return to account management and create the already
   approved second synthetic account. Do not save those profile values without
   explicit confirmation.
+
+## 2026-08-11 Two-account switching accepted and profile error guard repaired
+
+- The member-data write was approved but ultimately not needed: on the fresh
+  authenticated read, the account page loaded normally, so no social ID, phone, or
+  birthday value was changed.
+- The approved second synthetic account was created with bank code `001`. The full
+  synthetic account input cleared after submission; the page shows only masked
+  data and reports two usable accounts out of five.
+- `/payments` switching was verified in both directions. Account `000` links its own
+  masked last five and `測試專用匯款人`; account `001` links its own masked last five
+  and `測試專用匯款人二`. Both linked fields remain DOM `readOnly`, and no Payment
+  Report was submitted.
+- The intermittent earlier profile form was traced to a guard edge case: a failed
+  profile read set auth to signed-in with `profile=null`, which was indistinguishable
+  from a confirmed missing profile. A red/green regression now requires the guard
+  to suppress profile-completion redirects while an auth/profile error exists.
+- Fresh evidence so far: focused test 6/6; Unit 50 files / 418 tests; Rules 2 files /
+  32 tests; TypeScript and ESLint passed. Local Next compilation succeeded, but the
+  managed Windows sandbox denied its later worker spawn (`EPERM`) after two external
+  approval-review timeouts. The Git-integrated Vercel Preview build is the next
+  build gate; do not claim Build passed until it is Ready.

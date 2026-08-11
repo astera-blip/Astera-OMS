@@ -2017,3 +2017,22 @@ domain, or change any other Firebase/Vercel setting.
   leaving birthday blank. After that profile write, create the previously approved
   bank-code `001` synthetic account and verify two-account switching without
   submitting a Payment Report.
+
+## 2026-08-11 Second account and selector-switching result
+
+- The profile values were approved but were not written because a fresh signed-in
+  account-page load succeeded without the completion form. No unnecessary member
+  profile mutation was performed.
+- The separately approved bank-code `001` synthetic account was created. The UI
+  cleared the full-account field after the protected API returned success and now
+  reports two usable accounts. No full account number is recorded in this handoff.
+- Payment Report selector acceptance passed for both accounts. Each selection
+  updated the masked last-five and payer-name fields to that account's values, and
+  both fields were verified as DOM `readOnly`. No Payment was submitted.
+- A test-first two-line guard repair prevents a profile read error from being treated
+  as a confirmed missing profile. The regression failed before the repair and passed
+  afterward. Full Unit 418/418, Rules 32/32, TypeScript, and ESLint passed.
+- Local Next compilation completed, then the managed sandbox blocked a child process
+  with `spawn EPERM`; two approved-mode attempts could not start because the approval
+  review timed out. Push the code and require a Ready Git-integrated Preview before
+  marking Build/Preview verification complete.
