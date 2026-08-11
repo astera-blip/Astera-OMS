@@ -11,11 +11,86 @@ import {
 import {
   allocatePaymentReportAmount,
   buildMemberPaymentAccountIdentitySnapshot,
+  type MemberPaymentSummary,
 } from "@/lib/payment/manualBankTransfer";
 import {
   buildPaymentReportIdentity,
   validatePaymentReportIdempotencyKey,
 } from "@/lib/payment/reportIdempotency";
+
+function serializeTimestamp(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (value && typeof value === "object" && "toDate" in value) {
+    const toDate = (value as { toDate?: unknown }).toDate;
+    if (typeof toDate === "function") {
+      return (toDate.call(value) as Date).toISOString();
+    }
+  }
+  return "";
+}
+
+export async function GET(request: Request) {
+  try {
+    const claims = await requireFirebaseUser(request);
+    const snapshot = await getAdminFirestore()
+      .collection("payments")
+      .where("memberUid", "==", claims.uid)
+      .get();
+    const payments = snapshot.docs.map((doc) => {
+      const data = doc.data() as {
+        paymentRequestId?: string;
+        paymentGroupId?: string;
+        receivedAmountTwd?: number;
+        receivedAt?: string;
+        status?: MemberPaymentSummary["status"];
+        receivingPaymentAccount?: { bankName?: string; accountNumberLast5?: string };
+        memberPaymentAccount?: { bankCode?: string; accountNumberLast5?: string; payerName?: string };
+        memberNote?: string;
+        createdAt?: unknown;
+      };
+      const receivingParts = [
+        data.receivingPaymentAccount?.bankName,
+        data.receivingPaymentAccount?.accountNumberLast5
+          ? `末五碼 ${data.receivingPaymentAccount.accountNumberLast5}`
+          : undefined,
+      ].filter(Boolean);
+      const memberParts = [
+        data.memberPaymentAccount?.bankCode
+          ? `銀行代碼 ${data.memberPaymentAccount.bankCode}`
+          : undefined,
+        data.memberPaymentAccount?.accountNumberLast5
+          ? `***${data.memberPaymentAccount.accountNumberLast5}`
+          : undefined,
+        data.memberPaymentAccount?.payerName,
+      ].filter(Boolean);
+      return {
+        id: doc.id,
+        paymentRequestId: data.paymentRequestId ?? "",
+        ...(data.paymentGroupId ? { paymentGroupId: data.paymentGroupId } : {}),
+        receivedAmountTwd: data.receivedAmountTwd ?? 0,
+        receivedAt: data.receivedAt ?? "",
+        status: data.status ?? "pendingReview",
+        receivingAccountDisplay: receivingParts.join("・"),
+        memberAccountDisplay: memberParts.join("・"),
+        ...(data.memberNote ? { memberNote: data.memberNote } : {}),
+        createdAt: serializeTimestamp(data.createdAt),
+      } satisfies MemberPaymentSummary;
+    }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+    return NextResponse.json({ payments });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown_error";
+    return NextResponse.json(
+      { error: message },
+      { status: message === "missing_token" ? 401 : 500 },
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {

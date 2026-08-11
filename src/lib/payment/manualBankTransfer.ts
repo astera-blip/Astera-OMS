@@ -53,6 +53,21 @@ export type LocalPayment = {
   updatedBy?: string;
 };
 
+export type MemberPaymentSummary = Pick<
+  LocalPayment,
+  | "id"
+  | "paymentRequestId"
+  | "paymentGroupId"
+  | "receivedAmountTwd"
+  | "receivedAt"
+  | "status"
+  | "memberNote"
+  | "createdAt"
+> & {
+  receivingAccountDisplay: string;
+  memberAccountDisplay: string;
+};
+
 export type LocalPaymentAllocation = {
   id: string;
   paymentId: string;

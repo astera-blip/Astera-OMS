@@ -42,10 +42,10 @@
 - Create: `tests/unit/memberPaymentsApi.test.ts`
 - Modify: `src/lib/payment/manualBankTransfer.ts`
 
-- [ ] Add failing tests proving `GET /api/payments` requires authentication, scopes by `memberUid`, orders newest first, and returns only the approved safe fields.
-- [ ] Explicitly assert the response omits full account data, fingerprints, algorithms, key versions, internal reasons, creator metadata, and other members' records.
-- [ ] Implement the Admin SDK query and a dedicated public/member-safe payment shape.
-- [ ] Run focused tests and commit the task.
+- [x] Add failing tests proving `GET /api/payments` requires authentication, scopes by `memberUid`, orders newest first, and returns only the approved safe fields.
+- [x] Explicitly assert the response omits full account data, fingerprints, algorithms, key versions, internal reasons, creator metadata, and other members' records.
+- [x] Implement the Admin SDK query and a dedicated public/member-safe payment shape.
+- [x] Run focused tests and commit the task.
 
 ## Task 3: Member UI retry safety and persistent status
 
