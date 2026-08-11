@@ -2003,3 +2003,17 @@ domain, or change any other Firebase/Vercel setting.
 - Remaining optional acceptance for this feature: add a separately authorised
   second synthetic account and verify switching the selector updates both fields.
   Any account creation or Payment submission requires its own action-time approval.
+
+## 2026-08-11 Second synthetic account blocked by required profile
+
+- Explicit approval was received to add a second synthetic payment account. Before
+  the account form became available, the existing profile-completion gate rendered
+  because this test member has no social ID or phone. No second account was created
+  and no direct API bypass was used.
+- The already verified first account remains visible on `/payments`; no Payment was
+  submitted. This checkpoint changed no financial record.
+- To resume, obtain explicit approval to preserve the existing first/last name and
+  save `測試專用會員` as the social ID plus `0900000000` as the synthetic phone,
+  leaving birthday blank. After that profile write, create the previously approved
+  bank-code `001` synthetic account and verify two-account switching without
+  submitting a Payment Report.

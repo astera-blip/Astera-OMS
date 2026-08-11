@@ -1886,3 +1886,17 @@ four fresh readbacks pass and are reviewed.
 - No Payment Report was submitted, no payment request was modified, and no
   Production deployment occurred. Testing a switch between two usable accounts
   still requires a second explicitly authorised synthetic account.
+
+## 2026-08-11 Second-account acceptance profile gate
+
+- The user approved creating a second synthetic member payment account, but no
+  account write was attempted because `/account/bank-accounts` first presented the
+  required member-profile completion form. The current test member lacks a social
+  ID and phone number.
+- `/payments` remains readable and continues to show the first verified test
+  account correctly. The application was not bypassed through a direct API call.
+- Exact next action requiring separate member-data approval: preserve the existing
+  first/last name, save synthetic social ID `測試專用會員` and phone `0900000000`
+  with birthday blank, then return to account management and create the already
+  approved second synthetic account. Do not save those profile values without
+  explicit confirmation.
