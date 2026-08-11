@@ -234,9 +234,9 @@ git commit -m "feat: complete legacy account payer names"
 
 **Interfaces:**
 - Consumes: stored `MemberPaymentAccount` with valid identity and `payerName`.
-- Produces: `MemberPaymentAccountIdentitySnapshot.payerName`; `buildMemberPaymentAccountIdentitySnapshot(identity: AccountIdentity & { payerName: string })` copies normalized payer name; Payment POST no longer accepts a client-authoritative `payerName` or last five.
+- Produces: optional historical `MemberPaymentAccountIdentitySnapshot.payerName`; `buildMemberPaymentAccountIdentitySnapshot(identity: AccountIdentity & { payerName?: string })` copies a normalized payer name when present; the Payment POST independently requires it for every new Payment and no longer accepts a client-authoritative `payerName` or last five.
 
-- [ ] **Step 1: Write failing snapshot and route tests**
+- [x] **Step 1: Write failing snapshot and route tests**
 
 Add a domain assertion:
 
@@ -253,7 +253,7 @@ expect(buildMemberPaymentAccountIdentitySnapshot(account)).toEqual({
 
 Update Payment API tests to submit only `memberPaymentAccountId`. Assert the stored Payment has `payerName: "王小明"` and a matching `memberPaymentAccount.payerName`, both resolved from Firestore. Add a malicious request containing conflicting `payerName` and last-five fields and assert neither value reaches the Payment write. Add a legacy missing-name account case expecting `payment_account_member_payer_name_required` and no Payment write.
 
-- [ ] **Step 2: Run focused tests and observe failure**
+- [x] **Step 2: Run focused tests and observe failure**
 
 ```powershell
 npx vitest run tests/unit/paymentAccountSelectionApi.test.ts tests/unit/paymentReport.test.ts
@@ -261,7 +261,7 @@ npx vitest run tests/unit/paymentAccountSelectionApi.test.ts tests/unit/paymentR
 
 Expected: FAIL because the snapshot lacks payer name and the route still reads client `payerName`.
 
-- [ ] **Step 3: Implement the immutable snapshot**
+- [x] **Step 3: Implement the immutable snapshot**
 
 Extend the snapshot type and builder so payer name is required for new snapshots:
 
@@ -270,7 +270,7 @@ export type MemberPaymentAccountIdentitySnapshot = Pick<
   AccountIdentity,
   "bankCode" | "accountNumberLast5"
 > & {
-  payerName: string;
+  payerName?: string;
 } & Partial<Pick<AccountIdentity,
   "accountFingerprint" | "fingerprintAlgorithm" | "fingerprintKeyVersion"
 >>;
@@ -278,11 +278,11 @@ export type MemberPaymentAccountIdentitySnapshot = Pick<
 
 In the Payment route, parse neither last five nor payer name as authority. Resolve the selected document, enforce stored-account usability including payer name, and set both `payment.memberPaymentAccount` and legacy top-level `payment.payerName` from the resolved snapshot for backward-compatible Owner UI display.
 
-- [ ] **Step 4: Run focused tests and verify green**
+- [x] **Step 4: Run focused tests and verify green**
 
 Run the Task 4 command. Expected: all selected tests PASS.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```powershell
 git add src/lib/payment/manualBankTransfer.ts src/app/api/payments/route.ts tests/unit/paymentAccountSelectionApi.test.ts tests/unit/paymentReport.test.ts

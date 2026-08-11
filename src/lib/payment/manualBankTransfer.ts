@@ -10,7 +10,9 @@ export type MemberPaymentAccountIdentitySnapshot = Pick<
 > & Partial<Pick<
   AccountIdentity,
   "accountFingerprint" | "fingerprintAlgorithm" | "fingerprintKeyVersion"
->>;
+>> & {
+  payerName?: string;
+};
 
 export type LocalPaymentRequest = {
   id: string;
@@ -111,11 +113,12 @@ export function allocatePaymentReportAmount(
 }
 
 export function buildMemberPaymentAccountIdentitySnapshot(
-  identity: AccountIdentity,
+  identity: AccountIdentity & { payerName?: string },
 ): MemberPaymentAccountIdentitySnapshot {
   const snapshot: MemberPaymentAccountIdentitySnapshot = {
     bankCode: identity.bankCode,
     accountNumberLast5: identity.accountNumberLast5,
+    ...(identity.payerName ? { payerName: identity.payerName } : {}),
   };
 
   return hasUsableFingerprint(identity)

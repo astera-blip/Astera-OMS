@@ -10,5 +10,7 @@ describe("payment report account selection contract", () => {
     expect(source).toContain("memberPaymentAccount");
     expect(source).toContain("buildMemberPaymentAccountIdentitySnapshot");
     expect(source).toContain("payment_account_member_required");
+    expect(source).toContain("memberPaymentAccount.payerName");
+    expect(source).not.toContain("const payerName = body.payerName");
   });
 });
