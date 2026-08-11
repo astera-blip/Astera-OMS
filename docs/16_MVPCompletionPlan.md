@@ -2100,3 +2100,20 @@ Preview deployment update:
   the later Payment is `rejected`, the earlier Payment remains `pendingReview`,
   and `audit_reject_pdfwANGEnxaldM6iM3Q7` records `payment.rejected` with the
   exact safe reason. No Payment was confirmed or deleted.
+
+## 2026-08-11 Guest storefront homepage redesign
+
+- [x] Rebuild the existing `/` route in place; no alternate homepage or mockup route was added.
+- [x] Keep `productsPublic` and existing catalog helpers as the only homepage product／Campaign source.
+- [x] Replace the public `ASTERA OMS` tooling presentation with an `ASTERA` buyer Header,
+  curated Hero, Campaign cards, 2／4-column product Grid, shopping guide, supplement,
+  FAQ／support, and the existing shared Footer.
+- [x] Add minimal session-only guest cart intent preservation. After existing Firebase
+  redirect login and profile completion, the homepage reloads current public catalog data,
+  validates IDs/status, writes through protected `/api/cart`, and clears the intent only
+  after success. Price and permissions are never persisted in the intent.
+- [x] Verify focused Unit 29/29, full Unit 56 files／450 tests, TypeScript, ESLint,
+  Next Build 42 routes, regular public Playwright 16 passed／10 expected skips,
+  Emulator homepage Playwright 10/10, and Rules 2 files／32 tests. Implementation
+  commit: `54a8b03`.
+- [ ] Preview and Production deployment remain separate operations and were not performed.

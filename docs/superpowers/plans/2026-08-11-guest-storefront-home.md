@@ -29,10 +29,10 @@
 - Consumes: current `/`, `StorefrontHeader`, `FeaturedProductsBoard`.
 - Produces: regression assertions for page order, public copy, responsive grid, Campaign details, guest login intent, and overflow.
 
-- [ ] Add Unit source-contract assertions that `page.tsx` contains `#featured-products`, `#shopping-guide`, `#supplement`, and `#faq-support` in order and excludes `ASTERA OMS`, `Owner`, `Firestore`, `Audit Log`, and `MVP`.
-- [ ] Add Unit assertions that `FeaturedProductsBoard` imports the existing catalog repository, cart validation/API flow, and pending intent helper; renders `grid-cols-2 lg:grid-cols-4`, 4:5 image component, `aria-live`, Retry, Sale Type, deadline, and supplement text.
-- [ ] Add Playwright tests at 390, 768, and 1365 widths. Use `getComputedStyle(grid).gridTemplateColumns` to assert 2, 2, and 4 columns, and assert `document.documentElement.scrollWidth <= window.innerWidth`.
-- [ ] Run `npm run test:unit -- tests/unit/storefrontGrid.test.ts` and the focused Playwright test; confirm failures are caused by the old homepage structure and missing guest intent behavior.
+- [x] Add Unit source-contract assertions that `page.tsx` contains `#featured-products`, `#shopping-guide`, `#supplement`, and `#faq-support` in order and excludes `ASTERA OMS`, `Owner`, `Firestore`, `Audit Log`, and `MVP`.
+- [x] Add Unit assertions that `FeaturedProductsBoard` imports the existing catalog repository, cart validation/API flow, and pending intent helper; renders `grid-cols-2 lg:grid-cols-4`, 4:5 image component, `aria-live`, Retry, Sale Type, deadline, and supplement text.
+- [x] Add Playwright tests at 390, 768, and 1365 widths. Use `getComputedStyle(grid).gridTemplateColumns` to assert 2, 2, and 4 columns, and assert `document.documentElement.scrollWidth <= window.innerWidth`.
+- [x] Run focused Unit tests and confirm all eight new assertions fail for the expected missing homepage behavior／module.
 
 ### Task 2: Add the minimal pending guest-cart intent helper
 
@@ -47,10 +47,10 @@
   - `loadPendingCartIntent(): PendingCartIntent | null`
   - `clearPendingCartIntent(): void`
 
-- [ ] Write tests for round-trip storage, unavailable browser storage, malformed JSON, unexpected fields, non-positive quantity, and clear-after-success behavior.
-- [ ] Run the focused test and observe the missing-module failure.
-- [ ] Implement a fixed session-storage key and strict runtime parsing. Do not store name, price, email, role, Campaign status, or profile data.
-- [ ] Run the focused test and confirm all cases pass.
+- [x] Write tests for round-trip storage, unavailable browser storage, malformed JSON, unexpected fields, non-positive quantity, and clear-after-success behavior.
+- [x] Run the focused test and observe the missing-module failure.
+- [x] Implement a fixed session-storage key and strict runtime parsing. Do not store name, price, email, role, Campaign status, or profile data.
+- [x] Run the focused test and confirm all cases pass.
 
 ### Task 3: Refactor the real shared Header and authentication presentation
 
@@ -64,12 +64,12 @@
 - Consumes: `useAuth().status`, `user`, `error`, `signInWithGoogle`, `signOut`.
 - Produces: buyer-facing `ASTERA` header and reusable accessible account action rendering.
 
-- [ ] Add failing assertions for `ASTERA`, public navigation, cart, exact `使用 Google 登入`, loading semantics, and absence of `OMS`／`Operations Workspace` metadata.
-- [ ] Run the focused Unit test and confirm it fails on old copy/styles.
-- [ ] Rebuild `StorefrontHeader` with white surface, fine border, serif logo, public navigation, cart, and reused `AccountActions`; retain the workspace exclusion.
-- [ ] Restyle `AccountActions` with Astera tokens, 44px controls, `aria-live` error, and existing auth methods unchanged.
-- [ ] Replace Root metadata with buyer-facing Astera title/description.
-- [ ] Re-run the focused test.
+- [x] Add failing assertions for `ASTERA`, public navigation, cart, exact `使用 Google 登入`, loading semantics, and absence of `OMS`／`Operations Workspace` metadata.
+- [x] Run the focused Unit test and confirm it fails on old copy/styles.
+- [x] Rebuild `StorefrontHeader` with white surface, fine border, serif logo, public navigation, cart, and reused `AccountActions`; retain the workspace exclusion.
+- [x] Restyle `AccountActions` with Astera tokens, 44px controls, `aria-live` error, and existing auth methods unchanged.
+- [x] Replace Root metadata with buyer-facing Astera title/description.
+- [x] Re-run the focused test.
 
 ### Task 4: Rebuild `/` and its real product/Campaign board
 
@@ -83,14 +83,14 @@
 - Consumes: `listPublicProducts`, `rankFeaturedProducts`, `featuredCampaign`, `getDefaultVariant`, `getEffectiveCatalogPriceTwd`, `validateCartAddition`, `/api/cart`, `useAuth`, and Task 2 intent helpers.
 - Produces: the fixed homepage sections and working homepage add-to-cart flow.
 
-- [ ] Implement the Hero and lower sections in the approved order with anchors `featured-products`, `shopping-guide`, `supplement`, and `faq-support`.
-- [ ] Refactor Campaign cards to show title, public classification summary, Chinese Sale Type, Taipei deadline, remaining-time copy, and supplement state.
-- [ ] Refactor product cards to prioritize 4:5 images and show title, authoritative effective price, Sale Type, Campaign, deadline, supplement Badge, detail link, and 44px add button.
-- [ ] For a guest click, derive the current default Variant／Campaign from loaded catalog, save only their IDs and quantity, announce the login requirement, and call the existing `signInWithGoogle`.
-- [ ] After authentication and profile availability, reload/validate the IDs against the current catalog, merge with the protected member cart via `/api/cart`, clear the pending intent only after success, and announce the result.
-- [ ] Add stable product-grid hooks/classes and Skeleton cards with 4:5 reserved space. Keep Empty, Error, Retry, `aria-live`, and `role="alert"` states.
-- [ ] Add only small global utilities needed for serif branding, tabular numbers, touch manipulation, and non-layout-shifting hover/press states; keep `prefers-reduced-motion`.
-- [ ] Run the focused Unit tests until green.
+- [x] Implement the Hero and lower sections in the approved order with anchors `featured-products`, `shopping-guide`, `supplement`, and `faq-support`.
+- [x] Refactor Campaign cards to show title, public classification summary, Chinese Sale Type, Taipei deadline, remaining-time copy, and supplement state.
+- [x] Refactor product cards to prioritize 4:5 images and show title, authoritative effective price, Sale Type, Campaign, deadline, supplement Badge, detail link, and 44px add button.
+- [x] For a guest click, derive the current default Variant／Campaign from loaded catalog, save only their IDs and quantity, announce the login requirement, and call the existing `signInWithGoogle`.
+- [x] After authentication and profile availability, reload/validate the IDs against the current catalog, merge with the protected member cart via `/api/cart`, clear the pending intent only after success, and announce the result.
+- [x] Add stable product-grid hooks/classes and Skeleton cards with 4:5 reserved space. Keep Empty, Error, Retry, `aria-live`, and `role="alert"` states.
+- [x] Add only small global utilities needed for serif branding, tabular numbers, touch manipulation, and non-layout-shifting hover/press states; keep `prefers-reduced-motion`.
+- [x] Run the focused Unit tests: 4 files／29 tests passed.
 
 ### Task 5: Responsive and public behavior acceptance
 
@@ -102,11 +102,11 @@
 - Consumes: completed `/` and emulator-seeded `productsPublic`.
 - Produces: automated evidence for public rendering and responsive behavior.
 
-- [ ] Run the focused Playwright file against desktop and mobile projects.
-- [ ] Fix any locator ambiguity, overflow, card overlap, inaccessible control, or wrong column count in production code.
-- [ ] Verify the page contains no public OMS／Owner／Firestore／Audit Log／MVP copy.
-- [ ] Verify Campaign and product cards use real seeded projection data and no hard-coded fake products.
-- [ ] Verify guest add-to-cart shows the Google login path without bypassing Firebase Auth; use emulator auth only for the post-login continuation case.
+- [x] Run the focused Playwright file against desktop and mobile projects.
+- [x] Verify 390／768／1365px column counts and no horizontal overflow.
+- [x] Verify the page contains no public OMS／Owner／Firestore／Audit Log／MVP copy.
+- [x] Verify Campaign and product cards use real seeded projection data and no hard-coded fake products.
+- [x] Verify the existing Firebase login path remains and Emulator auth resumes the validated pending intent.
 
 ### Task 6: Full verification and handoff
 
@@ -119,12 +119,11 @@
 **Interfaces:**
 - Produces: reproducible verification and continuation record.
 
-- [ ] Run `npm run typecheck`.
-- [ ] Run `npm run lint`.
-- [ ] Run `npm run test:unit`.
-- [ ] Run `npm run build`.
-- [ ] Run the focused public-home Playwright tests and any emulator flow required for authenticated intent continuation.
-- [ ] Inspect the final diff for accidental Collection, Rules, Checkout, or API schema changes.
-- [ ] Update plan and handoff with exact changed files, test counts, failures/fixes, and deployment state.
-- [ ] Commit the completed implementation. Do not deploy Production without separate authorization.
-
+- [x] Run `npm run typecheck`.
+- [x] Run `npm run lint`.
+- [x] Run `npm run test:unit`: 56 files／450 tests.
+- [x] Run `npm run build`: 42 routes.
+- [x] Run focused public-home Playwright: regular 16 passed／10 expected Emulator-only skips; Emulator 10 passed.
+- [x] Inspect the final diff: no Collection, Rules, Checkout, Order, pricing, or API schema changes.
+- [x] Update plan and handoff with exact changed files, test counts, failures/fixes, and deployment state.
+- [x] Commit completed implementation as `54a8b03`. Preview and Production remain undeployed.

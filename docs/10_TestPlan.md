@@ -369,5 +369,14 @@ session; otherwise use a separately approved, test-first diagnostic change.
 - Emulator Playwright covers one rapid-double-click member submission, persistent
   status after reload, API replay, sanitized history, Owner rejection, rejected
   Payment state, and `payment.rejected` Audit Log creation.
+
+## Guest storefront homepage acceptance (2026-08-11)
+
+- Unit contracts cover the real `/` section order, public-only wording, `ASTERA` Header,
+  Campaign deadline copy, minimal pending cart intent validation, and resilient states.
+- `tests/e2e/public-home.spec.ts` covers buyer hierarchy, 390／768／1365px column counts,
+  horizontal overflow, seeded `productsPublic`, and authenticated pending-intent resume.
+- Focused results: regular public Playwright 16 passed／10 expected Emulator-only skips;
+  Auth／Firestore／Storage Emulator public-home Playwright 10 passed.
 - Fresh totals: Unit 55 files／444 tests; Rules 2 files／32 tests; regular Playwright
   18 passed／30 expected skips; Emulator Playwright 38 passed／10 expected skips.

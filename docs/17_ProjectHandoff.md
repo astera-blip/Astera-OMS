@@ -2243,3 +2243,23 @@ domain, or change any other Firebase/Vercel setting.
   production Firestore verification confirmed the retained/rejected states and the
   immutable `audit_reject_pdfwANGEnxaldM6iM3Q7` record with action
   `payment.rejected`, the exact target ID, and the exact safe reason.
+
+## 2026-08-11 Existing `/` guest storefront redesign
+
+- The real `src/app/page.tsx` was rebuilt as the public Astera curated storefront;
+  no guest-home, new-home, static mockup, or fake product page was created.
+- `FeaturedProductsBoard` still reads published `productsPublic` through
+  `listPublicProducts` and reuses `rankFeaturedProducts`, `featuredCampaign`,
+  `getDefaultVariant`, `getEffectiveCatalogPriceTwd`, and `ProductCoverImage`.
+- The shared Header now displays `ASTERA`, buyer navigation, cart, and the reused
+  `AccountActions`; Root metadata is buyer-facing. Shared Footer behavior is unchanged.
+- Guest add-to-cart stores only product／Variant／Campaign IDs and quantity in session
+  storage, starts the existing Firebase redirect login, respects first-profile completion,
+  then revalidates current catalog state and writes via `/api/cart`.
+- Responsive Emulator acceptance passed at 390px (2 columns), 768px (2 columns), and
+  1365px (4 columns) without horizontal overflow; signed-in continuation also passed.
+- Verification: TypeScript pass; ESLint pass; Unit 56 files／450 tests; Build 42 routes;
+  regular public Playwright 16 passed／10 expected Emulator-only skips; focused Emulator
+  Playwright 10 passed; Rules 2 files／32 tests. No Collection, Rules, Checkout, Order,
+  or pricing logic changed. Implementation commit: `54a8b03`.
+- Deployment state: local branch only; Preview and Production were not deployed.
