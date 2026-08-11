@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       throw new Error(validation.error);
     }
 
-    const { bankCode, accountNumberFull } = validation.value;
+    const { bankCode, accountNumberFull, payerName } = validation.value;
     const macClient = new CloudKmsMac();
     const identity = await deriveAccountIdentity({ bankCode, accountNumber: accountNumberFull }, macClient);
     const db = getAdminFirestore();
@@ -90,6 +90,7 @@ export async function POST(request: Request) {
       const accountRecord = {
         ...identity,
         memberUid: claims.uid,
+        payerName,
         status: "active" as const,
         verificationStatus: "verified" as const,
         createdAt: FieldValue.serverTimestamp(),

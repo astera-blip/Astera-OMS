@@ -98,11 +98,11 @@ git commit -m "feat: add member account payer name contract"
 - Consumes: `validateMemberPaymentAccountInput`, `buildMemberPaymentAccountSnapshot`, current KMS identity derivation.
 - Produces: POST accepts `{ bankCode, accountNumberFull, payerName }`; Firestore stores normalized `payerName`; GET and POST responses expose normalized payer name plus masked account fields, never full account or fingerprint.
 
-- [ ] **Step 1: Read the Next.js 16 route-handler documentation**
+- [x] **Step 1: Read the Next.js 16 route-handler documentation**
 
 Use the installed guide under `node_modules/next/dist/docs/` that covers App Router route handlers, Request parsing and dynamic route parameters. Record any applicable deprecation in the task notes before changing the route.
 
-- [ ] **Step 2: Update registration tests first**
+- [x] **Step 2: Update registration tests first**
 
 Change successful POST bodies to include `payerName: "  王小明  "` and assert:
 
@@ -114,7 +114,7 @@ expect(JSON.stringify(accountWrite)).not.toContain("accountNumberFull");
 
 Add invalid/missing payer-name cases that expect HTTP 400 and `member_payment_account_payer_name_invalid`. Update GET tests so modern accounts return `payerName`, while a verified legacy account without it returns `needsPayerName: true` and remains non-payable.
 
-- [ ] **Step 3: Run the API test and observe failure**
+- [x] **Step 3: Run the API test and observe failure**
 
 ```powershell
 npx vitest run tests/unit/memberPaymentAccountApi.test.ts
@@ -122,7 +122,7 @@ npx vitest run tests/unit/memberPaymentAccountApi.test.ts
 
 Expected: FAIL because the route does not persist or return payer name.
 
-- [ ] **Step 4: Implement registration persistence**
+- [x] **Step 4: Implement registration persistence**
 
 Pass normalized `payerName` through the existing transaction write:
 
@@ -142,11 +142,11 @@ transaction.set(accountRef, {
 
 Continue generating responses only through `buildMemberPaymentAccountSnapshot`. Do not include payer name in duplicate-account notification payloads because it is not required for collision review.
 
-- [ ] **Step 5: Run the API test and verify green**
+- [x] **Step 5: Run the API test and verify green**
 
 Run the Task 2 test command. Expected: PASS and no full account/fingerprint in JSON assertions.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 ```powershell
 git add src/app/api/member/payment-accounts/route.ts tests/unit/memberPaymentAccountApi.test.ts

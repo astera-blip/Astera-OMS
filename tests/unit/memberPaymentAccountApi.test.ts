@@ -114,7 +114,11 @@ describe("member payment account API contract", () => {
     const response = await POST(new Request("https://example.test/api/member/payment-accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ bankCode: "０１２", accountNumberFull: "0012-345 6789" }),
+      body: JSON.stringify({
+        bankCode: "０１２",
+        accountNumberFull: "0012-345 6789",
+        payerName: "  王小明  ",
+      }),
     }));
 
     expect(response.status).toBe(201);
@@ -125,6 +129,8 @@ describe("member payment account API contract", () => {
         bankCode: "012",
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
+        payerName: "王小明",
+        needsPayerName: false,
         status: "active",
         verificationStatus: "verified",
       },
@@ -141,6 +147,7 @@ describe("member payment account API contract", () => {
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
       memberUid: "member-new",
+      payerName: "王小明",
       status: "active",
       verificationStatus: "verified",
       createdBy: "member-new",
@@ -215,6 +222,7 @@ describe("member payment account API contract", () => {
         body: JSON.stringify({
           bankCode: "012",
           accountNumberFull: "00123456789",
+          payerName: "王小明",
         }),
       },
     ));
@@ -249,7 +257,11 @@ describe("member payment account API contract", () => {
     const response = await POST(new Request("https://example.test/api/member/payment-accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789" }),
+      body: JSON.stringify({
+        bankCode: "012",
+        accountNumberFull: "00123456789",
+        payerName: "王小明",
+      }),
     }));
 
     expect(response.status).toBe(201);
@@ -295,7 +307,11 @@ describe("member payment account API contract", () => {
     const response = await POST(new Request("https://example.test/api/member/payment-accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789" }),
+      body: JSON.stringify({
+        bankCode: "012",
+        accountNumberFull: "00123456789",
+        payerName: "王小明",
+      }),
     }));
 
     expect(response.status).toBe(400);
@@ -319,6 +335,7 @@ describe("member payment account API contract", () => {
               accountFingerprint: currentFingerprint,
               fingerprintAlgorithm: "HMAC-SHA-256",
               fingerprintKeyVersion: 7,
+              payerName: "王小明",
               status: "active",
               verificationStatus: "verified",
             },
@@ -337,6 +354,8 @@ describe("member payment account API contract", () => {
         bankCode: "012",
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
+        payerName: "王小明",
+        needsPayerName: false,
         status: "active",
         verificationStatus: "verified",
       }],
@@ -372,6 +391,7 @@ describe("member payment account API contract", () => {
         bankCode: "",
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
+        needsPayerName: true,
         status: "inactive",
         verificationStatus: "needsReverification",
       }],
@@ -397,7 +417,11 @@ describe("member payment account API contract", () => {
     const response = await POST(new Request("https://example.test/api/member/payment-accounts", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789" }),
+      body: JSON.stringify({
+        bankCode: "012",
+        accountNumberFull: "00123456789",
+        payerName: "王小明",
+      }),
     }));
 
     expect(response.status).toBe(201);
@@ -418,6 +442,7 @@ describe("member payment account API contract", () => {
           accountFingerprint: currentFingerprint,
           fingerprintAlgorithm: "HMAC-SHA-256",
           fingerprintKeyVersion: 7,
+          payerName: "王小明",
           status: "active",
           verificationStatus: "verified",
         }),
@@ -443,6 +468,8 @@ describe("member payment account API contract", () => {
         bankCode: "012",
         accountNumberMasked: "***56789",
         accountNumberLast5: "56789",
+        payerName: "王小明",
+        needsPayerName: false,
         status: "pendingDeletion",
         verificationStatus: "verified",
       },
@@ -453,4 +480,29 @@ describe("member payment account API contract", () => {
       updatedBy: "member-a",
     }));
   });
+
+  it.each([undefined, "", "王\n小明"])(
+    "rejects an invalid payer name without creating an account: %s",
+    async (payerName) => {
+      auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
+      const registration = createRegistrationFirestore({});
+      firestore.getAdminFirestore.mockReturnValue(registration.db);
+
+      const response = await POST(new Request("https://example.test/api/member/payment-accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          bankCode: "012",
+          accountNumberFull: "00123456789",
+          payerName,
+        }),
+      }));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: "member_payment_account_payer_name_invalid",
+      });
+      expect(registration.set).not.toHaveBeenCalled();
+    },
+  );
 });
