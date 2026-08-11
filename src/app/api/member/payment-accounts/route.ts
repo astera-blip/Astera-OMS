@@ -16,12 +16,15 @@ import { CloudKmsMac } from "@/lib/security/cloudKmsMac";
 const collectionName = "memberPaymentAccounts";
 
 export async function GET(request: Request) {
+  let stage = "authenticate";
   try {
     const claims = await requireFirebaseUser(request);
+    stage = "query";
     const snapshot = await getAdminFirestore()
       .collection(collectionName)
       .where("memberUid", "==", claims.uid)
       .get();
+    stage = "serialize";
     const accounts = snapshot.docs
       .map((document) => buildMemberPaymentAccountSnapshot({
         id: document.id,
@@ -30,7 +33,7 @@ export async function GET(request: Request) {
       .sort((left, right) => left.id.localeCompare(right.id));
     return NextResponse.json({ accounts });
   } catch (error) {
-    return memberAccountResponse(error);
+    return memberAccountResponse(error, { operation: "GET", stage });
   }
 }
 
@@ -140,13 +143,25 @@ export async function POST(request: Request) {
   }
 }
 
-function memberAccountResponse(error: unknown) {
+function memberAccountResponse(
+  error: unknown,
+  context?: { operation: "GET" | "POST"; stage: string },
+) {
   const message = error instanceof Error ? error.message : "unknown_error";
   const status = message === "missing_token" || message === "invalid_token"
     ? 401
     : message.startsWith("member_payment_account_")
       ? message === "member_payment_account_not_found" ? 404 : 400
       : 500;
+  if (status === 500 && context) {
+    // The client only receives a generic error. Keep the server diagnostic free
+    // of IDs, account values, fingerprints, tokens, and raw provider messages.
+    console.error("member_payment_accounts_api_failure", {
+      operation: context.operation,
+      stage: context.stage,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
   return NextResponse.json({
     error: status === 500 ? "internal_error" : message,
     ...(status < 500 ? { message: memberPaymentAccountErrorMessage(message) } : {}),
