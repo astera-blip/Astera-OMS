@@ -1551,3 +1551,31 @@ domain, or change any other Firebase/Vercel setting.
   by signing in as the Owner test account, opening the Preview payment workspace,
   and reading the newest test-only report. Obtain a fresh explicit confirmation
   immediately before confirming, reversing, or otherwise mutating financial state.
+
+## 2026-08-11 Member account payer-name linkage handoff
+
+- Confirmed requirement implemented: every new member payment account records its
+  payer name; Payment Reports choose the verified account rather than accepting a
+  separately typed last-five value or payer name. Selecting an account controls both
+  read-only display values together.
+- Compatibility path: a verified legacy account that lacks a payer name is returned
+  with `needsPayerName`, excluded from usable Payment choices, and can receive its
+  name exactly once through the member-owned protected API. No full account re-entry
+  is required and existing identity fields remain unchanged.
+- Server trust boundary: new Payments persist the payer name from the selected
+  `memberPaymentAccounts` record in the immutable source snapshot. Client-supplied
+  payer or account fragments are not authoritative. Firestore Client SDK access to
+  the collection remains denied, including direct writes containing `payerName`.
+- Commits completed before this handoff: `7301e90`, `8648fae`, `6a40bbd`,
+  `cccb346`, and `dc6e6f4`. Task 6 test/docs changes are the current uncommitted
+  batch pending its final review commit.
+- Verification evidence: 27/27 focused; 45 Unit files / 395 tests; 2 Rules files /
+  32 tests; 35 emulated Playwright passed with 9 intentional project skips; 16
+  regular Playwright passed with 28 Emulator-only skips; TypeScript, ESLint, Next
+  build (39 routes), secret scan, production audit (0 vulnerabilities), and diff
+  check passed.
+- Deployment status: not pushed and not deployed in this batch; Production unchanged.
+  Next exact step is final branch-diff review, Task 6 commit, then obtain authorization
+  to push for a Preview-only deployment. Manual Preview acceptance must cover legacy
+  completion and two-account switching; creating or confirming another Payment still
+  requires separate action-time authorization.

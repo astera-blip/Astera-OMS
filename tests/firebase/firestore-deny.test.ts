@@ -942,6 +942,7 @@ describe("Day 1 Firestore rules", () => {
         accountFingerprint: "rules-test-member-account-fingerprint",
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
+        payerName: "規則測試匯款人",
         status: "active",
       });
     });
@@ -949,6 +950,9 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(memberDb, "memberPaymentAccounts/member-account-a")));
     await assertFails(getDoc(doc(otherMemberDb, "memberPaymentAccounts/member-account-a")));
     await assertFails(getDoc(doc(ownerDb, "memberPaymentAccounts/member-account-a")));
-    await assertFails(setDoc(doc(memberDb, "memberPaymentAccounts/member-account-b"), { memberUid: "member-a" }));
+    await assertFails(setDoc(doc(memberDb, "memberPaymentAccounts/member-account-b"), {
+      memberUid: "member-a",
+      payerName: "不可由 Client 寫入",
+    }));
   });
 });

@@ -37,6 +37,7 @@ test("member API registers cross-version exact duplicates and last-five collisio
     data: {
       bankCode: "012",
       accountNumberFull: exactAccountNumber,
+      payerName: "重複帳戶測試甲",
     },
   });
   expect(exactResponse.status()).toBe(201);
@@ -49,6 +50,7 @@ test("member API registers cross-version exact duplicates and last-five collisio
       bankCode: "012",
       accountNumberMasked: "***56789",
       accountNumberLast5: "56789",
+      payerName: "重複帳戶測試甲",
       verificationStatus: "verified",
     },
     warning: "member_payment_account_duplicate_review_pending",
@@ -62,6 +64,7 @@ test("member API registers cross-version exact duplicates and last-five collisio
     data: {
       bankCode: "012",
       accountNumberFull: collisionAccountNumber,
+      payerName: "重複帳戶測試乙",
     },
   });
   expect(collisionResponse.status()).toBe(201);
@@ -89,6 +92,7 @@ test("member API registers cross-version exact duplicates and last-five collisio
   expect(storedRecords.every((record) =>
     !("accountNumberFull" in record)
     && record.accountNumberLast5 === "56789"
+    && typeof record.payerName === "string"
     && typeof record.accountFingerprint === "string")).toBe(true);
 
   expect(ownerNotificationsResponse.ok()).toBe(true);
@@ -125,6 +129,59 @@ test("member API registers cross-version exact duplicates and last-five collisio
     verificationStatus: "verified";
   });
   expect(publicAccount.accountNumberMasked).toBe("***56789");
+});
+
+test("legacy member account requires one-time payer-name completion", async ({
+  request,
+}, testInfo) => {
+  test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-desktop", "Server API flow runs once.");
+
+  const memberToken = await signIn(request, "member-e2e@example.test");
+  const beforeResponse = await request.get("/api/member/payment-accounts", {
+    headers: authorized(memberToken),
+  });
+  expect(beforeResponse.ok()).toBe(true);
+  const beforePayload = await beforeResponse.json() as {
+    accounts: Array<Record<string, unknown>>;
+  };
+  expect(beforePayload.accounts).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      id: "member-e2e-legacy-name",
+      accountNumberMasked: "***33333",
+      needsPayerName: true,
+    }),
+    expect.objectContaining({
+      id: "member-e2e-account",
+      payerName: "測試會員甲",
+      needsPayerName: false,
+    }),
+  ]));
+
+  const completionResponse = await request.post(
+    "/api/member/payment-accounts/member-e2e-legacy-name/payer-name",
+    {
+      headers: authorized(memberToken),
+      data: { payerName: "舊帳戶測試會員" },
+    },
+  );
+  expect(completionResponse.ok()).toBe(true);
+  expect(await completionResponse.json()).toMatchObject({
+    account: {
+      id: "member-e2e-legacy-name",
+      payerName: "舊帳戶測試會員",
+      needsPayerName: false,
+    },
+  });
+
+  const repeatedResponse = await request.post(
+    "/api/member/payment-accounts/member-e2e-legacy-name/payer-name",
+    {
+      headers: authorized(memberToken),
+      data: { payerName: "不得覆寫" },
+    },
+  );
+  expect(repeatedResponse.status()).toBe(409);
 });
 
 test("new identities use the latest key while refunds verify the payment snapshot version", async () => {

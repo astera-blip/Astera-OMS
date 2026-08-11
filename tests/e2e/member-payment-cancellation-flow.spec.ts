@@ -124,7 +124,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       accountNumberLast5: "00000",
       accountFingerprint: "client-controlled-fingerprint",
       fingerprintKeyVersion: 99,
-      payerName: "測試會員",
+      payerName: "前端偽造姓名",
       memberNote: "E2E overpayment",
     },
   });
@@ -140,6 +140,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
         accountFingerprint: string;
         fingerprintAlgorithm: string;
         fingerprintKeyVersion: number;
+        payerName: string;
       };
       manualFingerprintReviewRequired?: boolean;
     };
@@ -152,6 +153,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
     accountFingerprint: memberAccountFingerprint,
     fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: 7,
+    payerName: "測試會員甲",
   });
   expect(paymentPayload.payment.manualFingerprintReviewRequired).toBe(false);
 
@@ -187,6 +189,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
     accountFingerprint: memberAccountFingerprint,
     fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: 7,
+    payerName: "測試會員甲",
   });
 
   const unpaidItems = await listOrderItems(unpaidOrder!.orderId);
@@ -243,7 +246,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       receivedAmountTwd: orderForPaidCancellation.totalTwd,
       receivingPaymentAccountId: "e2e-account",
       memberPaymentAccountId: "member-e2e-account",
-      payerName: "測試會員",
+      payerName: "另一個前端偽造姓名",
     },
   });
   expect(exactPaymentResponse.ok()).toBe(true);

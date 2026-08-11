@@ -1495,3 +1495,27 @@ four fresh readbacks pass and are reviewed.
   Preview payment workspace, locate only the newly submitted test report, and verify
   `pendingReview` before any confirmation action. Owner confirmation requires a new
   action-time authorization.
+
+## 2026-08-11 Payer-linked member payment accounts implemented locally
+
+- New member payment-account registrations now require and persist a normalized
+  payer name alongside the bank code, last five digits and HMAC identity. The full
+  account number remains transient and is not returned by the API or stored as a
+  permanent plaintext field.
+- Legacy verified accounts without a payer name remain visible but cannot be used
+  for Payment Reports until the member completes the name once. The protected
+  completion API cannot overwrite an existing payer name and does not alter bank or
+  fingerprint identity fields.
+- Payment Report UI now selects a verified member account and renders its last five
+  digits and payer name as linked read-only values. The Payment API ignores forged
+  client values and snapshots the selected Server account payer name and identity.
+- Evidence: focused tests 27/27; Unit 45 files / 395 tests; Firestore + Storage Rules
+  2 files / 32 tests; emulated Playwright 35 passed / 9 conditionally skipped;
+  regular Playwright 16 passed / 28 Emulator-only skipped; TypeScript, ESLint,
+  Next build (39 routes), secret scan, production dependency audit and diff check
+  passed. The Windows Emulator commands used the approved elevated execution path.
+- This batch has not been pushed or deployed to Preview, and no Production setting
+  or financial record was changed. Exact next action after branch review is to push
+  `codex/production-security-worker`, deploy only Preview, then manually verify one
+  legacy-name completion and switching between two test-only accounts before
+  submitting a newly authorised test Payment Report.

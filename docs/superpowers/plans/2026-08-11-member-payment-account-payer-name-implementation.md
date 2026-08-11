@@ -365,15 +365,15 @@ git commit -m "feat: link payment reports to member accounts"
 - Consumes: completed protected APIs and UI from Tasks 1–5.
 - Produces: automated evidence for account completion, multi-account linkage, server-authoritative Payment snapshots and unchanged Client SDK denial.
 
-- [ ] **Step 1: Add Rules regression assertions**
+- [x] **Step 1: Add Rules regression assertions**
 
 Keep `memberPaymentAccounts` Client SDK reads and writes denied for Member A, Member B, Helper and Owner. Include a direct write containing `payerName` and assert it fails; no Rules allow-list expansion is permitted.
 
-- [ ] **Step 2: Update emulator fixtures**
+- [x] **Step 2: Update emulator fixtures**
 
 Give normal E2E member accounts distinct test-only payer names. Add one verified legacy fixture without payer name, and a second usable account with a different last five and payer name. Do not use real bank details or real names.
 
-- [ ] **Step 3: Extend Playwright acceptance**
+- [x] **Step 3: Extend Playwright acceptance**
 
 Verify in one deterministic test-only flow:
 
@@ -384,7 +384,7 @@ Verify in one deterministic test-only flow:
 5. A forged client payer name does not enter Firestore.
 6. Existing confirm, reverse and refund verification still use immutable snapshots.
 
-- [ ] **Step 4: Run the complete verification suite**
+- [x] **Step 4: Run the complete verification suite**
 
 ```powershell
 npm run typecheck
@@ -398,7 +398,7 @@ git diff --check
 
 Expected: every command exits 0. If Firebase emulator startup is blocked by managed Windows process permissions, rerun the same Rules/E2E command with the previously approved elevated execution path and record that fact.
 
-- [ ] **Step 5: Update live execution records**
+- [x] **Step 5: Update live execution records**
 
 Record in both project documents:
 
@@ -410,7 +410,7 @@ Record in both project documents:
 
 Do not include account values, fingerprints, member identifiers or internal Payment IDs.
 
-- [ ] **Step 6: Commit Task 6**
+- [x] **Step 6: Commit Task 6**
 
 ```powershell
 git add tests/firebase/firestore-deny.test.ts tests/e2e/member-payment-cancellation-flow.spec.ts tests/e2e/member-account-fingerprint-refund.spec.ts tests/e2e/global-setup.ts docs/16_MVPCompletionPlan.md docs/17_ProjectHandoff.md
