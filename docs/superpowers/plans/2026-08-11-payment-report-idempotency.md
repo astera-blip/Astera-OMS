@@ -27,13 +27,13 @@
 - Modify: `src/app/api/payments/route.ts`
 - Modify: `tests/unit/paymentReport.test.ts`
 
-- [ ] Add tests for idempotency-key validation, canonical immutable payload hashing, opaque deterministic Payment IDs, and stable allocation IDs.
-- [ ] Run `npm run test:unit -- tests/unit/paymentReportIdempotency.test.ts` and confirm the tests fail because the helper does not exist.
-- [ ] Implement SHA-256 helpers using Node crypto. IDs must not contain the member UID or raw idempotency key.
-- [ ] Add API tests for first creation, identical sequential replay, concurrent replay, same-key/different-payload `409 idempotency_conflict`, and different-key legitimate reports.
-- [ ] Require `idempotencyKey` in `POST /api/payments`, store a payload digest, use deterministic Payment refs, and return `alreadyExists` without duplicate writes when all existing records match.
-- [ ] Reject partial/corrupt existing groups and key reuse with different immutable input as `409`.
-- [ ] Run both focused test files and commit the task.
+- [x] Add tests for idempotency-key validation, canonical immutable payload hashing, opaque deterministic Payment IDs, and stable allocation IDs.
+- [x] Run `npm run test:unit -- tests/unit/paymentReportIdempotency.test.ts` and confirm the tests fail because the helper does not exist.
+- [x] Implement SHA-256 helpers using Node crypto. IDs must not contain the member UID or raw idempotency key.
+- [x] Add API tests for first creation, identical sequential replay, concurrent replay, same-key/different-payload `409 idempotency_conflict`, and different-key legitimate reports.
+- [x] Require `idempotencyKey` in `POST /api/payments`, store a payload digest, use deterministic Payment refs, and return `alreadyExists` without duplicate writes when all existing records match.
+- [x] Reject partial/corrupt existing groups and key reuse with different immutable input as `409`.
+- [x] Run both focused test files and commit the task.
 
 ## Task 2: Sanitized member payment history API
 
@@ -104,4 +104,3 @@
 - [ ] Update execution/handoff documents with exact files, commits, counts, verification output, deployment state, and next action.
 - [ ] Push `codex/mvp-completion`, deploy Preview only, and run the member report plus Owner rejection acceptance flow.
 - [ ] Before changing either existing duplicate test Payment, present the exact safe action and obtain fresh action-time approval; then keep one valid record and reject the other through the new audited API.
-

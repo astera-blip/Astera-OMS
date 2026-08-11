@@ -12,6 +12,10 @@ import {
   allocatePaymentReportAmount,
   buildMemberPaymentAccountIdentitySnapshot,
 } from "@/lib/payment/manualBankTransfer";
+import {
+  buildPaymentReportIdentity,
+  validatePaymentReportIdempotencyKey,
+} from "@/lib/payment/reportIdempotency";
 
 export async function POST(request: Request) {
   try {
@@ -24,6 +28,7 @@ export async function POST(request: Request) {
       receivingPaymentAccountId?: string;
       memberPaymentAccountId?: string;
       memberNote?: string;
+      idempotencyKey?: string;
     };
     const paymentRequestId = body.paymentRequestId?.trim() ?? "";
     const paymentRequestIds = (Array.isArray(body.paymentRequestIds)
@@ -38,6 +43,7 @@ export async function POST(request: Request) {
     const receivingPaymentAccountId = body.receivingPaymentAccountId?.trim() ?? "";
     const memberPaymentAccountId = body.memberPaymentAccountId?.trim() ?? "";
     const memberNote = body.memberNote?.trim() ?? "";
+    const idempotencyKey = validatePaymentReportIdempotencyKey(body.idempotencyKey);
 
     if (
       uniquePaymentRequestIds.length === 0
@@ -56,9 +62,20 @@ export async function POST(request: Request) {
       throw new Error("payment_account_member_required");
     }
 
+    const identity = buildPaymentReportIdentity({
+      memberUid: claims.uid,
+      idempotencyKey,
+      paymentRequestIds: uniquePaymentRequestIds,
+      receivedAt,
+      receivedAmountTwd,
+      receivingPaymentAccountId,
+      memberPaymentAccountId,
+      memberNote,
+    });
+
     const db = getAdminFirestore();
     const payment = await db.runTransaction(async (transaction) => {
-      const requestRefs = uniquePaymentRequestIds.map((id) => db.collection("paymentRequests").doc(id));
+      const requestRefs = identity.paymentRequestIds.map((id) => db.collection("paymentRequests").doc(id));
       const requestSnapshots = [];
       for (const requestRef of requestRefs) {
         const requestSnapshot = await transaction.get(requestRef);
@@ -93,6 +110,37 @@ export async function POST(request: Request) {
       }
       const allocatedTotal = allocations.reduce((total, allocation) => total + allocation.receivedAmountTwd, 0);
       const unallocatedAmountTwd = Math.max(receivedAmountTwd - allocatedTotal, 0);
+
+      const paymentRefs = identity.paymentIds.map((id) => db.collection("payments").doc(id));
+      const existingPaymentSnapshots = [];
+      for (const paymentRef of paymentRefs) {
+        existingPaymentSnapshots.push(await transaction.get(paymentRef));
+      }
+      const existingCount = existingPaymentSnapshots.filter((snapshot) => snapshot.exists).length;
+      if (existingCount > 0) {
+        const matchingReplay = existingCount === paymentRefs.length
+          && existingPaymentSnapshots.every((snapshot) => {
+            const existing = snapshot.data() as {
+              memberUid?: string;
+              paymentGroupId?: string;
+              idempotencyPayloadDigest?: string;
+            };
+            return existing.memberUid === claims.uid
+              && existing.paymentGroupId === identity.paymentGroupId
+              && existing.idempotencyPayloadDigest === identity.payloadDigest;
+          });
+        if (!matchingReplay) {
+          throw new Error("idempotency_conflict");
+        }
+        return {
+          payments: existingPaymentSnapshots.map((snapshot) => ({
+            id: snapshot.id,
+            ...(snapshot.data() as Record<string, unknown>),
+          })),
+          paymentGroupId: identity.paymentGroupId,
+          alreadyExists: true,
+        };
+      }
 
       const receivingAccountRef = db.collection("paymentAccounts").doc(receivingPaymentAccountId);
       const memberAccountRef = db.collection("memberPaymentAccounts").doc(memberPaymentAccountId);
@@ -134,15 +182,14 @@ export async function POST(request: Request) {
       const memberPaymentAccount = buildMemberPaymentAccountIdentitySnapshot(authoritativeMemberAccount);
       const manualFingerprintReviewRequired = !memberPaymentAccount.accountFingerprint;
 
-      const paymentRefs = allocations.map(() => db.collection("payments").doc());
-      const paymentGroupId = paymentRefs[0]?.id ?? "";
       const payments = allocations.map((allocation, index) => {
         const paymentRef = paymentRefs[index];
         const paymentRecord = {
           id: paymentRef.id,
           memberUid: claims.uid,
           paymentRequestId: allocation.paymentRequestId,
-          paymentGroupId,
+          paymentGroupId: identity.paymentGroupId,
+          idempotencyPayloadDigest: identity.payloadDigest,
           // Keep any overpayment on the last linked Payment so Owner confirmation
           // can persist it as PaymentRequest.unallocatedAmountTwd. Earlier linked
           // Payments remain exactly equal to their request allocation.
@@ -164,25 +211,30 @@ export async function POST(request: Request) {
         return { ...paymentRecord, createdAt: new Date().toISOString() };
       });
 
-      return { payments, paymentGroupId };
+      return { payments, paymentGroupId: identity.paymentGroupId, alreadyExists: false };
     });
 
     return NextResponse.json({
       payment: payment.payments[0],
       payments: payment.payments,
       paymentGroupId: payment.paymentGroupId,
+      alreadyExists: payment.alreadyExists,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
     const status =
       message === "missing_token"
         ? 401
-        : message === "forbidden"
+          : message === "forbidden"
           ? 403
           : message === "not_found"
             ? 404
             : message === "invalid_payment_request"
               ? 400
+              : message === "idempotency_conflict"
+                ? 409
+                : message === "invalid_idempotency_key"
+                  ? 400
               : message === "payment_account_not_found"
                 ? 404
                 : message === "payment_account_inactive"
