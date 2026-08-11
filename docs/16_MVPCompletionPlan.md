@@ -2009,3 +2009,20 @@ four fresh readbacks pass and are reviewed.
   the Owner custom-claim account on the same stable Preview, then reports that the
   Owner session is ready. Reading the newest clearly test-only Payment is allowed;
   confirm/reverse/refund/vault mutations still need new action-time approval.
+
+## 2026-08-11 Owner payment confirmation checkpoint
+
+- [x] Verify the Owner custom claim on the stable Preview.
+- [x] Read and uniquely identify the `測試專用 Task7` `pendingReview` Payment without
+  changing other Payments.
+- [x] With fresh approval, confirm the `NT$ 520` test Payment and verify that Payment,
+  Order, and OrderItem become `confirmed` / `paid` as applicable.
+- [x] Verify that a failed notification attempt does not roll back the financial
+  transaction and exposes only a sanitized failure message.
+- [ ] Re-run direct-load and in-app-navigation Owner route checks because one direct
+  `/workspace/orders` load transiently rendered the role gate and could not be
+  reproduced with normal in-app navigation.
+- [ ] Configure Resend DNS/API key and verify actual order/payment notification
+  delivery before public launch.
+- [ ] Obtain separate action-time authorization before test Payment reversal, paid
+  cancellation approval, refund match/mismatch, reveal, or vault cleanup operations.

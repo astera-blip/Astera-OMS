@@ -2114,3 +2114,27 @@ domain, or change any other Firebase/Vercel setting.
   account. Then perform only a read-only lookup of the newest clearly test-only
   `pendingReview` Payment. Obtain a fresh action-time authorization immediately
   before any confirm, reverse, cancellation-review, refund, reveal, or vault write.
+
+## 2026-08-11 Preview test payment confirmation
+
+- The Owner custom-claim session was verified on the stable Preview. A read-only
+  lookup identified the explicitly test-only Payment for `NT$ 520`, masked account
+  suffix `24856`, and payer label `測試專用 Task7` in `pendingReview`.
+- After fresh action-time approval, only that Payment was selected and confirmed
+  with a test-only reconciliation note. The Payment now renders `confirmed`; the
+  linked Order and OrderItem both render `paid`, and the reported/receivable amount
+  remains `NT$ 520`.
+- The post-transaction notification attempt failed and the UI retained a sanitized
+  delivery-failure status. The financial transaction was not rolled back, which
+  matches the required notification semantics. Resend domain/API-key delivery is
+  still an external launch gate.
+- A direct full-page navigation to `/workspace/orders` briefly rendered the role
+  gate once. Returning to `/workspace/payments` retained the Owner session, and a
+  normal in-app navigation to Orders then loaded successfully. This is not currently
+  reproducible as a route-specific authorization defect; keep it in the next browser
+  regression pass as a transient auth/profile-loading observation.
+- No reverse, cancellation review, refund comparison, refund-account reveal, vault
+  deletion, Production deployment, or unrelated Payment action was performed.
+- Exact continuation: obtain a new action-time approval before reversing this test
+  Payment or creating/approving a paid cancellation. Separately configure and verify
+  Resend before treating notification delivery as launch-ready.
