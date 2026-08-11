@@ -2036,3 +2036,17 @@ domain, or change any other Firebase/Vercel setting.
   with `spawn EPERM`; two approved-mode attempts could not start because the approval
   review timed out. Push the code and require a Ready Git-integrated Preview before
   marking Build/Preview verification complete.
+
+## 2026-08-11 Profile guard repair completed
+
+- Commit `1c10bee` was pushed and its Git-integrated Vercel Preview reached Ready.
+  The authorized stable Preview alias now targets that deployment; Production was
+  not deployed.
+- Deployed route acceptance confirmed `/account/bank-accounts` no longer diverted
+  during the verified session and loaded both usable test accounts. Deployed payment
+  account switching again produced the correct account-specific masked last-five and
+  payer-name values, both read-only. No Payment was submitted.
+- Final verification: 418 Unit tests, 32 Rules tests, TypeScript, ESLint, Vercel
+  Preview Build, 18 regular Playwright tests, 37 Emulator Playwright tests, secret
+  scan, and production dependency audit all passed. The remaining 28 regular and 9
+  emulated cases were intentional environment/project skips.

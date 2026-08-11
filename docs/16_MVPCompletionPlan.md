@@ -1922,3 +1922,17 @@ four fresh readbacks pass and are reviewed.
   managed Windows sandbox denied its later worker spawn (`EPERM`) after two external
   approval-review timeouts. The Git-integrated Vercel Preview build is the next
   build gate; do not claim Build passed until it is Ready.
+
+## 2026-08-11 Profile guard fix final verification
+
+- Git-integrated Preview for commit `1c10bee` reached Ready and the existing stable
+  Preview alias was moved to it. This supplies the production-equivalent Build gate
+  that the managed local sandbox could not finish after compilation.
+- Online readback stayed on `/account/bank-accounts`, rendered `我的匯款帳戶`, and
+  loaded both usable test accounts. The deployed `/payments` page again passed
+  two-way selector switching with matching read-only last-five and payer-name data.
+- Final automated evidence: focused 6/6; Unit 50 files / 418 tests; Rules 2 files /
+  32 tests; TypeScript; ESLint; Vercel Preview Build Ready; regular Playwright 18
+  passed / 28 Emulator-only skipped; emulated Playwright 37 passed / 9 intentional
+  skips; secret scan; production audit with zero vulnerabilities.
+- No Payment Report or Production deployment was performed.
