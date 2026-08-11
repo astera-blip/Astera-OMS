@@ -548,3 +548,12 @@ active process, then Owner confirmation, mismatch/match, reveal without capture,
 full refund, and vault-field absence. This checkpoint made no Vercel deployment,
 Production promotion, domain addition, or other Firebase/Vercel configuration
 change.
+
+### 2026-08-11 Stable Preview authentication retest
+
+The stable Preview returned to the application after Google account selection, but
+did not retain the Firebase member session across navigation. This blocked the
+remaining Preview-only security acceptance flow before any new test data or
+configuration mutation. Do not promote or deploy Production on this evidence. The
+next release-gate action is a retained-session browser retest, or a separately
+approved test-first diagnostic fix that preserves redirect-result error context.

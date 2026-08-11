@@ -1273,3 +1273,16 @@ four fresh readbacks pass and are reviewed.
   vault-absence sequence. Never print or document account digits, document IDs,
   token, fingerprint, ciphertext, key material, or rate-limit material. Do not add
   a domain, deploy Production, or change another Firebase/Vercel setting.
+
+## 2026-08-11 Task 7 authenticated-session blocker
+
+- A stable Preview retest completed Google account selection but the application
+  returned in signed-out state; `/account/bank-accounts` continued to require
+  Google login after navigation.
+- No new test data or external configuration was created. The in-app browser is
+  the only available automated browser surface for this run, and it did not retain
+  this Firebase redirect session. The current client code also clears a redirect
+  error when the following Firebase state is signed-out, hiding the diagnostic code.
+- Keep the one-pass payment/refund acceptance gate blocked. Resume only after a
+  retained authenticated session is available, or after a separately scoped,
+  test-first diagnostic change proves the underlying redirect failure.

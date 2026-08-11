@@ -594,3 +594,12 @@ commit `a68b6e3`; the five Task 7 checkpoint documents are the only remaining fi
 in the documentation commit. Independent diff review found no unrelated or secret
 change. The branch has no upstream and was not pushed because push authorization
 was not granted.
+
+2026-08-11 authenticated-session retest: Google account selection returned to the
+stable Preview, but application navigation rendered a signed-out state and the
+member payment-account route again required login. No mutation followed. The client
+currently clears redirect-result error context after a signed-out Firebase state, so
+the run does not distinguish an in-app redirect-runtime limitation from an external
+configuration cause. Keep Step 3 open; do not create another synthetic account or
+order until a browser demonstrably retains authentication, or a separately approved
+test-first diagnostic fix identifies the cause.

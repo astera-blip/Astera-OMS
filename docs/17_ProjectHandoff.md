@@ -1320,3 +1320,25 @@ without capturing the response body, full refund approval, and vault-field absen
 Do not record account digits, masked digits, IDs, token, fingerprint, ciphertext,
 KMS material, or rate-limit material. Do not push, deploy Production, add another
 domain, or change any other Firebase/Vercel setting.
+
+## 2026-08-11 Task 7 Preview authentication retest blocker
+
+- The stable Preview login was retested with the same test member. Google account
+  selection completed and returned to the stable Preview home page, but the
+  application then rendered the signed-out state. Navigating to
+  `/account/bank-accounts` still displayed the Google login prompt.
+- This run made no account, order, payment, refund, Firebase, Vercel, or Production
+  mutation. It did not inspect browser storage, cookies, tokens, or account values.
+- The current client error lifecycle clears a redirect-result error when Firebase
+  subsequently reports a signed-out state, so the visible page does not retain the
+  diagnostic error code. This establishes an authentication-observability defect,
+  but does not yet establish whether the underlying cause is the redirect runtime
+  or an external Firebase configuration.
+- The controlled in-app browser is the only available browser surface in this run;
+  no external Chrome extension session is connected. Do not create another test
+  account or test order until an authenticated session is demonstrably retained.
+- Exact next action: obtain an authenticated stable-Preview browser session that
+  remains signed in after navigation, then run the one-pass synthetic account/order/
+  payment flow already documented above. If the same failure occurs in a normal
+  browser, create a narrowly scoped diagnostic fix and test before retrying; do not
+  bypass Firebase Auth with test auth, custom tokens, or client storage access.

@@ -251,3 +251,13 @@ storage. A fresh one-pass account/order/payment is therefore required for
 refund-match acceptance. The remaining expected sequence is Owner confirm, one
 mismatch rejection, one match, reveal without response capture, full approved
 refund, and vault-field absence. Outputs remain boolean/aggregate only.
+
+### 2026-08-11 Stable Preview session-retention retest
+
+Google account selection was completed on the stable Preview, but subsequent
+application navigation rendered the signed-out state and `/account/bank-accounts`
+again required login. No account, order, payment, refund, or configuration mutation
+was attempted. This is an authentication-observability blocker: the redirect-result
+error is currently cleared when Firebase reports signed-out, so the actual error code
+is not visible. Retest the full security flow only after a browser retains the member
+session; otherwise use a separately approved, test-first diagnostic change.
