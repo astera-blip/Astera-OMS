@@ -2138,3 +2138,25 @@ domain, or change any other Firebase/Vercel setting.
 - Exact continuation: obtain a new action-time approval before reversing this test
   Payment or creating/approving a paid cancellation. Separately configure and verify
   Resend before treating notification delivery as launch-ready.
+
+## 2026-08-11 Preview test payment reversal
+
+- Fresh action-time approval was received to reverse only the previously confirmed
+  `測試專用 Task7` Payment for `NT$ 520` and masked suffix `24856`.
+- The Owner selected that exact Payment and submitted the test-only reversal reason
+  `測試專用：Preview 付款撤銷驗收`. The Payment now renders `reversed`; both confirm
+  and reverse controls are disabled for that terminal Payment state.
+- The UI confirms that the reversal created a negative adjustment and an Audit Log.
+  The dedicated Audit Log page contains action `payment.reversed` and the approved
+  test-only reason. No account number or other sensitive value was written to the
+  reason or this handoff.
+- The linked Order and OrderItem were recalculated from `paid` back to
+  `awaitingPayment`, while the original Payment history remained present. This
+  validates the required non-destructive reversal semantics on the stable Preview.
+- Resend notification delivery still failed with only a sanitized UI message; the
+  failure did not roll back the reversal. Email remains an external launch blocker.
+- No cancellation request, refund match/mismatch, refund-account reveal, refund
+  approval, vault deletion, or Production deployment was performed.
+- Exact continuation: create or identify a separately labelled paid-cancellation
+  test case, then obtain fresh approval immediately before its refund-related write.
+  Do not reuse or mutate unrelated historical records.

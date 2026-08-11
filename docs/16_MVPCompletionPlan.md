@@ -2026,3 +2026,17 @@ four fresh readbacks pass and are reviewed.
   delivery before public launch.
 - [ ] Obtain separate action-time authorization before test Payment reversal, paid
   cancellation approval, refund match/mismatch, reveal, or vault cleanup operations.
+
+## 2026-08-11 Owner payment reversal checkpoint
+
+- [x] Obtain fresh authorization and uniquely select the previously confirmed
+  `測試專用 Task7` `NT$ 520` Payment.
+- [x] Reverse the Payment without overwriting its history.
+- [x] Verify Payment=`reversed`, a negative adjustment, and Audit Log action
+  `payment.reversed` with the test-only reason.
+- [x] Verify the linked Order and OrderItem recalculate from `paid` to
+  `awaitingPayment`.
+- [x] Verify notification failure does not roll back the financial reversal.
+- [ ] Prepare a separate, clearly labelled paid-cancellation test case. Obtain new
+  action-time approval before cancellation review, refund match/mismatch, reveal,
+  approval, or vault deletion.
