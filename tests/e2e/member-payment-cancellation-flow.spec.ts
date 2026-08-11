@@ -120,6 +120,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       receivedAmountTwd: 700,
       receivingPaymentAccountId: "e2e-account",
       memberPaymentAccountId: "member-e2e-account",
+      idempotencyKey: "e2e_payment_overpayment_20260727",
       bankCode: "999",
       accountNumberLast5: "00000",
       accountFingerprint: "client-controlled-fingerprint",
@@ -132,6 +133,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   const paymentPayload = await paymentResponse.json() as {
     payment: {
       id: string;
+      paymentGroupId?: string;
       status: string;
       receivingPaymentAccount?: { id: string; accountNumberLast5: string };
       memberPaymentAccount?: {
@@ -156,6 +158,44 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
     payerName: "測試會員甲",
   });
   expect(paymentPayload.payment.manualFingerprintReviewRequired).toBe(false);
+
+  const replayPaymentResponse = await request.post("/api/payments", {
+    headers: authorized(memberToken),
+    data: {
+      paymentRequestId: paidOrder!.paymentRequestId,
+      receivedAt: "2026-07-27",
+      receivedAmountTwd: 700,
+      receivingPaymentAccountId: "e2e-account",
+      memberPaymentAccountId: "member-e2e-account",
+      idempotencyKey: "e2e_payment_overpayment_20260727",
+      bankCode: "999",
+      accountNumberLast5: "00000",
+      accountFingerprint: "client-controlled-fingerprint",
+      fingerprintKeyVersion: 99,
+      payerName: "前端偽造姓名",
+      memberNote: "E2E overpayment",
+    },
+  });
+  expect(replayPaymentResponse.ok()).toBe(true);
+  await expect(replayPaymentResponse.json()).resolves.toMatchObject({
+    alreadyExists: true,
+    paymentGroupId: paymentPayload.payment.paymentGroupId,
+    payment: { id: paymentPayload.payment.id },
+  });
+
+  const memberPaymentsResponse = await request.get("/api/payments", {
+    headers: authorized(memberToken),
+  });
+  expect(memberPaymentsResponse.ok()).toBe(true);
+  const memberPaymentsPayload = await memberPaymentsResponse.json() as {
+    payments: Array<Record<string, unknown>>;
+  };
+  expect(memberPaymentsPayload.payments).toContainEqual(expect.objectContaining({
+    id: paymentPayload.payment.id,
+    status: "pendingReview",
+    memberAccountDisplay: "銀行代碼 012・***12345・測試會員甲",
+  }));
+  expect(JSON.stringify(memberPaymentsPayload)).not.toContain(memberAccountFingerprint);
 
   const confirmResponse = await request.post(`/api/workspace/payments/${paymentPayload.payment.id}/confirm`, {
     headers: authorized(ownerToken),
@@ -246,6 +286,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       receivedAmountTwd: orderForPaidCancellation.totalTwd,
       receivingPaymentAccountId: "e2e-account",
       memberPaymentAccountId: "member-e2e-account",
+      idempotencyKey: "e2e_payment_exact_cancellation_20260727",
       payerName: "另一個前端偽造姓名",
     },
   });

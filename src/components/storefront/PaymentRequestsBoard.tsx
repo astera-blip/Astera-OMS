@@ -1,18 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import type { LocalPaymentRequest, MemberPaymentSummary } from "@/lib/payment/manualBankTransfer";
 import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
 import {
   isMemberPaymentAccountUsableForPayment,
   type PublicMemberPaymentAccount,
 } from "@/lib/payment/memberBankAccounts";
-import { paymentRequestStatusLabel } from "@/lib/storefront/customerLabels";
+import { paymentRequestStatusLabel, paymentStatusLabel } from "@/lib/storefront/customerLabels";
 
 export function PaymentRequestsBoard() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
+  const [payments, setPayments] = useState<MemberPaymentSummary[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PublicPaymentAccount[]>([]);
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState("");
   const [memberPaymentAccounts, setMemberPaymentAccounts] = useState<PublicMemberPaymentAccount[]>([]);
@@ -24,10 +25,13 @@ export function PaymentRequestsBoard() {
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionLockRef = useRef(false);
+  const idempotencyDraftRef = useRef<{ signature: string; key: string } | null>(null);
 
   const loadRequests = useCallback(async () => {
     if (!user) {
       setRequests([]);
+      setPayments([]);
       setStatus("idle");
       return;
     }
@@ -40,12 +44,16 @@ export function PaymentRequestsBoard() {
       ]);
       const nextRequests = await listMemberPaymentRequests(db, user.uid);
       const token = await user.getIdToken();
-      const [accountsResponse, memberAccountsResponse] = await Promise.all([
+      const [accountsResponse, memberAccountsResponse, paymentsResponse] = await Promise.all([
         fetch("/api/payment-accounts", {
           headers: { authorization: `Bearer ${token}` },
           cache: "no-store",
         }),
         fetch("/api/member/payment-accounts", {
+          headers: { authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }),
+        fetch("/api/payments", {
           headers: { authorization: `Bearer ${token}` },
           cache: "no-store",
         }),
@@ -56,11 +64,15 @@ export function PaymentRequestsBoard() {
       const memberAccountsPayload = memberAccountsResponse.ok
         ? await memberAccountsResponse.json() as { accounts?: PublicMemberPaymentAccount[] }
         : { accounts: [] };
+      const paymentsPayload = paymentsResponse.ok
+        ? await paymentsResponse.json() as { payments?: MemberPaymentSummary[] }
+        : { payments: [] };
       const nextAccounts = Array.isArray(accountsPayload.accounts) ? accountsPayload.accounts : [];
       const nextMemberAccounts = Array.isArray(memberAccountsPayload.accounts)
         ? memberAccountsPayload.accounts.filter(isMemberPaymentAccountUsableForPayment)
         : [];
       setRequests(nextRequests);
+      setPayments(Array.isArray(paymentsPayload.payments) ? paymentsPayload.payments : []);
       setPaymentAccounts(nextAccounts);
       setSelectedPaymentAccountId(nextAccounts[0]?.id ?? "");
       setMemberPaymentAccounts(nextMemberAccounts);
@@ -116,22 +128,13 @@ export function PaymentRequestsBoard() {
     );
   }
 
-  if (requests.length === 0) {
-    return (
-      <div className="rounded-xl border border-astera-border bg-astera-surface p-6">
-        <h2 className="text-xl font-semibold">匯款回報</h2>
-        <p className="mt-2 text-sm text-astera-secondary">目前沒有待付款資料。</p>
-      </div>
-    );
-  }
-
   async function reportPayment() {
     if (!user || selectedRequestIds.length === 0) {
       setMessage("請至少選擇一筆付款請求。");
       return;
     }
 
-    if (isSubmitting) {
+    if (submissionLockRef.current) {
       return;
     }
 
@@ -150,6 +153,24 @@ export function PaymentRequestsBoard() {
       return;
     }
 
+    const reportPayload = {
+      paymentRequestIds: [...selectedRequestIds].sort(),
+      receivedAt,
+      receivedAmountTwd,
+      receivingPaymentAccountId: selectedPaymentAccountId,
+      memberPaymentAccountId: selectedMemberPaymentAccountId,
+      memberNote: memberNote.trim(),
+    };
+    const signature = JSON.stringify(reportPayload);
+    if (!idempotencyDraftRef.current || idempotencyDraftRef.current.signature !== signature) {
+      idempotencyDraftRef.current = {
+        signature,
+        key: `pay_${crypto.randomUUID()}`,
+      };
+    }
+    const idempotencyKey = idempotencyDraftRef.current.key;
+
+    submissionLockRef.current = true;
     try {
       setIsSubmitting(true);
       const token = await user.getIdToken();
@@ -160,12 +181,8 @@ export function PaymentRequestsBoard() {
           authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          paymentRequestIds: selectedRequestIds,
-          receivedAt,
-          receivedAmountTwd,
-          receivingPaymentAccountId: selectedPaymentAccountId,
-          memberPaymentAccountId: selectedMemberPaymentAccountId,
-          memberNote: memberNote.trim(),
+          ...reportPayload,
+          idempotencyKey,
         }),
       });
 
@@ -173,13 +190,16 @@ export function PaymentRequestsBoard() {
         throw new Error("report_failed");
       }
 
+      idempotencyDraftRef.current = null;
       setMessage(`已送出 ${selectedRequestIds.length} 筆付款回報，等待客服對帳確認。`);
       setSelectedRequestIds([]);
       setAmount("");
       setMemberNote("");
+      await loadRequests();
     } catch {
       setMessage("付款回報送出失敗，請稍後再試。");
     } finally {
+      submissionLockRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -192,6 +212,9 @@ export function PaymentRequestsBoard() {
           <fieldset className="grid gap-2 text-sm md:col-span-2">
             <legend className="font-medium">付款請求（可複選）</legend>
             <div className="grid gap-2 rounded-lg border border-astera-border p-3">
+              {requests.length === 0 ? (
+                <p className="text-astera-secondary">目前沒有待付款資料。</p>
+              ) : null}
               {requests.map((request) => {
                 const disabled = request.status === "paid" || request.status === "cancelled";
                 const checked = selectedRequestIds.includes(request.id);
@@ -312,12 +335,35 @@ export function PaymentRequestsBoard() {
         <button
           type="button"
           onClick={() => void reportPayment()}
-          disabled={isSubmitting || memberPaymentAccounts.length === 0}
+          disabled={isSubmitting || memberPaymentAccounts.length === 0 || selectedRequestIds.length === 0}
           className="mt-4 min-h-11 rounded-lg bg-[#6E4E64] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5D4255] disabled:cursor-not-allowed disabled:bg-[#6E4E64]/60 disabled:text-white"
         >
           {isSubmitting ? "送出中…" : "送出付款回報"}
         </button>
         {message ? <p role="status" aria-live="polite" className="mt-3 text-sm text-astera-service">{message}</p> : null}
+      </div>
+      <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
+        <h2 className="text-xl font-semibold">我的付款回報</h2>
+        {payments.length === 0 ? (
+          <p className="mt-2 text-sm text-astera-secondary">目前尚未送出付款回報。</p>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            {payments.map((payment) => (
+              <article key={payment.id} className="rounded-lg bg-astera-page p-4 text-sm leading-6">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="font-semibold">NT$ {payment.receivedAmountTwd.toLocaleString()}</p>
+                  <span className="rounded-full bg-astera-service/10 px-3 py-1 text-xs font-semibold text-astera-service">
+                    {paymentStatusLabel(payment.status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-astera-secondary">匯款日期：{payment.receivedAt}</p>
+                <p className="text-astera-secondary">{payment.memberAccountDisplay}</p>
+                <p className="text-astera-secondary">匯入：{payment.receivingAccountDisplay}</p>
+                {payment.memberNote ? <p className="mt-1 text-astera-secondary">備註：{payment.memberNote}</p> : null}
+              </article>
+            ))}
+          </div>
+        )}
       </div>
       {requests.map((request) => (
           <article key={request.id} className="rounded-xl border border-astera-border bg-astera-surface p-5">

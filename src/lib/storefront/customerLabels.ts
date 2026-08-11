@@ -1,6 +1,6 @@
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
 import type { OrderItemRecord, OrderRecord, ShippingMethod } from "@/lib/order/checkout";
-import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
 
 const orderStatusLabels: Record<OrderRecord["status"], string> = {
   awaitingPayment: "待付款",
@@ -21,6 +21,13 @@ const paymentRequestStatusLabels: Record<LocalPaymentRequest["status"], string> 
   partiallyPaid: "部分付款",
   paid: "已付款",
   cancelled: "已取消",
+};
+
+const paymentStatusLabels: Record<LocalPayment["status"], string> = {
+  pendingReview: "已回報／待確認",
+  confirmed: "已確認",
+  rejected: "未通過",
+  reversed: "已撤銷",
 };
 
 const cancellationRequestStatusLabels: Record<CancellationRequestRecord["status"], string> = {
@@ -45,6 +52,10 @@ export function orderItemStatusLabel(status: OrderItemRecord["status"]) {
 
 export function paymentRequestStatusLabel(status: LocalPaymentRequest["status"]) {
   return paymentRequestStatusLabels[status];
+}
+
+export function paymentStatusLabel(status: LocalPayment["status"]) {
+  return paymentStatusLabels[status];
 }
 
 export function cancellationRequestStatusLabel(status: CancellationRequestRecord["status"]) {

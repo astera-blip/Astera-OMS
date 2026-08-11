@@ -100,7 +100,7 @@ describe("member payment account UI contract", () => {
       "utf8",
     );
     const paymentBody = paymentBoard.slice(
-      paymentBoard.indexOf("body: JSON.stringify({"),
+      paymentBoard.indexOf("const reportPayload ="),
       paymentBoard.indexOf("if (!response.ok)"),
     );
 

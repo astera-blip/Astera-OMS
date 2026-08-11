@@ -54,11 +54,11 @@
 - Create or modify: `tests/unit/paymentRequestsBoard.test.tsx`
 - Modify: `tests/e2e/member-payment-cancellation-flow.spec.ts`
 
-- [ ] Add failing component/source tests for a synchronous submission lock, stable idempotency-key reuse across ambiguous failures, clearing the key only after explicit success, and disabled `送出中…` feedback.
-- [ ] Add failing tests for the persistent `我的付款回報` list and Chinese labels for `pendingReview`, `confirmed`, `rejected`, and `reversed`.
-- [ ] Implement a `useRef` synchronous guard and a per-draft idempotency key lifecycle; do not rely only on asynchronous React state.
-- [ ] Load `/api/payments` alongside payment requests/accounts and refresh history after success.
-- [ ] Render safe masked account information, amount, date, and review state with accessible loading/empty/error/retry states.
+- [x] Add failing component/source tests for a synchronous submission lock, stable idempotency-key reuse across ambiguous failures, clearing the key only after explicit success, and disabled `送出中…` feedback.
+- [x] Add failing tests for the persistent `我的付款回報` list and Chinese labels for `pendingReview`, `confirmed`, `rejected`, and `reversed`.
+- [x] Implement a `useRef` synchronous guard and a per-draft idempotency key lifecycle; do not rely only on asynchronous React state.
+- [x] Load `/api/payments` alongside payment requests/accounts and refresh history after success.
+- [x] Render safe masked account information, amount, date, and review state with accessible loading/empty/error/retry states.
 - [ ] Add Playwright coverage for rapid double click/retry and persistence after reload.
 - [ ] Run focused Unit and Playwright tests and commit the task.
 
