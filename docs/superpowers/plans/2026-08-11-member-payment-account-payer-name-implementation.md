@@ -165,7 +165,7 @@ git commit -m "feat: persist payer names on member accounts"
 - Consumes: `requireFirebaseUser`, `getAdminFirestore`, `normalizeMemberPaymentAccountPayerName`, `buildMemberPaymentAccountSnapshot`.
 - Produces: `POST /api/member/payment-accounts/[id]/payer-name` with body `{ payerName: string }`, returning `{ account: PublicMemberPaymentAccount }`.
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Cover all transaction outcomes:
 
@@ -189,7 +189,7 @@ expect(response.status).toBe(400);
 
 Assert the write object has no bank code, account number, fingerprint, key version, status or owner field.
 
-- [ ] **Step 2: Run the new test and observe the missing-module failure**
+- [x] **Step 2: Run the new test and observe the missing-module failure**
 
 ```powershell
 npx vitest run tests/unit/memberPaymentAccountPayerNameApi.test.ts
@@ -197,7 +197,7 @@ npx vitest run tests/unit/memberPaymentAccountPayerNameApi.test.ts
 
 Expected: FAIL because the route does not exist.
 
-- [ ] **Step 3: Implement the protected one-time route**
+- [x] **Step 3: Implement the protected one-time route**
 
 Inside one Firestore transaction:
 
@@ -211,11 +211,11 @@ Inside one Firestore transaction:
 
 Use error keys `member_payment_account_payer_name_already_set` and the Task 1 invalid-name key; never echo rejected input.
 
-- [ ] **Step 4: Run the route test and verify green**
+- [x] **Step 4: Run the route test and verify green**
 
 Run the Task 3 test command. Expected: all cases PASS.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```powershell
 git add src/app/api/member/payment-accounts/[id]/payer-name/route.ts tests/unit/memberPaymentAccountPayerNameApi.test.ts
