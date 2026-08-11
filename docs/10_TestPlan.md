@@ -359,3 +359,15 @@ was attempted. This is an authentication-observability blocker: the redirect-res
 error is currently cleared when Firebase reports signed-out, so the actual error code
 is not visible. Retest the full security flow only after a browser retains the member
 session; otherwise use a separately approved, test-first diagnostic change.
+
+### 2026-08-11 Payment-report idempotency regression
+
+- Unit covers key validation, deterministic opaque IDs, canonical payload digests,
+  sequential replay, serialized concurrent replay, conflict, legitimate new keys,
+  safe member output, Owner claim enforcement, rejection idempotency, and forbidden
+  confirmed／reversed rejection.
+- Emulator Playwright covers one rapid-double-click member submission, persistent
+  status after reload, API replay, sanitized history, Owner rejection, rejected
+  Payment state, and `payment.rejected` Audit Log creation.
+- Fresh totals: Unit 55 files／444 tests; Rules 2 files／32 tests; regular Playwright
+  18 passed／30 expected skips; Emulator Playwright 38 passed／10 expected skips.

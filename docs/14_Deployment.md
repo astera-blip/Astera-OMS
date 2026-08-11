@@ -672,3 +672,16 @@ remaining Preview-only security acceptance flow before any new test data or
 configuration mutation. Do not promote or deploy Production on this evidence. The
 next release-gate action is a retained-session browser retest, or a separately
 approved test-first diagnostic fix that preserves redirect-result error context.
+
+### 2026-08-11 Payment-report Preview release gate
+
+- Local release evidence is green: TypeScript, ESLint, Unit 444/444, Rules 32/32,
+  Build 42 routes, regular Playwright 18 passed, Emulator Playwright 38 passed,
+  secret scan, and production audit with 0 vulnerabilities.
+- Preview deployment must precede any live duplicate handling. Validate one member
+  report, reload persistence, Owner rejection, and Member rejected status.
+- Existing duplicate Preview Payments are historical test records. Never hard-delete
+  them. Keep one and reject the other only through the audited API after fresh
+  action-time approval naming both exact IDs.
+- Production remains prohibited until Preview acceptance passes; this batch does not
+  authorize Production deployment or unrelated payment mutations.

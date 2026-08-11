@@ -465,6 +465,58 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect(refundAudit.exists).toBe(true);
 });
 
+test("member payment UI prevents rapid duplicate submits and keeps status after reload", async ({
+  page,
+}, testInfo) => {
+  test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
+  test.skip(testInfo.project.name !== "chromium-desktop", "Idempotency UI flow runs once.");
+
+  const db = getAdminDb();
+  const paymentRequestId = `pr_ui_idempotency_${Date.now()}`;
+  await db.collection("paymentRequests").doc(paymentRequestId).set({
+    id: paymentRequestId,
+    memberUid: "member-e2e",
+    orderId: `order_ui_idempotency_${Date.now()}`,
+    amountTwd: 520,
+    allocatedAmountTwd: 0,
+    status: "open",
+    method: "bankTransfer",
+    createdAt: new Date(),
+    createdBy: "system",
+  });
+
+  let postCount = 0;
+  await page.route("**/api/payments", async (route) => {
+    if (route.request().method() === "POST") {
+      postCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    await route.continue();
+  });
+
+  await page.goto("/e2e-auth?next=/payments");
+  await page.getByLabel("Email").fill("member-e2e@example.test");
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "匯款回報" })).toBeVisible();
+  await page.getByLabel("匯款日期").fill("2026-08-11");
+
+  const submit = page.getByRole("button", { name: "送出付款回報" });
+  await submit.evaluate((button) => {
+    (button as HTMLButtonElement).click();
+    (button as HTMLButtonElement).click();
+  });
+
+  await expect(page.getByText(/已送出 1 筆付款回報/)).toBeVisible();
+  expect(postCount).toBe(1);
+  await expect(page.getByRole("heading", { name: "我的付款回報" })).toBeVisible();
+  await expect(page.getByText("已回報／待確認")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "我的付款回報" })).toBeVisible();
+  await expect(page.getByText("已回報／待確認")).toBeVisible();
+});
+
 function getAdminDb() {
   if (getApps().length === 0) {
     initializeApp({ projectId: "demo-astera-oms" });

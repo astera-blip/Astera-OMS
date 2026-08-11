@@ -2068,3 +2068,21 @@ four fresh readbacks pass and are reviewed.
   sharing it in chat, then confirms readiness before the cancellation POST.
 - [ ] After submission, verify `cancelRequested`, pending Owner review, encrypted
   vault metadata without plaintext, mismatch/match semantics, and Audit Log.
+
+## 2026-08-11 Payment-report idempotency and review status
+
+- [x] Require a bounded client idempotency key and derive opaque deterministic
+  Payment／group IDs with server-side SHA-256.
+- [x] Return the original Payment group for an identical replay; reject key reuse
+  with different immutable input as `409 idempotency_conflict`.
+- [x] Add a protected member-only Payment history API that excludes fingerprints,
+  KMS versions, full account values, internal reasons, and other members' data.
+- [x] Add a synchronous UI submission lock, stable retry key, disabled
+  `送出中…` state, and persistent `我的付款回報` statuses.
+- [x] Add Owner-only rejection of `pendingReview` reports with a required reason,
+  immutable `payment.rejected` Audit Log, and no financial-state mutation.
+- [x] Verify rapid double click creates one Payment and the status survives reload
+  in Auth／Firestore／Storage Emulator Playwright.
+- [ ] Deploy the commits to Preview and run one authenticated member／Owner browser
+  acceptance pass. Do not alter the two existing duplicate Preview Payments until
+  exact action-time approval identifies which record to reject.

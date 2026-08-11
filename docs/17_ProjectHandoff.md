@@ -2203,3 +2203,26 @@ domain, or change any other Firebase/Vercel setting.
   in the Preview password field and reports readiness without copying the value into
   chat. Obtain/confirm action-time approval immediately before submitting the paid
   cancellation request.
+
+## 2026-08-11 Payment-report duplicate root cause and repair
+
+- Read-only Owner inspection confirmed that the member report did persist, but two
+  `pendingReview` Payment documents existed for the same test intent. Neither record
+  was confirmed, rejected, deleted, or otherwise changed in this repair batch.
+- Root cause: `POST /api/payments` allocated random document IDs and accepted no
+  idempotency key; the member page also lacked a persistent submitted-report list,
+  so a successful write could still look like an unpaid request.
+- Commits `4f2f9a4`, `3efde34`, `29186ee`, `0899c03`, and `0fe4cff` implement opaque
+  deterministic IDs, replay/conflict semantics, safe member history, synchronous UI
+  double-submit protection, and audited Owner rejection.
+- Fresh verification: TypeScript pass; ESLint pass; Unit 55 files／444 tests; Rules
+  2 files／32 tests; Next Build 42 routes; regular Playwright 18 passed／30 expected
+  emulator-only skips; Emulator Playwright 38 passed／10 expected project skips;
+  secret scan pass; production dependency audit 0 vulnerabilities.
+- The new Emulator UI case fires two synchronous clicks, observes exactly one POST,
+  sees `已回報／待確認`, reloads, and sees the same persistent status. The API flow
+  also rejects a separate test report and verifies the immutable Audit Log.
+- Exact continuation: commit and push the final test/document changes, deploy only
+  Preview, then perform authenticated member and Owner acceptance. Before rejecting
+  either existing duplicate Preview Payment, obtain fresh action-time approval and
+  name the exact Payment ID to keep and the exact Payment ID to reject.

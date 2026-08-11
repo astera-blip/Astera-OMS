@@ -168,3 +168,15 @@
   breaking／downgrade ExcelJS change, so this is a non-blocking dependency follow-up.
   Local verification is complete; Production infrastructure and live acceptance
   remain external release gates.
+
+## 2026-08-11 Payment report idempotency and rejection
+
+- Replaced random Payment creation with deterministic, opaque report-group and
+  allocation IDs derived from member intent plus a bounded idempotency key.
+- Added identical-replay success and conflicting-replay `409` handling.
+- Added sanitized member Payment history and persistent Chinese review statuses.
+- Added synchronous double-submit prevention and retry-key preservation.
+- Added Owner-only rejection of pending reports with immutable audit history and no
+  allocation／Order／PaymentRequest mutation.
+- Added Unit and Emulator Playwright coverage, including double click, reload, safe
+  history, rejection, and Audit Log verification.

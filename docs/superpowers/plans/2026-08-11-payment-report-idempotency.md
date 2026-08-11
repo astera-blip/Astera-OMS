@@ -59,8 +59,8 @@
 - [x] Implement a `useRef` synchronous guard and a per-draft idempotency key lifecycle; do not rely only on asynchronous React state.
 - [x] Load `/api/payments` alongside payment requests/accounts and refresh history after success.
 - [x] Render safe masked account information, amount, date, and review state with accessible loading/empty/error/retry states.
-- [ ] Add Playwright coverage for rapid double click/retry and persistence after reload.
-- [ ] Run focused Unit and Playwright tests and commit the task.
+- [x] Add Playwright coverage for rapid double click/retry and persistence after reload.
+- [x] Run focused Unit and Playwright tests and commit the task.
 
 ## Task 4: Owner rejection API with immutable audit trail
 
@@ -94,13 +94,13 @@
 - Modify: `docs/17_ProjectHandoff.md`
 - Modify relevant Test Plan, Deployment SOP, and Changelog documents discovered with `rg`.
 
-- [ ] Run `npm run typecheck`.
-- [ ] Run `npm run lint`.
-- [ ] Run `npm run test:unit`.
-- [ ] Run complete Firestore and Storage Rules tests.
-- [ ] Run `npm run build`.
-- [ ] Run regular and Emulator Playwright suites.
-- [ ] Run secret scan and production audit scripts defined in `package.json`.
-- [ ] Update execution/handoff documents with exact files, commits, counts, verification output, deployment state, and next action.
+- [x] Run `npm run typecheck`.
+- [x] Run `npm run lint`.
+- [x] Run `npm run test:unit`.
+- [x] Run complete Firestore and Storage Rules tests.
+- [x] Run `npm run build`.
+- [x] Run regular and Emulator Playwright suites.
+- [x] Run secret scan and production audit scripts defined in `package.json`.
+- [x] Update execution/handoff documents with exact files, commits, counts, verification output, deployment state, and next action.
 - [ ] Push `codex/mvp-completion`, deploy Preview only, and run the member report plus Owner rejection acceptance flow.
 - [ ] Before changing either existing duplicate test Payment, present the exact safe action and obtain fresh action-time approval; then keep one valid record and reject the other through the new audited API.
