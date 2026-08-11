@@ -90,6 +90,19 @@ describe("shared UI accessibility contract", () => {
     expect(authProvider).toContain("if (!redirectResultError)");
   });
 
+  it("catches Firebase initialization failures when Google sign-in starts", () => {
+    const authProvider = read("src/components/auth/AuthProvider.tsx");
+    const signInStart = authProvider.slice(
+      authProvider.indexOf("const signInWithGoogle"),
+      authProvider.indexOf("const signOutCurrentUser"),
+    );
+
+    expect(signInStart).toMatch(
+      /try\s*\{[\s\S]*const \[\{ auth \}, \{ GoogleAuthProvider, signInWithRedirect \}\]/,
+    );
+    expect(signInStart).toContain("setError(getGoogleSignInErrorMessage(error))");
+  });
+
   it("places storefront brand text before the large buyer title", () => {
     const home = read("src/app/page.tsx");
 

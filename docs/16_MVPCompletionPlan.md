@@ -1371,3 +1371,18 @@ four fresh readbacks pass and are reviewed.
   Firebase dynamic imports inside the existing Google sign-in `try/catch`, add a
   red/green regression test for an initialization rejection, deploy Preview only,
   and retry the button. Do not change login provider, proxy, or Production.
+
+## 2026-08-11 Preview Google initialization diagnostic fix
+
+- A red/green regression test now requires Firebase initialization to occur inside
+  the Google sign-in `try/catch`; the source was changed only to satisfy that
+  requirement. Initialization failures now use the existing safe Google error UI
+  instead of leaving the button inert.
+- Fresh evidence before release: focused auth/proxy tests 16/16; full Unit 44 files
+  / 377 tests; TypeScript, ESLint, Next build (39 routes), secret scan, and diff
+  check passed.
+- Exact next action: wait for the Git-integrated Preview from this commit, assign
+  only the existing stable Preview alias after Ready, and click Google sign-in. If
+  an error appears, record only its safe displayed code/text and stop; if Google
+  opens and authentication persists, resume the already-authorized one-pass test
+  flow without creating data until that persistence check passes.

@@ -133,15 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     setError(null);
-    const [{ auth }, { GoogleAuthProvider, signInWithRedirect }] =
-      await Promise.all([
-        import("@/lib/firebase/client"),
-        import("firebase/auth"),
-      ]);
-
-    const provider = new GoogleAuthProvider();
-
     try {
+      const [{ auth }, { GoogleAuthProvider, signInWithRedirect }] =
+        await Promise.all([
+          import("@/lib/firebase/client"),
+          import("firebase/auth"),
+        ]);
+      const provider = new GoogleAuthProvider();
+
       await signInWithRedirect(auth, provider);
     } catch (error) {
       setError(getGoogleSignInErrorMessage(error));

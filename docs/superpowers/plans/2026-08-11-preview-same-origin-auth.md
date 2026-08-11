@@ -147,6 +147,11 @@ tokens, account values, or create test records.
 > did not navigate to Google and did not expose an error. This is a new client
 > initialization/error-observability blocker; stop this plan before any data test.
 
+> 2026-08-11 diagnostic continuation: approved test-first handling moved Firebase
+> imports into the existing `try/catch`, so initialization failures now reach the
+> existing safe error UI. The new regression test first failed then passed; full
+> unit and local release checks passed. Preview retest remains pending.
+
 - [ ] **Step 3: Record the result and commit the handoff**
 
 Append only non-sensitive deployment status, route result, authentication result,

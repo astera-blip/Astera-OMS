@@ -1430,3 +1430,18 @@ domain, or change any other Firebase/Vercel setting.
   imports into the current `try/catch`, render its existing safe error text on
   failure, deploy Preview, and retest the button. Do not alter proxy routing,
   providers, Firebase domains, or Production.
+
+## 2026-08-11 Google initialization diagnostic fix ready for Preview
+
+- Following fresh approval, a test-first change moves the Firebase imports inside
+  `signInWithGoogle`'s existing `try/catch`. An initialization rejection can now
+  render the existing safe Google sign-in error rather than leaving the button
+  inert. No provider, proxy, Firebase-domain, financial-data, or Production change
+  was made.
+- Verification before Preview: focused auth/proxy tests 16/16; full Unit 44 files /
+  377 tests; TypeScript, ESLint, Next build (39 routes), secret scan, and diff
+  check passed.
+- Exact continuation: use the Ready Git-integrated Preview, attach only the stable
+  Preview alias, and retry Google sign-in. Record only safe visible error text if
+  it fails; do not create any test banking/payment/refund data until signed-in state
+  persists on `/account/bank-accounts`.
