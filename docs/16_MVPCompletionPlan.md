@@ -2093,6 +2093,10 @@ Preview deployment update:
   reached Ready and the existing authorized stable Preview alias was moved to it.
 - [x] Owner session loaded `/workspace/payments`; the deployed UI shows the required
   `處理理由` field and enabled `拒絕回報` action for the selected pending report.
-- [ ] Authenticated Member live submission／reload and an actual Owner rejection
-  remain pending because they create external data mutations. Existing duplicate
-  Payments `lA8Fje6lU2vAqLvdp0VN` and `pdfwANGEnxaldM6iM3Q7` remain unchanged.
+- [x] With fresh action-time approval, retain the earlier Payment
+  `lA8Fje6lU2vAqLvdp0VN` as `pendingReview` and reject only the later duplicate
+  `pdfwANGEnxaldM6iM3Q7` with reason `測試專用：重複付款回報`.
+- [x] Verify both the deployed success status and production Firestore state:
+  the later Payment is `rejected`, the earlier Payment remains `pendingReview`,
+  and `audit_reject_pdfwANGEnxaldM6iM3Q7` records `payment.rejected` with the
+  exact safe reason. No Payment was confirmed or deleted.

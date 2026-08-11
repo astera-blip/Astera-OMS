@@ -103,5 +103,7 @@
 - [x] Run secret scan and production audit scripts defined in `package.json`.
 - [x] Update execution/handoff documents with exact files, commits, counts, verification output, deployment state, and next action.
 - [x] Push `codex/mvp-completion`, deploy Preview only, and verify the deployed Owner rejection controls read-only.
-- [ ] Run the mutation portion of the member report plus Owner rejection acceptance flow after action-time approval.
-- [ ] Before changing either existing duplicate test Payment, present the exact safe action and obtain fresh action-time approval; then keep one valid record and reject the other through the new audited API.
+- [x] Run the controlled Owner rejection acceptance mutation after fresh action-time approval.
+- [x] Keep earlier `lA8Fje6lU2vAqLvdp0VN` as `pendingReview`; reject only later
+  `pdfwANGEnxaldM6iM3Q7` with `測試專用：重複付款回報`; independently verify
+  the exact `payment.rejected` Audit Log and that no confirmation or deletion occurred.

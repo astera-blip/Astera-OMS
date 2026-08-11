@@ -2235,10 +2235,11 @@ domain, or change any other Firebase/Vercel setting.
 - The retained Owner custom-claim session opened the deployed payment workspace.
   The selected pending report shows `處理理由`, `確認匯款`, and the new
   `拒絕回報`; `撤銷確認` is disabled as expected. No button was pressed.
-- The two known duplicate test records remain `pendingReview` and untouched:
-  `lA8Fje6lU2vAqLvdp0VN` and `pdfwANGEnxaldM6iM3Q7`, both linked to
-  `pr_order_8lYcH5qCLOTf8TpKF2gifLibyjf1_20260811130149055_1`.
-- Exact continuation requiring user authorization: decide which of those two IDs is
-  the retained valid report, then authorize rejecting only the other through the new
-  API with reason `測試專用：重複付款回報`. Afterward verify Member status and the
-  `payment.rejected` Audit Log. Do not confirm either duplicate.
+- With explicit action-time approval, the earlier report
+  `lA8Fje6lU2vAqLvdp0VN` was retained as `pendingReview`; only the later duplicate
+  `pdfwANGEnxaldM6iM3Q7` was rejected with reason
+  `測試專用：重複付款回報`. Neither report was confirmed or deleted.
+- The deployed Preview displayed the rejection success status. A separate read-only
+  production Firestore verification confirmed the retained/rejected states and the
+  immutable `audit_reject_pdfwANGEnxaldM6iM3Q7` record with action
+  `payment.rejected`, the exact target ID, and the exact safe reason.
