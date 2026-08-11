@@ -7,6 +7,7 @@ import { auditProductProjection } from "./audit-product-projection.mjs";
 const PRIVATE_FIELDS = new Set([
   "sku",
   "internalNote",
+  "originalCost",
   "originalCosts",
   "cost",
   "createdBy",
@@ -49,9 +50,9 @@ function stripPrivateFields(value) {
   );
 }
 
-export function buildProjectionFromPublicDocument(id, data) {
+export function buildProjectionFromInternalProduct(data) {
   const projection = stripPrivateFields({
-    id,
+    id: data.id,
     name: data.name,
     publicDescription: data.publicDescription,
     publishState: data.publishState,
@@ -64,9 +65,7 @@ export function buildProjectionFromPublicDocument(id, data) {
 }
 
 export function buildDesiredPublicProducts(internalProducts) {
-  return internalProducts.map((product) =>
-    buildProjectionFromPublicDocument(product.id, product),
-  );
+  return internalProducts.map(buildProjectionFromInternalProduct);
 }
 
 export function buildProjectionSyncPlan(internalProducts, currentPublicProducts) {
@@ -77,6 +76,21 @@ export function buildProjectionSyncPlan(internalProducts, currentPublicProducts)
     deletePublicProductIds: currentPublicProducts
       .map((product) => product.id)
       .filter((id) => !desiredIds.has(id)),
+  };
+}
+
+export function buildProductProjectionSyncPlan(internalProducts, publicProducts) {
+  const desiredPublicProducts = internalProducts.map(buildProjectionFromInternalProduct);
+  const internalIds = new Set(internalProducts.map((product) => product.id));
+
+  return {
+    desiredPublicProducts,
+    operations: [
+      ...desiredPublicProducts.map((data) => ({ type: "set", id: data.id, data })),
+      ...publicProducts
+        .filter((product) => !internalIds.has(product.id))
+        .map((product) => ({ type: "delete", id: product.id })),
+    ],
   };
 }
 
@@ -118,23 +132,19 @@ async function createBackup(data, backupDir) {
   return backupFile;
 }
 
-async function syncProjection(db, publicProducts, deletePublicProductIds) {
+async function syncProjection(db, plan) {
   let batch = db.batch();
   let writes = 0;
-  for (const product of publicProducts) {
-    const ref = db.collection("productsPublic").doc(product.id);
-    batch.set(ref, {
-      ...buildProjectionFromPublicDocument(product.id, product),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    writes += 1;
-    if (writes % 450 === 0) {
-      await batch.commit();
-      batch = db.batch();
+  for (const operation of plan.operations) {
+    const ref = db.collection("productsPublic").doc(operation.id);
+    if (operation.type === "set") {
+      batch.set(ref, {
+        ...operation.data,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      batch.delete(ref);
     }
-  }
-  for (const productId of deletePublicProductIds) {
-    batch.delete(db.collection("productsPublic").doc(productId));
     writes += 1;
     if (writes % 450 === 0) {
       await batch.commit();
@@ -155,17 +165,13 @@ async function main(argv) {
   const db = getFirestore(app);
   const data = await readProductionData(db);
   const beforeAudit = auditProductProjection(data.internalProducts, data.publicProducts);
-  const plan = buildProjectionSyncPlan(data.internalProducts, data.publicProducts);
+  const plan = buildProductProjectionSyncPlan(data.internalProducts, data.publicProducts);
   const desiredAudit = auditProductProjection(data.internalProducts, plan.desiredPublicProducts);
   if (!desiredAudit.ok) {
     throw new Error(`projection_build_audit_failed:${JSON.stringify(desiredAudit.issues)}`);
   }
   const backupFile = await createBackup(data, backupDir);
-  const writes = await syncProjection(
-    db,
-    plan.desiredPublicProducts,
-    plan.deletePublicProductIds,
-  );
+  const writes = await syncProjection(db, plan);
   const refreshed = await readProductionData(db);
   const afterAudit = auditProductProjection(refreshed.internalProducts, refreshed.publicProducts);
   if (!afterAudit.ok) {

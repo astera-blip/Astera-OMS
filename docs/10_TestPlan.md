@@ -147,3 +147,212 @@ Captured Task 8 stdout did not print full account values, HMAC fingerprints, or
 HMAC canonical inputs. The local verification release gate is complete;
 Production KMS／IAM／Scheduler, migration, Preview acceptance, and Production
 rollout remain external gates.
+## 2026-08-10 Task 6 security deployment gate
+
+Source commits `2e246e2` and `1ac6d13` have TDD evidence and independent review.
+Latest implementer evidence passed focused 42/42, Unit 44 files / 374 tests,
+TypeScript, ESLint, Build, secret scan, and diff checks. Controller re-review passed
+Spec and Quality with all five security findings addressed.
+
+Controller fresh execution remains required before live apply. The attempted
+sandbox-external run was rejected by the Codex managed-execution usage limit before
+any command started; retry no earlier than 2026-08-16 10:05. Then run the focused
+tests, full Unit, TypeScript, ESLint, Build, secret scan, diff check, and safe dry-run.
+Do not treat subagent evidence alone as the final release gate.
+
+### 2026-08-10 Task 6 controller gate resumed
+
+The managed-execution limit no longer blocks local verification. Fresh controller
+execution passed focused **42/42**, full Unit **44 files / 374 tests**, TypeScript,
+ESLint, Next.js production Build, secret scan, diff check, and exact dry-run.
+
+Production read-only preflight found no existing Worker Cloud Run service, no two
+fixed Scheduler jobs, and no matching Monitoring channel/policy. Billing is linked,
+but `billingbudgets.googleapis.com` is disabled, so the mandatory pre-deployment
+Budget Alert cannot yet be verified. Live Task 6 apply remains blocked until that
+API is explicitly enabled and the budget inventory is reviewed.
+
+### 2026-08-10 Billing Budget gate passed
+
+With explicit narrow authorization, `billingbudgets.googleapis.com` was enabled on
+`astera-oms-prod`. A read-only budget inventory returned one monthly project-scoped
+Budget Alert: TWD 200 with current-spend thresholds at 50%, 90%, and 100%.
+`notificationsRule` does not disable default IAM recipients, so the standard Billing
+Account Administrator/User email notifications remain active. No Budget was created,
+modified, or deleted, and no Task 6 deployment ran. The Budget pre-deployment gate
+is now satisfied; live apply still requires separate explicit authorization.
+
+### 2026-08-10 Task 6 deployment and partial Production smoke
+
+The user authorized the reviewed Task 6 blast radius. Guarded apply ultimately
+exited 0 after three live-readback compatibility fixes were completed with TDD:
+
+- accept only Cloud Scheduler's fixed `User-Agent: Google-Cloud-Scheduler` default;
+- follow the Monitoring API contract that only explicit `UNVERIFIED` is unusable;
+- normalize an omitted Monitoring `thresholdValue` to the protobuf default zero.
+
+Fresh post-fix verification passed focused 33/33, full Unit 44 files / 374 tests,
+TypeScript, ESLint, Next.js Build (39 pages), secret scan, and diff check. Production
+readback verifies Worker Ready, max instances 1, concurrency 1, exact runtime SA,
+fixed image digest/env, one Scheduler-only service-level invoker, two enabled OIDC
+jobs, one enabled email channel, and one enabled two-condition alert policy.
+
+Unauthenticated POSTs to both job routes return 403. A manual run of the pure-read
+monthly key-usage job returned 200 through Scheduler OIDC. A payload-only scan of
+the recent Worker logs found zero forbidden sensitive-field names, zero 10–16 digit
+number matches, and zero `security_worker_failed` markers.
+
+Monitoring delivery is now verified. The user supplied a received-email screenshot
+showing `Alert firing` for policy `Astera Security Worker non-2xx or timeout`, exact
+project `astera-oms-prod`, service `astera-security-worker`, region `asia-east1`, and
+request-count value 4. This is accepted as the controlled non-sensitive non-2xx
+delivery test; no mailbox access or additional notification mutation was performed.
+
+Task 6 cleanup/idempotency is also complete. With explicit destructive-test
+authorization, count-only Firestore aggregations returned 0 expired refund-vault
+records before run 1, after run 1, and after run 2. Both Scheduler OIDC cleanup
+requests returned 200, so aggregate `cleaned=0` twice and no data was deleted. A
+post-run payload-only scan again found zero sensitive-key, 10–16 digit, or Worker
+failure matches. The authenticated 200 monthly and cleanup routes exercise IAM,
+runtime, Firestore, and KMS and are accepted as stronger evidence than `/healthz`;
+no persistent human Token Creator permission was added.
+
+### 2026-08-10 Task 7 Vercel security environment preflight
+
+Read-only Vercel CLI inspection confirms project `astera-oms/astera-oms`, project ID
+`prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, Next.js preset, and Node.js 24.x. `vercel env ls`
+returned zero custom variables. Therefore the security-only strict check cannot pass
+in the current deployment; the local empty-environment run reported all 17 required
+names missing.
+
+Firebase CLI auth was expired, so no CLI data was used. Read-only Firebase
+Management API via ADC confirmed one ACTIVE Production Web App and returned the six
+public SDK values. Combining those with the verified Task 5 GCP/WIF/KMS identifiers,
+HMAC version 1, and a preflight-only 32+ character placeholder made
+`production:env:check -- --scope security --strict` exit 0. No `.env` file, Vercel
+variable, secret, or deployment was created.
+
+Next gate requires explicit Vercel mutation authorization: add the 16 non-secret
+fixed values to Production and Preview, generate two independent random
+`REFUND_RATE_LIMIT_HASH_SECRET` values directly through stdin into Vercel Secret
+storage, verify names without reading values, and redeploy Preview only.
+
+### 2026-08-10 Task 7 environment write and drift gate
+
+The authorized write completed for project `astera-oms/astera-oms`: all 16 fixed
+names target Production and Preview, and separate hidden Sensitive Secret records
+exist for Production and Preview. The two 48-byte values were generated in memory,
+sent through stdin, cleared, and never printed or persisted.
+
+The required post-write names/targets-only check did **not** pass. It found one
+pre-existing forbidden name, `NEXT_PUBLIC_USE_FIREBASE_EMULATORS`, targeting both
+Production and Preview. It also found older unscoped Preview Sensitive records for
+seven GCP/WIF names that overlap the verified fixed records. No Git branch scope was
+present on those records. Therefore Preview deployment and WIF/KMS flow testing were
+not started; Production was not deployed.
+
+Retest after separately authorized drift cleanup:
+
+1. list Vercel names, types, targets, and branch metadata without values;
+2. require zero Emulator/Test Auth matches;
+3. require exactly one effective record per fixed key and target;
+4. deploy Preview only and inspect the build/deployment result;
+5. continue with the strict security check and approved non-real-bank flow.
+
+### 2026-08-10 Task 7 drift cleanup, Preview, and local release gate
+
+The separately authorized name-scoped cleanup completed without touching any other
+Vercel setting. Fresh metadata-only inventory returned:
+
+- 21 total Environment Variable records;
+- 16/16 verified fixed records, with zero bad target/type records;
+- two `REFUND_RATE_LIMIT_HASH_SECRET` Sensitive Secret records, one each for
+  Preview and Production;
+- zero `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` records;
+- zero overlapping Preview records for the seven GCP/WIF names.
+
+Preview deployment `dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` is Ready at
+`https://astera-ix5gsqvlu-astera-oms.vercel.app`, with stable alias
+`https://astera-oms-astera-blip-astera-oms.vercel.app`. The build compiled, passed
+TypeScript, and generated 39/39 static pages. Browser checks passed `/`,
+`/products`, `/brand`, and the empty `/cart`; `/e2e-auth` correctly returned 404.
+Both Preview hosts currently reject Google sign-in because neither host is in
+Firebase Authentication Authorized Domains. Therefore authenticated WIF/KMS and
+refund-security flow verification remains open.
+
+`vercel env run -e preview` cannot decrypt a Sensitive Environment Variable after
+creation, so its local strict check reports only `REFUND_RATE_LIMIT_HASH_SECRET`
+as missing. The two target-specific metadata records and the variable name in the
+successful Vercel build are the non-disclosing configuration evidence; the secret
+must not be downgraded to a readable variable to satisfy that local command.
+
+Fresh local release evidence:
+
+- TypeScript, ESLint, and Next.js production Build (39 pages): pass;
+- Unit: 44 files / 374 tests pass;
+- Firestore and Storage Rules: 2 files / 32 tests pass;
+- Emulator Playwright: 34 passed / 8 intentionally skipped / 0 failed;
+- secret scan, production dependency audit, and `git diff --check`: pass;
+- `npm audit --omit=dev --audit-level=high`: 0 vulnerabilities.
+
+The first full Emulator Playwright run found two stale Pixel 7 workspace-label
+assertions. The assertions were aligned with the current bilingual accessible
+names, focused Pixel 7 verification passed 3/3, and the full rerun produced the
+34/8/0 result above.
+
+### 2026-08-10 Task 7 Firebase Authorized Domain checkpoint
+
+With exact user authorization, Firebase Authentication Authorized Domains was
+read in the Production Console, and only
+`astera-oms-astera-blip-astera-oms.vercel.app` was added. Firebase displayed a
+success confirmation; a full settings reload preserved every prior domain and
+showed exactly that one additional Custom domain. No unique deployment hostname
+or other Firebase setting was added, removed, or edited.
+
+The first Preview login attempt after the change returned
+`auth/network-request-failed`; a subsequent attempt reached the Google account
+chooser. The prior `auth/unauthorized-domain` blocker is therefore cleared. OAuth
+then completed on the stable Preview and redirected to `/account/profile`. A
+test-only member profile saved successfully and redirected home.
+
+The authenticated member payment-account check started at `0/5`. One synthetic
+test-only member payment account was added successfully; the UI then showed `1/5`,
+only bank-code and masked-account display data, an empty full-account input, and a
+success status. No account value, masked digits, token, fingerprint, ciphertext,
+or secret is recorded here.
+
+Read-only source audit also identified two acceptance constraints: paid refund
+mismatch/match submission and Owner refund-account reveal are currently API-only;
+immediate vault removal requires the full approved refund path to reach Order
+`refunded`. No test payment or refund record has been created at this checkpoint.
+
+The next authenticated acceptance segment verified that a member receives the
+owner/helper gate at `/workspace`, and that a clearly labelled test checkout can
+create an NT$520 Order and PaymentRequest without a real transfer. A second
+synthetic account was saved and created one `pendingReview` Payment. A narrowly
+scoped ADC Firestore read timed out with no result and no write; a later browser
+process reset made active synthetic full values unavailable. One value briefly
+appeared only in browser-tool output, not in tracked documentation or application
+storage. A fresh one-pass account/order/payment is therefore required for
+refund-match acceptance. The remaining expected sequence is Owner confirm, one
+mismatch rejection, one match, reveal without response capture, full approved
+refund, and vault-field absence. Outputs remain boolean/aggregate only.
+
+### 2026-08-11 Redirect diagnostic build gate
+
+The diagnostic error-retention fix is committed as `abf88be`. Its regression test
+was red then green; Unit 44 files / 375 tests, TypeScript, ESLint, Build (39 pages),
+secret scan, and diff check passed locally. A direct Vercel Preview deployment
+remained `UNKNOWN` with a zero-ms build and no logs, so it is invalid evidence. The
+stable Preview alias was restored to the earlier Ready deployment. The next test
+gate is a Git-integrated Preview after explicit branch-push authorization.
+
+### 2026-08-11 Stable Preview session-retention retest
+
+Google account selection was completed on the stable Preview, but subsequent
+application navigation rendered the signed-out state and `/account/bank-accounts`
+again required login. No account, order, payment, refund, or configuration mutation
+was attempted. This is an authentication-observability blocker: the redirect-result
+error is currently cleared when Firebase reports signed-out, so the actual error code
+is not visible. Retest the full security flow only after a browser retains the member
+session; otherwise use a separately approved, test-first diagnostic change.

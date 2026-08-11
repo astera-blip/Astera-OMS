@@ -16,6 +16,11 @@ import {
   buildFingerprintKeyUsageReport,
   parseKeyUsageArgs,
 } from "../../scripts/report-fingerprint-key-usage.mjs";
+import {
+  emitGovernanceJobFailure,
+  runFingerprintKeyUsageReport,
+  runRefundAccountCleanup,
+} from "../../ops/security-worker/job-functions.mjs";
 
 const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 const anotherValidFingerprint = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
@@ -472,6 +477,157 @@ describe("refund account expiry cleanup", () => {
   });
 });
 
+describe("refund governance job functions", () => {
+  it("cleans expired vault fields once through injected Firestore dependencies", async () => {
+    const records = new Map([[
+      "expired-request",
+      {
+        status: "pending",
+        refundAccountCiphertext: "test-ciphertext",
+        refundEncryptionKeyVersion: 4,
+        refundAccountExpiresAt: "2026-08-01T00:00:00.000Z",
+      },
+    ]]);
+    const db = createRefundCleanupDb(records);
+    const FieldValue = { delete: () => "__delete__" };
+    const input = {
+      db,
+      FieldValue,
+      project: "astera-oms-prod",
+      now: new Date("2026-08-09T00:00:00.000Z"),
+    };
+
+    await expect(runRefundAccountCleanup(input)).resolves.toEqual({
+      ok: true,
+      project: "astera-oms-prod",
+      cleaned: 1,
+    });
+    await expect(runRefundAccountCleanup(input)).resolves.toEqual({
+      ok: true,
+      project: "astera-oms-prod",
+      cleaned: 0,
+    });
+    expect(records.get("expired-request")).toEqual({ status: "needsReverification" });
+  });
+
+  it("rejects a caller-selected non-production project before reading data", async () => {
+    await expect(runRefundAccountCleanup({
+      db: { collection: () => { throw new Error("must_not_read"); } },
+      FieldValue: { delete: () => "__delete__" },
+      project: "astera-oms-dev",
+      now: new Date("2026-08-09T00:00:00.000Z"),
+    })).rejects.toThrow("production_project_required");
+  });
+
+  it("returns only safe monthly aggregate key-usage statistics", async () => {
+    const result = await runFingerprintKeyUsageReport({
+      db: createKeyUsageDb({
+        memberAccounts: [{
+          id: "account-1",
+          accountFingerprint: validFingerprint,
+          fingerprintAlgorithm: "HMAC-SHA-256",
+          fingerprintKeyVersion: 2,
+          createdAt: "2026-08-01T00:00:00.000Z",
+        }],
+        payments: [{
+          id: "payment-1",
+          createdAt: "2026-08-02T00:00:00.000Z",
+          memberPaymentAccount: {
+            accountFingerprint: anotherValidFingerprint,
+            fingerprintAlgorithm: "HMAC-SHA-256",
+            fingerprintKeyVersion: 2,
+          },
+        }],
+      }),
+      project: "astera-oms-prod",
+      now: new Date("2026-08-09T00:00:00.000Z"),
+      listKnownKeyVersions: async () => [1, 2],
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      project: "astera-oms-prod",
+      report: {
+        cadence: "monthly",
+        versions: [
+          expect.objectContaining({
+            fingerprintKeyVersion: 1,
+            memberAccountReferences: 0,
+            paymentSnapshotReferences: 0,
+          }),
+          expect.objectContaining({
+            fingerprintKeyVersion: 2,
+            memberAccountReferences: 1,
+            paymentSnapshotReferences: 1,
+            disposition: "retain",
+          }),
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain(validFingerprint);
+    expect(JSON.stringify(result)).not.toContain(anotherValidFingerprint);
+  });
+
+  it("writes fixed safe failure events only for internal governance jobs", async () => {
+    const writes: unknown[] = [];
+    const db = {
+      collection: (name: string) => {
+        expect(name).toBe("notificationEvents");
+        return { add: async (value: unknown) => { writes.push(value); } };
+      },
+    };
+    const input = {
+      db,
+      project: "astera-oms-prod",
+      occurredAt: new Date("2026-08-09T00:00:00.000Z"),
+    };
+
+    await emitGovernanceJobFailure({ ...input, job: "refundAccountCleanup" });
+    await emitGovernanceJobFailure({ ...input, job: "fingerprintKeyUsageReport" });
+
+    expect(writes).toEqual([{
+      type: "owner.jobFailed",
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        job: "refundAccountCleanup",
+        project: "astera-oms-prod",
+        errorCode: "refundAccountCleanup_failed",
+      },
+      createdAt: "2026-08-09T00:00:00.000Z",
+      updatedAt: "2026-08-09T00:00:00.000Z",
+      createdBy: "system",
+      updatedBy: "system",
+    }, {
+      type: "owner.jobFailed",
+      audience: "owner",
+      status: "pendingReview",
+      payload: {
+        job: "fingerprintKeyUsageReport",
+        project: "astera-oms-prod",
+        errorCode: "fingerprint_key_usage_report_failed",
+      },
+      createdAt: "2026-08-09T00:00:00.000Z",
+      updatedAt: "2026-08-09T00:00:00.000Z",
+      createdBy: "system",
+      updatedBy: "system",
+    }]);
+    expect(JSON.stringify(writes)).not.toMatch(/test-ciphertext|accountFingerprint|raw-error/);
+  });
+
+  it("rejects a caller-controlled failure job without writing an event", async () => {
+    const writes: unknown[] = [];
+    await expect(emitGovernanceJobFailure({
+      db: { collection: () => ({ add: async (value: unknown) => { writes.push(value); } }) },
+      project: "astera-oms-prod",
+      job: "refundAccountCleanup:test-ciphertext",
+      occurredAt: new Date("2026-08-09T00:00:00.000Z"),
+    })).rejects.toThrow("invalid_governance_failure_job");
+
+    expect(writes).toEqual([]);
+  });
+});
+
 describe("monthly fingerprint key usage report", () => {
   it("counts member and payment references with earliest, latest, and unreferenced versions", () => {
     const report = buildFingerprintKeyUsageReport({
@@ -542,13 +698,15 @@ describe("monthly fingerprint key usage report", () => {
         disposition: "retain",
       },
     ]);
-    expect(report.unclassifiedDocuments).toEqual({
-      memberAccounts: ["account-unknown"],
-      paymentSnapshots: [],
+    expect(report.documentStatistics).toMatchObject({
+      malformedMemberAccounts: 1,
+      malformedPaymentSnapshots: 0,
     });
+    expect(report).not.toHaveProperty("unclassifiedDocuments");
     expect(report.autoDisabledVersions).toEqual([]);
     expect(JSON.stringify(report)).not.toContain(validFingerprint);
     expect(JSON.stringify(report)).not.toContain(anotherValidFingerprint);
+    expect(JSON.stringify(report)).not.toContain("account-unknown");
   });
 
   it("classifies malformed identities separately and counts overdue references", () => {
@@ -614,18 +772,17 @@ describe("monthly fingerprint key usage report", () => {
         disposition: "eligibleForEvaluation",
       }),
     ]);
-    expect(report.unclassifiedDocuments).toEqual({
-      memberAccounts: ["account-version-only", "account-malformed-base64"],
-      paymentSnapshots: ["payment-fingerprint-only", "payment-wrong-algorithm"],
-    });
     expect(report.documentStatistics).toEqual({
       malformedMemberAccounts: 2,
       malformedPaymentSnapshots: 2,
       overdueMemberAccounts: 1,
       overduePaymentSnapshots: 0,
     });
+    expect(report).not.toHaveProperty("unclassifiedDocuments");
     expect(JSON.stringify(report)).not.toContain(validFingerprint);
-    expect(JSON.stringify(report)).not.toMatch(/missing-version|private/);
+    expect(JSON.stringify(report)).not.toMatch(
+      /account-version-only|account-malformed-base64|payment-fingerprint-only|payment-wrong-algorithm|not-canonical-base64|missing-version|private|ciphertext/,
+    );
   });
 
   it("requires an exact project confirmation", () => {
@@ -639,3 +796,61 @@ describe("monthly fingerprint key usage report", () => {
     ])).toThrow("project_confirmation_mismatch");
   });
 });
+
+function createRefundCleanupDb(records: Map<string, Record<string, unknown>>) {
+  return {
+    collection: (name: string) => {
+      expect(name).toBe("cancellationRequests");
+      return {
+        where: (_field: string, _operator: string, expiry: string) => ({
+          get: async () => ({
+            docs: [...records.entries()]
+              .filter(([, record]) => (
+                typeof record.refundAccountExpiresAt === "string"
+                && Date.parse(record.refundAccountExpiresAt) <= Date.parse(expiry)
+              ))
+              .map(([id, record]) => ({ id, data: () => ({ ...record }) })),
+          }),
+        }),
+        doc: (id: string) => ({ id }),
+      };
+    },
+    runTransaction: async <T>(operation: (transaction: {
+      get: (ref: { id: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>;
+      update: (ref: { id: string }, values: Record<string, unknown>) => void;
+    }) => Promise<T>) => operation({
+      get: async (ref) => {
+        const record = records.get(ref.id);
+        return {
+          exists: Boolean(record),
+          data: () => ({ ...record }),
+        };
+      },
+      update: (ref, values) => {
+        const current = records.get(ref.id);
+        if (!current) throw new Error("missing_record");
+        for (const [field, value] of Object.entries(values)) {
+          if (value === "__delete__") delete current[field];
+          else current[field] = value;
+        }
+      },
+    }),
+  };
+}
+
+function createKeyUsageDb(data: {
+  memberAccounts: Array<Record<string, unknown>>;
+  payments: Array<Record<string, unknown>>;
+}) {
+  return {
+    collection: (name: string) => ({
+      get: async () => ({
+        docs: (name === "memberPaymentAccounts" ? data.memberAccounts : data.payments)
+          .map((record) => ({
+            id: String(record.id),
+            data: () => ({ ...record }),
+          })),
+      }),
+    }),
+  };
+}

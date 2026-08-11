@@ -1,21 +1,25 @@
 # Astera OMS Project Handoff
 
-Last updated: 2026-08-02 Asia/Taipei
+Last updated: 2026-08-11 Asia/Taipei
 
 ## Active Objective
 
-Complete the Astera OMS MVP according to the handoff spec without redesigning the existing architecture.
+Complete the Production security release gates without redesigning the existing
+Astera OMS MVP architecture. Task 7 currently stops before Production deployment.
 
 Current execution plan:
 
-- `docs/superpowers/specs/2026-07-29-mvp-local-completion-design.md`
-- `docs/superpowers/plans/2026-07-29-mvp-local-completion.md`
-- Start at Task 1. Do not skip production/test isolation or fallback/boundary Tasks 2–3 before Product image/storefront work.
+- Active plan:
+  `docs/superpowers/plans/2026-08-09-production-security-worker-implementation.md`
+  (Task 7).
+- Legacy MVP plans remain historical context; do not restart already completed
+  Tasks 1–6.
 
 ## Repository State
 
-- Working branch: `codex/mvp-completion`.
-- Preserve existing user change: `AGENTS.md`.
+- Working branch: `codex/mvp-completion`; the previously isolated Production
+  security worker branch is being merged locally under the user's selected option.
+- No GitHub push or Production deployment is authorized by this local merge.
 - Existing product authority remains `productsInternal`; public storefront reads only `productsPublic`.
 - Complete continuation entrypoint for another AI: `docs/20_CompleteAIHandoff_2026-07-30.md`.
 
@@ -1254,3 +1258,709 @@ Task 8 在 2026-08-09 的 final fresh verification：
 `docs/16_MVPCompletionPlan.md`、`docs/17_ProjectHandoff.md` 在 Task 8 前已包含大量既有未提交
 使用者修改。本批只追加此交接段落，未覆寫既有內容；如無法安全隔離 staging，不建立混合
 documentation commit。
+## 2026-08-09 Production security worker — handoff state
+
+The no-`--apply` planner run exited 0 with `mode=dry-run`; no resource, API, IAM,
+or deployment change occurred. The next approved command is still not executed:
+`node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply`.
+
+Pending design is fixed to `asia-east1` key ring `astera-oms-security`, the
+Software fingerprint and refund-vault KMS keys, Vercel key-level permissions,
+worker/Scheduler identities, `astera-ops`, private `astera-security-worker`
+(`min=0`, `max=1`, concurrency 1), two fixed Scheduler jobs, and the named
+Monitoring policy. No unauthenticated invoker, service-account JSON key, or
+project-wide KMS grant is permitted.
+
+Read-only GCP inspection on 2026-08-09 confirmed project `astera-oms-prod` /
+`1032606875618`, active pool/provider, expected runtime account, exact Vercel
+project principal-set binding, and only the three existing Firestore/Firebase Auth
+viewer/Storage object-viewer project roles. The provider maps the Vercel project
+claim but has no independent attribute condition; binding scope is the enforcement
+point. Only Monitoring API is enabled. KMS, Run, Scheduler, Cloud Build, and
+Artifact Registry APIs are disabled, so planned KMS resources, repository,
+service, and jobs are unverified while API disabled. Only the Worker/Scheduler
+service-account list reads can establish absence. The named policy was
+not listed; email-channel state is unverified because the local beta read command
+is unavailable and no component install was attempted.
+
+Budget/rollback: two active Software KMS versions are roughly USD 0.12/month
+before free/usage effects; two Scheduler jobs are within the usual three-job
+allowance; Cloud Run `min-instances=0` should be near free tier at MVP volume, but
+billing alerts remain required. Roll back a future deployment by disabling both
+jobs, removing exact service invoker/key bindings, deleting Cloud Run, and never
+destroying a KMS version referenced by a fingerprint or payment snapshot. Docker
+build verification remains parked because Docker is unavailable locally; CI or a
+Docker-capable host must run `docker build -f ops/security-worker/Dockerfile -t
+astera-security-worker:test .`.
+
+### Review correction — do not waive the WIF Provider condition
+
+This correction supersedes the earlier scope and resource-presence interpretation.
+The empty Provider `attributeCondition` is a load-bearing BLOCKER: do not grant
+KMS permissions or execute security `--apply`. The exact Vercel `principalSet`
+binding remains mandatory as a second layer and cannot substitute for a Provider
+condition. Local `gcloud iam workload-identity-pools providers update-oidc --help`
+verified CEL over `assertion` as the supported condition syntax. An authorized
+remediation must set and then read back (not executed here):
+
+```text
+gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --format="value(attributeCondition)"
+```
+
+KMS is unblocked only after review confirms this read-back and the original exact
+principal set. Fixed identifiers: project `astera-oms-prod`, number
+`1032606875618`, region `asia-east1`, ring `astera-oms-security`, keys
+`member-account-fingerprint` / `refund-account-vault`, Vercel SA
+`astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`, Worker SA
+`astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`, Scheduler SA
+`astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com`, repository
+`astera-ops`, Cloud Run `astera-security-worker`, Scheduler
+`astera-refund-vault-cleanup-daily` (daily 03:30 Asia/Taipei) and
+`astera-fingerprint-key-report-monthly` (day 1 monthly 04:00 Asia/Taipei), and
+policy `Astera Security Worker non-2xx or timeout` to `astera.0920@gmail.com`.
+
+For disabled APIs, planned resource state is **unverified while API disabled**;
+it must not be documented as confirmed absent. Only the successful Worker and
+Scheduler service-account list reads found no matches. The next apply command is
+BLOCKED pending tested Provider-condition remediation and review.
+
+Fresh post-remediation readback remains a BLOCKER gate (not run here):
+
+```text
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --format="json(state,attributeMapping,attributeCondition)"
+gcloud iam service-accounts get-iam-policy astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com --project=astera-oms-prod --flatten="bindings[]" --filter="bindings.role=roles/iam.workloadIdentityUser AND bindings.members:principalSet://iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/attribute.project_id/prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ" --format="table(bindings.role,bindings.members)"
+```
+
+KMS/apply is unblocked only if one fresh review proves all four: Provider state
+`ACTIVE`; `attributeMapping.attribute.project_id == assertion.project_id`; exact condition
+`assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"`; and the exact
+`roles/iam.workloadIdentityUser` runtime-SA principal-set member. The inventory
+also includes Pool `vercel-oidc`, Provider `vercel`, Vercel project
+`prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, and all planned API IDs:
+`cloudkms.googleapis.com`, `run.googleapis.com`, `cloudscheduler.googleapis.com`,
+`cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and
+`monitoring.googleapis.com`. Until then KMS and security `--apply` remain
+BLOCKED.
+
+## 2026-08-10 Task 5 authorization checkpoint
+
+WIF preflight commit `1c8387f` has approved review; Worker Firestore IAM commits
+`3bec6e9` and `5961b9a` have approved re-review. Fresh controller results pass:
+focused 52/52, full Unit 43 files / 334 tests, TypeScript, ESLint, secret scan,
+and document diff check.
+
+The apply path is READY in code but BLOCKED for live mutation until explicit user
+authorization. It includes Provider-condition remediation and the Worker exact
+`roles/datastore.user` binding; Scheduler has no project-wide role. No cloud
+command or `--apply` has run. The exact next command is:
+
+```text
+node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+The command will not proceed to API/KMS until readback verifies Provider `ACTIVE`,
+the exact mapping, exact Vercel-project condition, and exact `principalSet`.
+Docker build remains unverified because Docker CLI is absent.
+
+## 2026-08-09 Task 5 apply attempt blocked before mutation
+
+The managed execution safety review rejected the live apply before command startup.
+The user's brief approval did not explicitly enumerate the persistent Production
+changes. Therefore no WIF condition, API, KMS key, IAM binding, service account, or
+Artifact Registry resource was changed.
+
+Resume by obtaining explicit approval for the complete `astera-oms-prod` scope:
+WIF Provider condition, six approved APIs, two KMS keys, Worker and Scheduler
+service accounts, Worker Firestore role, key-level KMS IAM, and the `astera-ops`
+Artifact Registry repository. Then run exactly:
+
+```text
+node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+Do not bypass the managed safety review or split the operation into indirect
+commands to avoid the authorization gate.
+
+## 2026-08-10 Task 5 Production security resources completed
+
+Explicit authorization was received. The apply encountered three fail-closed
+gcloud compatibility boundaries; each was fixed with RED/GREEN tests and independent
+review in commits `abd32a6`, `7cb07d1`, and `861a99f`. Final apply exited 0.
+
+Verified Production state:
+
+- WIF Provider ACTIVE with exact mapping, Vercel project condition, and principalSet.
+- Six approved APIs enabled.
+- `member-account-fingerprint` version 1: HMAC_SHA256 / SOFTWARE / ENABLED.
+- `refund-account-vault` primary version 1: Google symmetric / SOFTWARE / ENABLED.
+- Vercel key-level HMAC signer and refund encrypter/decrypter only.
+- Worker key-level HMAC viewer plus project `roles/datastore.user`; no refund crypto.
+- Scheduler service account has no project-wide role.
+- Worker/Scheduler service accounts active.
+- `astera-ops` Docker Artifact Registry exists in `asia-east1`.
+
+Fresh local verification passed focused 35/35, Unit 43 files / 340 tests,
+TypeScript, ESLint, secret scan, and diff check. Task 6 is the next exact step:
+implement and review the private Worker deployment planner, then deploy Cloud Run,
+OIDC Scheduler jobs, and Monitoring only after its source and Docker/image build
+gate pass. This host still has no Docker CLI.
+
+## 2026-08-10 Task 6 continuation checkpoint
+
+Task 6 source is implemented in `2e246e2`; security hardening is in `1ac6d13`.
+Controller review originally found three High and two Medium issues; the scoped
+re-review confirms all addressed, no new breakage, Spec PASS, Quality APPROVED.
+Implementer evidence passes focused 42/42, Unit 44 files / 374 tests, TypeScript,
+ESLint, Build, secret scan, and diff checks.
+
+No Task 6 live operation ran. A controller fresh full gate was requested, but the
+managed executor rejected it before command startup because the Codex usage limit
+was reached. The UI states retry availability at 2026-08-16 10:05. Do not report
+Task 6 complete and do not attempt alternate execution to bypass this limit.
+
+Exact resume sequence:
+
+1. Run controller focused 42/42, full Unit, TypeScript, ESLint, Build, secret scan,
+   diff check, and exact dry-run.
+2. Read back the budget alert and confirm existing Cloud Run/Scheduler/Monitoring
+   state without mutation.
+3. Obtain explicit authorization for Cloud Build/image push, private Cloud Run,
+   service-level Scheduler invoker, two OIDC jobs, email notification channel, and
+   Monitoring policy.
+4. Run `node scripts/deploy-production-security-worker.mjs --project
+   astera-oms-prod --confirm-project astera-oms-prod --apply`.
+5. If it stops on `UNVERIFIED`, complete the external email-channel verification
+   and rerun only after readback is `VERIFIED`.
+6. Perform private/public IAM readback, authenticated `/healthz` and both job route
+   smoke tests, idempotency, controlled 405 alert delivery, and sensitive-log audit.
+
+Task 7 remains pending. No branch push or integration authorization has been given.
+
+## 2026-08-10 Task 6 resumed after managed-execution limit
+
+The controller reran the full local gate successfully: focused 42/42, full Unit
+44 files / 374 tests, TypeScript, ESLint, Next.js Build, secret scan, diff check,
+and exact dry-run all exited 0.
+
+Read-only Production findings:
+
+- Billing enabled; linked billing account ID recorded in Deployment only.
+- Worker Cloud Run service absent.
+- Daily and monthly Scheduler jobs absent.
+- Matching Monitoring email channel and alert policy absent.
+- Billing Budget API disabled; budget inventory therefore unverified.
+
+Task 6 remains BLOCKED from live deployment because the approved design requires a
+Budget Alert before deployment. Exact continuation:
+
+1. Obtain explicit authorization to enable `billingbudgets.googleapis.com` on
+   `astera-oms-prod`.
+2. List budgets read-only for the linked billing account.
+3. If no acceptable budget exists, obtain a separate decision/authorization for
+   amount, thresholds, and recipients before creating it.
+4. Only after budget verification, obtain explicit Task 6 authorization for Cloud
+   Build/image push, private Cloud Run, service IAM, two OIDC jobs, Monitoring email
+   channel, and alert policy.
+
+No Task 6 Production mutation occurred in this resumed step.
+
+## 2026-08-10 Billing Budget gate continuation
+
+The user explicitly authorized only enabling `billingbudgets.googleapis.com` on
+`astera-oms-prod` and a read-only query of Billing Account
+`01B794-2E6BD7-33D714`. API enablement completed successfully. The inventory found
+one existing monthly Budget Alert, `Firebase Project astera-oms-prod`, scoped to
+project number `1032606875618`, with TWD 200 amount and current-spend thresholds at
+50%, 90%, and 100%. Default Billing Account Administrator/User recipients are not
+disabled, so the required pre-deployment Budget Alert gate passes.
+
+No Budget was created, modified, or deleted. No Task 6 Cloud Build, image push,
+Cloud Run, IAM, Scheduler, Monitoring channel, or alert-policy deployment occurred.
+Task 6 remains in progress. Exact continuation:
+
+1. Obtain explicit authorization for the complete reviewed Task 6 Production blast
+   radius: Cloud Build/image push, private Cloud Run, service-level Scheduler
+   invoker IAM, two OIDC Scheduler jobs, Monitoring email channel, and alert policy.
+2. Run the guarded apply command once with unchanged reviewed arguments.
+3. If the new email channel is `UNVERIFIED`, stop and have the operator complete
+   Google's email verification; rerun only after readback is `VERIFIED`.
+4. Complete authenticated/private/public IAM, route, idempotency, alert-delivery,
+   and sensitive-log verification before marking Task 6 complete.
+
+## 2026-08-10 Task 6 deployed; destructive smoke still gated
+
+The explicitly authorized Task 6 guarded apply completed with exit 0. Production
+now has a Ready private Worker, digest-pinned image, fixed project/HMAC env, max 1,
+default min 0, concurrency 1, the Worker runtime SA, exact Scheduler-only invoker,
+two enabled Asia/Taipei OIDC jobs, one enabled email channel, and one enabled
+non-2xx/timeout policy.
+
+Three fail-closed compatibility findings were diagnosed from live Google readback
+and fixed through red/green tests:
+
+- `774740d`: accept the sole Cloud Scheduler platform User-Agent while rejecting
+  every additional or altered header;
+- `78e5c42`: accept undefined/UNSPECIFIED Monitoring verification status per the
+  API contract, while explicit UNVERIFIED and unknown states still fail;
+- `246e51d`: normalize omitted thresholdValue to protobuf default zero while
+  retaining exact semantic policy comparison.
+
+Post-fix evidence: focused 33/33, Unit 44 files / 374 tests, TypeScript, ESLint,
+Build 39 pages, secret scan, and diff check passed. Monthly key-usage Scheduler run
+returned 200. Unauthenticated job POSTs returned 403. A recent payload-only log
+scan counted 0 forbidden sensitive keys, 0 long-digit matches, and 0 Worker failure
+markers. No human Token Creator permission was added; Scheduler-SA impersonation
+was denied, preserving least privilege.
+
+Monitoring delivery subsequently passed. The user supplied a screenshot of the
+received Google Cloud email showing `Alert firing` for the fixed
+`Astera Security Worker non-2xx or timeout` policy, request-count value 4, project
+`astera-oms-prod`, service `astera-security-worker`, and location `asia-east1`.
+No mailbox access was performed and the attachment was not copied into the
+repository. The remaining Task 6 gate is cleanup idempotency plus the documented
+authenticated-health substitution decision.
+
+Those remaining gates subsequently passed. The user explicitly authorized two
+cleanup executions. Count-only Firestore aggregation was 0 before run 1, 0 after
+run 1, and 0 after run 2. Both Scheduler OIDC requests returned 200, proving
+aggregate `cleaned=0` idempotency; no record was deleted and no ID/payload was read.
+Post-run payload log scanning again returned zero sensitive-key, long-digit, and
+failure-marker matches. The authenticated 200 monthly and cleanup routes are the
+documented stronger substitute for `/healthz`, so no human Token Creator role is
+needed. Task 6 is complete. Exact continuation is Task 7 Vercel security environment
+preflight and strict release gates; do not mutate Vercel environment or redeploy
+without its separately authorized scope.
+
+## 2026-08-10 Task 7 read-only Vercel preflight
+
+Task 6 is complete and Task 7 is in progress. Vercel CLI 58.9.0 readback found the
+linked project `astera-oms/astera-oms` with ID
+`prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, Next.js, root `.`, and Node.js 24.x. The project
+currently has no custom Environment Variables.
+
+The local strict security check initially listed all 17 variables missing because
+the shell had no Vercel environment. Firebase CLI auth had expired; instead, the
+read-only Firebase Management API was called through existing ADC and confirmed the
+ACTIVE Production Web App plus all six public SDK values. Those values, the verified
+Task 5 GCP/WIF/KMS values, key version 1, and a deliberately non-production
+placeholder secret passed the strict checker in a child process. Nothing was saved
+to `.env`, Vercel, Git, or documentation as a secret.
+
+Exact continuation requires separate authorization to:
+
+1. Add the 16 fixed non-secret variables to both Vercel Production and Preview.
+2. Generate two independent cryptographically random 48-byte values in memory and
+   pipe each directly to `REFUND_RATE_LIMIT_HASH_SECRET` for its target with
+   sensitive/secret visibility; never print, document, or save them.
+3. List variable names/targets only and confirm no Emulator or E2E-auth variable.
+4. Redeploy Preview only, run the strict security gate in that environment, and
+   perform the approved non-real-bank-account security flow.
+
+No Vercel variable or deployment mutation has occurred in Task 7 yet. Production
+redeploy is not part of the next authorization unless explicitly added later.
+
+## 2026-08-10 Task 7 authorized write; Preview deployment paused
+
+The user explicitly authorized Vercel project `astera-oms/astera-oms` only. The 16
+fixed Production/Preview names were added or overwritten. Separate Production and
+Preview `REFUND_RATE_LIMIT_HASH_SECRET` values were each generated from 48 random
+bytes in process memory and written via stdin as Sensitive Secrets. The values were
+not output, saved, or recorded. The initial static RNG call was unavailable in the
+host PowerShell runtime and failed before generation or Vercel input; the compatible
+`RandomNumberGenerator.Create().GetBytes()` path was length/distinctness tested and
+then completed successfully.
+
+The metadata-only verification found 29 records and exposed pre-existing drift:
+
+1. `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` exists for Production and Preview.
+2. Older unscoped Preview Sensitive records overlap the newly verified fixed record
+   for `GOOGLE_CLOUD_PROJECT`, `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`,
+   `GCP_WORKLOAD_IDENTITY_POOL_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER_ID`,
+   `GCP_WORKLOAD_IDENTITY_AUDIENCE`, and `GCP_SERVICE_ACCOUNT_EMAIL`.
+3. No branch restriction is attached to those conflicting records.
+
+Because the authorization prohibited removing other settings, nothing was deleted
+or normalized. The Emulator/Test Auth gate is not satisfied, so no Preview build,
+deployment, authenticated security flow, or Production deployment was attempted.
+
+Exact continuation requires a new narrow authorization to remove
+`NEXT_PUBLIC_USE_FIREBASE_EMULATORS` from Production and Preview and normalize only
+the seven named duplicate Preview records while retaining the verified values. Then
+rerun `vercel env ls` metadata-only, require zero forbidden names/overlaps, deploy
+Preview only, and continue Task 7 verification. Branch
+`codex/production-security-worker` remains isolated; no push is authorized.
+
+## 2026-08-10 Task 7 cleanup, Ready Preview, and exact continuation
+
+The name-scoped cleanup completed exactly as authorized. It removed
+`NEXT_PUBLIC_USE_FIREBASE_EMULATORS` and only the seven legacy Preview Sensitive
+duplicates for the GCP/WIF identifiers. Fresh metadata inventory is clean: 21 total
+records, fixed 16/16, bad fixed 0, rate-limit Sensitive Secrets 2, forbidden 0,
+and Preview overlaps 0. Both target-specific secrets remain hidden and distinct.
+
+The first deployments exposed Vercel's `TEAM_ACCESS_REQUIRED` Git-author gate.
+Empty commit `e9db99b`, authored by verified team member
+`Astera OMS <astera.0920@gmail.com>`, contains no source or secret change and allowed
+deployment `dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` to reach Ready. Preview URLs:
+
+- `https://astera-ix5gsqvlu-astera-oms.vercel.app`;
+- stable alias `https://astera-oms-astera-blip-astera-oms.vercel.app`.
+
+Production was not deployed, promoted, or otherwise changed. Build compile,
+TypeScript, and 39/39 page generation passed. Vercel actually used Node 24.15.0,
+which is below the repository's declared `>=24.18.0` floor and produced an
+`EBADENGINE` warning; retain this as a Production release warning.
+
+Public browser verification passes `/`, `/products`, `/brand`, and `/cart`, and
+confirms `/e2e-auth` returns 404. Google sign-in on both Preview hosts is currently
+blocked by Firebase Authentication Authorized Domains. Thus public Preview health
+is proven, but authenticated WIF/KMS and refund-flow verification is not.
+
+Local evidence is green: TypeScript, ESLint, Build 39 pages, Unit 44/374, Rules
+2/32, Emulator Playwright 34 passed / 8 skipped / 0 failed, secret scan, production
+dependency audit (0 vulnerabilities), and diff check. The only source test change
+aligns stale Pixel 7 workspace assertions with the current bilingual accessible
+names; focused verification passed 3/3 and independent review found no issue.
+
+Exact continuation, requiring separate authorization: add only
+`astera-oms-astera-blip-astera-oms.vercel.app` to Firebase Production Authentication
+Authorized Domains. Then sign in through that stable Preview alias and create only
+explicitly named `測試專用` records to verify member binding, payment fingerprint
+snapshot, refund mismatch and match, Owner reveal, and vault deletion. Do not add
+one-off Preview hosts, do not deploy Production, and do not push this branch without
+new authorization.
+
+## 2026-08-10 Firebase Authorized Domain and authenticated Preview checkpoint
+
+The user explicitly authorized only the stable Preview alias. Attempts to read the
+Identity Toolkit admin config through both locally authenticated gcloud accounts
+returned 403 and performed no mutation. The already signed-in Firebase Console
+session was therefore used. Its Authorized Domains table showed the prior set;
+adding `astera-oms-astera-blip-astera-oms.vercel.app` returned Success. Reloading
+the full settings route showed the exact prior set plus that one Custom domain.
+No existing domain was removed, no unique deployment hostname was added, no other
+Firebase setting changed, and Production was not deployed.
+
+The original `auth/unauthorized-domain` blocker is resolved: a retry reached the
+Google chooser after one `auth/network-request-failed` attempt. OAuth then
+completed on the stable Preview and redirected to `/account/profile`. A test-only
+member profile saved successfully and redirected home.
+
+The member payment-account UI initially showed `0/5`. One synthetic test-only
+member payment account was added successfully; the UI then showed `1/5`, only
+bank-code and masked-account display data, an empty full-account input, and a
+success status. No account value, masked digits, token, fingerprint, ciphertext,
+or secret is recorded. No test Payment, CancellationRequest, refund reveal, or
+vault deletion has been created.
+
+The remaining authorized refund, Owner, and vault work is limited to the static
+Task 7 flow audit. Do not add operational detail here beyond that audit, and do not
+push, deploy Production, add another domain, or change any other Firebase setting.
+
+## 2026-08-10 Preview payment/refund handoff
+
+The signed-in test member was denied `/workspace` as expected. A clearly marked
+test-only checkout then created one NT$520 Order and PaymentRequest. A second
+synthetic member account was saved and used to create one `pendingReview` Payment;
+no real transfer occurred.
+
+Complete synthetic values were not written to the repository or application
+storage. One value briefly appeared in browser-tool output during automation, but
+was never copied into tracked documentation. A narrowly scoped ADC Firestore read
+timed out before returning data and made no write. A later browser process reset
+made the active complete values unavailable, so neither account can be used for a
+successful refund match. This is the expected irreversibility property of stored
+HMAC data, not a reason to attempt recovery.
+
+Exact next action: log in as the test member again, bind one new synthetic account,
+and create a fresh clearly labelled test Order/Payment. Keep that complete value
+only in the active process through Owner confirm, one mismatch and one match, reveal
+without capturing the response body, full refund approval, and vault-field absence.
+Do not record account digits, masked digits, IDs, token, fingerprint, ciphertext,
+KMS material, or rate-limit material. Do not push, deploy Production, add another
+domain, or change any other Firebase/Vercel setting.
+
+## 2026-08-11 Task 7 Preview authentication retest blocker
+
+- The stable Preview login was retested with the same test member. Google account
+  selection completed and returned to the stable Preview home page, but the
+  application then rendered the signed-out state. Navigating to
+  `/account/bank-accounts` still displayed the Google login prompt.
+- This run made no account, order, payment, refund, Firebase, Vercel, or Production
+  mutation. It did not inspect browser storage, cookies, tokens, or account values.
+- The current client error lifecycle clears a redirect-result error when Firebase
+  subsequently reports a signed-out state, so the visible page does not retain the
+  diagnostic error code. This establishes an authentication-observability defect,
+  but does not yet establish whether the underlying cause is the redirect runtime
+  or an external Firebase configuration.
+- The controlled in-app browser is the only available browser surface in this run;
+  no external Chrome extension session is connected. Do not create another test
+  account or test order until an authenticated session is demonstrably retained.
+- Exact next action: obtain an authenticated stable-Preview browser session that
+  remains signed in after navigation, then run the one-pass synthetic account/order/
+  payment flow already documented above. If the same failure occurs in a normal
+  browser, create a narrowly scoped diagnostic fix and test before retrying; do not
+  bypass Firebase Auth with test auth, custom tokens, or client storage access.
+
+## 2026-08-11 Redirect-error visibility fix and Preview deployment recovery
+
+- The minimal client fix is committed as `abf88be`: a Google redirect-result error
+  is retained when the following Firebase state is signed-out, and cleared only
+  when there is no redirect error or a real Firebase user is present. The static
+  regression test first failed, then passed. Fresh local verification: Unit 44
+  files / 375 tests, TypeScript, ESLint, Next build (39 static pages), secret
+  scan, and diff check all passed.
+- A direct local Vercel Preview deployment created
+  `dpl_G5ALjYiQMUnEQxJ4baZFqnzwtxNS`, but Vercel reported `UNKNOWN` with a
+  zero-ms build and no logs after the CLI upload timed out. It is not a valid
+  release.
+- The stable Preview alias was automatically pointed to that unknown deployment,
+  then immediately restored to the prior Ready Preview. Production was not
+  deployed or changed; no Firebase setting or domain changed.
+- Exact continuation requires explicit authorization to push
+  `codex/production-security-worker` to the existing GitHub remote so Vercel Git
+  integration can build the Preview normally. After that Preview is Ready, repeat
+  Google login and record the retained Firebase redirect error code or authenticated
+  state before creating any new test data.
+
+## 2026-08-11 Stable Preview redirect-login diagnosis
+
+- Git-integrated Preview deployment for `bed5f01` is Ready and is assigned to the
+  existing authorized stable Preview alias. The source changes direct Google sign-in
+  to `signInWithRedirect`, eliminating the mobile popup-flash behaviour. Focused
+  unit, TypeScript, ESLint, Build, secret scan, and diff-check evidence passed
+  before push. Production was not deployed.
+- Retest result: the browser reaches Google account selection, then returns to the
+  Preview application signed out. No Firebase error remains visible and no test
+  account, order, payment, refund, or configuration was created in this retest.
+- Cause established from Firebase's current redirect guidance: Vercel uses a
+  different origin from the Firebase Auth helper. Third-party storage blocking
+  loses the redirect helper session. The documented applicable remedy is a
+  transparent reverse proxy for `/__/auth/` and a same-origin Preview `authDomain`.
+- Next action requiring fresh explicit authorization: modify only Preview to proxy
+  `/__/auth/:path*` transparently to the existing Firebase handler, change only
+  Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` to the stable authorized Preview
+  hostname, deploy Preview, and retest sign-in. Do not modify Production, add a
+  Firebase authorized domain, or start the payment/refund acceptance data flow
+  before the session persists.
+
+## 2026-08-11 Preview authDomain safety checkpoint
+
+- Commit `6398a22` adds the documented transparent Firebase helper rewrite. The
+  focused regression test first failed and then passed; TypeScript, ESLint, Next
+  build (39 routes), secret scan, and diff check passed. The branch was pushed;
+  Production was not deployed.
+- Only the existing Vercel Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` record was
+  removed. The intended replacement was rejected before execution by the safety
+  layer because the entered hostname differed in case from the approved stable
+  alias. No replacement was written and no Firebase/Production mutation occurred.
+- Do not trigger another Preview deployment while this build-time value is absent.
+  Resume after the user explicitly confirms the exact lowercase replacement:
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=astera-oms-astera-blip-astera-oms.vercel.app`
+  for Preview only. Then re-check metadata, wait for a Ready Preview, assign only
+  the existing stable alias, and repeat sign-in. No test banking/payment data may be
+  created before session persistence is proven.
+
+## 2026-08-11 Preview authDomain restored
+
+- Fresh explicit authorization was received after the safety rejection. Vercel
+  confirmed the exact lowercase stable Preview hostname was added to
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` as Preview-only non-sensitive configuration.
+  Production and all other environment variables remain unchanged.
+- Exact continuation: trigger a Git-integrated Preview after this replacement,
+  wait for Ready, attach only the existing stable Preview alias, then verify
+  `/__/auth/iframe` and retained Google redirect login. Do not create test
+  banking/payment/refund data before authenticated state is retained.
+
+## 2026-08-11 Same-origin helper pass; Google-button diagnostic blocker
+
+- A Ready Git-integrated Preview was verified and only the existing stable Preview
+  alias was assigned to it. Production was not deployed. The exact lowercase
+  Preview `authDomain` existed before this build.
+- `/__/auth/iframe` returned under the stable Preview hostname and loaded its
+  helper script under the same hostname, proving the proxy rewrite is transparent
+  to the browser.
+- The Google button now remains on the account page without navigating and without
+  a visible error. `AuthProvider` imports Firebase outside the handler's `try/catch`;
+  a client initialization rejection therefore bypasses the current error UI. This
+  is a testable leading hypothesis, not yet a claimed root cause.
+- No payment-account or financial acceptance data was created. Resume only after
+  fresh authorization for a test-first, Preview-only diagnostic: move those dynamic
+  imports into the current `try/catch`, render its existing safe error text on
+  failure, deploy Preview, and retest the button. Do not alter proxy routing,
+  providers, Firebase domains, or Production.
+
+## 2026-08-11 Google initialization diagnostic fix ready for Preview
+
+- Following fresh approval, a test-first change moves the Firebase imports inside
+  `signInWithGoogle`'s existing `try/catch`. An initialization rejection can now
+  render the existing safe Google sign-in error rather than leaving the button
+  inert. No provider, proxy, Firebase-domain, financial-data, or Production change
+  was made.
+- Verification before Preview: focused auth/proxy tests 16/16; full Unit 44 files /
+  377 tests; TypeScript, ESLint, Next build (39 routes), secret scan, and diff
+  check passed.
+- Exact continuation: use the Ready Git-integrated Preview, attach only the stable
+  Preview alias, and retry Google sign-in. Record only safe visible error text if
+  it fails; do not create any test banking/payment/refund data until signed-in state
+  persists on `/account/bank-accounts`.
+
+## 2026-08-11 Preview OAuth redirect-URI gate
+
+- The latest Git-integrated Preview was Ready and received only the existing stable
+  Preview alias. A separate direct CLI Preview upload timed out and was not assigned
+  to that alias. Production was not deployed or changed.
+- The corrected client flow reaches the same-origin Preview Auth handler and then
+  Google. Google rejects it with `redirect_uri_mismatch`, establishing that the
+  outstanding blocker is the OAuth Client redirect-URI allowlist.
+- Exact action requiring fresh external-configuration authorization: in the existing
+  Google OAuth Client, add only
+  `https://astera-oms-astera-blip-astera-oms.vercel.app/__/auth/handler` to
+  Authorized redirect URIs and save. Do not change the OAuth consent screen,
+  client credentials, other redirect URIs, Firebase domains, one-off Vercel hosts,
+  or Production. After saving, retry Preview sign-in and only then test retained
+  session state; no payment/refund test data may be created beforehand.
+
+## 2026-08-11 Preview OAuth redirect URI saved
+
+- The user explicitly authorized one exact change. The stable Preview handler URI
+  was appended to the existing Google OAuth Client, saved, and re-opened to verify
+  it persisted. No existing URI, OAuth consent configuration, Firebase domain,
+  one-off Vercel host, or Production setting was changed.
+- Retest reaches the Google account chooser without `redirect_uri_mismatch`. The
+  chooser is deliberately held for the user to select the intended test account;
+  no account was selected by automation and no member/payment/order/refund record
+  was created.
+- Exact continuation: after the user completes account selection, verify retained
+  authenticated state on `/account/bank-accounts` and after normal navigation.
+  Only then resume the one-pass synthetic payment/refund acceptance flow.
+
+## 2026-08-11 Member account legacy-data repair pending Preview retest
+
+- The selected Preview member stayed authenticated after return to the account
+  page, but the API returned a generic list-read error. Safe server diagnostics
+  proved the request reaches serialization; Firebase Auth, Workload Identity, and
+  Firestore IAM readbacks remain healthy. A read-only aggregate health check found
+  pre-contract account records without a bank code. It emitted no account values,
+  IDs, or member identities.
+- The repair converts incomplete legacy records to inactive, masked
+  `needsReverification` snapshots. They cannot be used for payment and do not
+  count against the five usable-account cap; the member is told to register a new
+  account. New unit regressions cover list recovery and limit handling.
+- Local evidence after repair: Unit 44 files / 379 tests, TypeScript, ESLint,
+  Next build, and diff check pass. Exact continuation: deploy the repair to the
+  stable Preview, verify the signed-in list renders, then resume only the approved
+  test-only payment/refund flow.
+
+## 2026-08-11 Preview test-only flow checkpoint
+
+- The repaired stable Preview retained member authentication through normal
+  navigation and rendered incomplete legacy accounts as masked, inactive
+  re-verification records. A new clearly test-only member account was added;
+  its full-account input was cleared and only masked UI information remained.
+- A clearly test-only product was checked out using synthetic recipient data and
+  both required consents, creating one new test-only Order and PaymentRequest.
+  The payment form was explicitly narrowed to that new request; no historical
+  request was submitted.
+- No Payment exists from this run. Browser automation cannot commit a value into
+  the native transfer-date input, so client validation correctly prevented
+  submission. The visible Preview form remains the exact handoff point: manually
+  select a transfer date, submit once, confirm `pendingReview`, then use the
+  separate Owner account for confirmation, reverse, mismatch/match, reveal, and
+  cleanup verification. Do not classify this date-control limitation as an app
+  defect without a manual browser result.
+
+## 2026-08-11 Payment Report date-state repair pending Preview retest
+
+- The member's manual mobile screenshot proved a real form bug: a native date
+  value was visibly present but React validation retained an empty `receivedAt`,
+  leaving the submit control disabled. The control now handles both `change` and
+  `input` events. A test was added first, observed failing, then passed after the
+  minimal handler addition.
+- Evidence: Unit 44 files / 380 tests, TypeScript, ESLint, Next build, and diff
+  check pass. Exact continuation: deploy this commit to stable Preview, pick the
+  date for the already-prepared test-only payment report, verify the button
+  enables, submit once, and then continue Owner-side lifecycle tests.
+
+## 2026-08-11 Payment Report submit-action contrast repair
+
+- A subsequent signed-in Preview screenshot established that the submit action was
+  present but visually invisible: its white text appeared on the white form area.
+  Investigation confirmed that `PaymentRequestsBoard` used an undefined
+  `bg-astera-brand` theme utility. This is a presentation defect; no payment record
+  was created and no account or order data was changed.
+- The button now uses the approved Astera brand color with explicit hover and
+  disabled states. A red/green source-contract regression test prevents returning
+  to an unresolved token for this financial action.
+- Local verification is green: Unit 44 files / 381 tests, TypeScript, ESLint,
+  Build, and diff check. Exact handoff: deploy this commit to the stable Preview,
+  refresh `/payments`, and verify the purple button is visible. Do not submit the
+  already-prepared test-only Payment without a current explicit confirmation,
+  because that creates a `pendingReview` financial record.
+
+## 2026-08-11 Preview member Payment Report handoff
+
+- The member manually submitted one expressly approved test-only Payment Report.
+  The stable Preview returned a visible success message for one report and cleared
+  the form. Read-only inspection confirmed that no second submit was triggered.
+- The related member-facing request remains unpaid pending Owner review; this does
+  not indicate submission failure. The next verification target is the separate
+  Payment record in the Owner workspace with status `pendingReview`.
+- No sensitive values or internal identifiers are included in this handoff. Resume
+  by signing in as the Owner test account, opening the Preview payment workspace,
+  and reading the newest test-only report. Obtain a fresh explicit confirmation
+  immediately before confirming, reversing, or otherwise mutating financial state.
+
+## 2026-08-11 Member account payer-name linkage handoff
+
+- Confirmed requirement implemented: every new member payment account records its
+  payer name; Payment Reports choose the verified account rather than accepting a
+  separately typed last-five value or payer name. Selecting an account controls both
+  read-only display values together.
+- Compatibility path: a verified legacy account that lacks a payer name is returned
+  with `needsPayerName`, excluded from usable Payment choices, and can receive its
+  name exactly once through the member-owned protected API. No full account re-entry
+  is required and existing identity fields remain unchanged.
+- Server trust boundary: new Payments persist the payer name from the selected
+  `memberPaymentAccounts` record in the immutable source snapshot. Client-supplied
+  payer or account fragments are not authoritative. Firestore Client SDK access to
+  the collection remains denied, including direct writes containing `payerName`.
+- Commits completed before this handoff: `7301e90`, `8648fae`, `6a40bbd`,
+  `cccb346`, and `dc6e6f4`. Task 6 test/docs changes are the current uncommitted
+  batch pending its final review commit.
+- Verification evidence: 27/27 focused; 45 Unit files / 395 tests; 2 Rules files /
+  32 tests; 35 emulated Playwright passed with 9 intentional project skips; 16
+  regular Playwright passed with 28 Emulator-only skips; TypeScript, ESLint, Next
+  build (39 routes), secret scan, production audit (0 vulnerabilities), and diff
+  check passed.
+- Deployment status: not pushed and not deployed in this batch; Production unchanged.
+  Next exact step is final branch-diff review, Task 6 commit, then obtain authorization
+  to push for a Preview-only deployment. Manual Preview acceptance must cover legacy
+  completion and two-account switching; creating or confirming another Payment still
+  requires separate action-time authorization.
+
+## 2026-08-11 `codex/mvp-completion` local merge checkpoint
+
+- Base branch: `codex/mvp-completion`.
+- Integrated branch: `codex/production-security-worker` through a local merge.
+- Conflict resolution retained the Production Security Worker, WIF/KMS environment
+  contracts, member payment-account payer-name linkage, current storefront/cart UI,
+  authoritative product projection sync, and both branches' operational records.
+- One stale E2E contract was corrected after the merged run: Pixel 7 workspace tests
+  now assert `Owner 營運工作區` and the current Chinese-first bilingual navigation.
+  The failure was limited to obsolete test copy; authentication and page rendering
+  were healthy in the trace.
+- Final pre-commit evidence on the merged tree:
+  - Unit: 50 files / 417 tests passed.
+  - Firestore + Storage Rules: 2 files / 32 tests passed.
+  - TypeScript and ESLint passed.
+  - Next production build passed with 42 routes.
+  - Regular Playwright: 18 passed / 28 Emulator-only skipped.
+  - Emulator Playwright: 37 passed / 9 intentional skips.
+  - Secret scan passed; production dependency audit found 0 vulnerabilities.
+- External state: no push, Preview deployment, Production deployment, Firebase
+  mutation, Vercel mutation, or financial-data mutation occurred during this merge.
+- Next exact external step, only after separate authorization: push
+  `codex/mvp-completion` and let the Git-integrated Preview run before any Production
+  release decision.

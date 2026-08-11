@@ -18,6 +18,7 @@ vi.mock("@/lib/firebase/admin", () => ({
 
 import {
   allocatePaymentReportAmount,
+  buildMemberPaymentAccountIdentitySnapshot,
   getPaymentAccountLast5,
 } from "../../src/lib/payment/manualBankTransfer";
 import type { LocalPayment } from "../../src/lib/payment/manualBankTransfer";
@@ -30,6 +31,7 @@ type StoredPaymentAccount = {
   accountFingerprint: string | undefined;
   fingerprintAlgorithm: "HMAC-SHA-256" | string | undefined;
   fingerprintKeyVersion: number | undefined;
+  payerName?: string;
 };
 
 const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
@@ -76,6 +78,7 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
             accountFingerprint: validFingerprint,
             fingerprintAlgorithm: "HMAC-SHA-256",
             fingerprintKeyVersion: 7,
+            payerName: "王小明",
             status: "active",
             verificationStatus: "verified",
             ...memberAccountOverrides,
@@ -109,7 +112,6 @@ function paymentReportRequest(extra: Record<string, unknown> = {}) {
       receivedAmountTwd: 520,
       receivingPaymentAccountId: "astera-account-1",
       memberPaymentAccountId: "member-account-1",
-      payerName: "Member A",
       ...extra,
     }),
   });
@@ -166,12 +168,31 @@ describe("Owner payment account display", () => {
 });
 
 describe("payment report member account snapshot", () => {
+  it("copies the stored payer name into the immutable member account snapshot", () => {
+    expect(buildMemberPaymentAccountIdentitySnapshot({
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: validFingerprint,
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+      payerName: "王小明",
+    })).toEqual({
+      bankCode: "012",
+      accountNumberLast5: "56789",
+      accountFingerprint: validFingerprint,
+      fingerprintAlgorithm: "HMAC-SHA-256",
+      fingerprintKeyVersion: 7,
+      payerName: "王小明",
+    });
+  });
+
   it("ignores the client transfer last five and persists only the selected account snapshot identity", async () => {
     const reporting = createPaymentReportFirestore();
     firestore.getAdminFirestore.mockReturnValue(reporting.db);
 
     const response = await POST(paymentReportRequest({
       transferAccountLast5: "00000",
+      payerName: "偽造匯款人",
       bankCode: "999",
       accountNumberLast5: "00000",
       accountFingerprint: "Y2xpZW50LWZpbmdlcnByaW50",
@@ -194,8 +215,10 @@ describe("payment report member account snapshot", () => {
         accountFingerprint: validFingerprint,
         fingerprintAlgorithm: "HMAC-SHA-256",
         fingerprintKeyVersion: 7,
+        payerName: "王小明",
       },
       manualFingerprintReviewRequired: false,
+      payerName: "王小明",
     });
     expect(paymentWrite.memberPaymentAccount).toEqual({
       bankCode: "012",
@@ -203,6 +226,7 @@ describe("payment report member account snapshot", () => {
       accountFingerprint: validFingerprint,
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
+      payerName: "王小明",
     });
     expect(paymentWrite).not.toHaveProperty("transferAccountLast5");
   });
@@ -217,6 +241,19 @@ describe("payment report member account snapshot", () => {
     const response = await POST(paymentReportRequest());
 
     expect(response.status).toBe(400);
+    expect(reporting.set).not.toHaveBeenCalled();
+  });
+
+  it("rejects an otherwise verified legacy account without a payer name", async () => {
+    const reporting = createPaymentReportFirestore({ payerName: undefined });
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const response = await POST(paymentReportRequest());
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "payment_account_member_payer_name_required",
+    });
     expect(reporting.set).not.toHaveBeenCalled();
   });
 

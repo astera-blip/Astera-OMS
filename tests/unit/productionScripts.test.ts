@@ -4,6 +4,8 @@ import {
   assertProductionFlags,
   formatEnvironmentReport,
   getMissingEnvironmentNames,
+  parseProductionEnvironmentArgs,
+  productionEnvironmentNames,
   validateProductionEnvironment,
 } from "../../scripts/check-production-env.mjs";
 import {
@@ -12,7 +14,7 @@ import {
 } from "../../scripts/audit-product-projection.mjs";
 import {
   buildDesiredPublicProducts,
-  buildProjectionFromPublicDocument,
+  buildProductProjectionSyncPlan,
   buildProjectionSyncPlan,
   parseSyncArgs,
 } from "../../scripts/sync-product-projection.mjs";
@@ -131,6 +133,46 @@ describe("production environment checker", () => {
     })).toContain("PROJECT_ID_ALIASES=conflict");
   });
 
+  it("supports a strict security scope without weakening the default Resend gate", () => {
+    const environment = Object.fromEntries(
+      productionEnvironmentNames
+        .filter((name) => !name.startsWith("RESEND_"))
+        .map((name) => [name, "configured"]),
+    );
+    environment.GCP_KMS_HMAC_KEY_VERSION = "1";
+    environment.REFUND_RATE_LIMIT_HASH_SECRET = "stable-secret-at-least-thirty-two-characters";
+    environment.GCP_KMS_HMAC_KEY_NAME =
+      "projects/configured/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint";
+    environment.GCP_KMS_REFUND_KEY_NAME =
+      "projects/configured/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault";
+    Object.assign(environment, {
+      GOOGLE_CLOUD_PROJECT: "astera-oms-prod",
+      GCP_PROJECT_ID: "astera-oms-prod",
+      GCP_PROJECT_NUMBER: "1032606875618",
+      GCP_WORKLOAD_IDENTITY_POOL_ID: "vercel-oidc",
+      GCP_WORKLOAD_IDENTITY_PROVIDER_ID: "vercel",
+      GCP_SERVICE_ACCOUNT_EMAIL:
+        "astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com",
+      GCP_WORKLOAD_IDENTITY_AUDIENCE:
+        "//iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/providers/vercel",
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "astera-oms-prod",
+      GCP_KMS_HMAC_KEY_NAME:
+        "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/member-account-fingerprint",
+      GCP_KMS_REFUND_KEY_NAME:
+        "projects/astera-oms-prod/locations/asia-east1/keyRings/astera-oms-security/cryptoKeys/refund-account-vault",
+    });
+
+    expect(parseProductionEnvironmentArgs(["--scope", "security", "--strict"]))
+      .toEqual({ scope: "security", strict: true });
+    expect(getMissingEnvironmentNames(environment, "security")).toEqual([]);
+    expect(validateProductionEnvironment(environment, "security")).toEqual([]);
+    expect(getMissingEnvironmentNames(environment)).toEqual([
+      "RESEND_API_KEY",
+      "RESEND_FROM_EMAIL",
+      "RESEND_REPLY_TO_EMAIL",
+    ]);
+  });
+
   it.each([
     { PLAYWRIGHT_USE_FIREBASE_EMULATORS: "true" },
     { FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099" },
@@ -227,21 +269,68 @@ describe("product projection sync", () => {
     ])).toThrow("project_confirmation_required");
   });
 
-  it("rebuilds a public projection without private fields", () => {
-    const projection = buildProjectionFromPublicDocument("prod_1", {
-      name: "Public product",
-      publicDescription: "Description",
+  it("builds desired public projections from joined internal product records without private fields", () => {
+    const plan = buildProductProjectionSyncPlan([{
+      id: "prod_1",
+      name: "Internal product",
+      publicDescription: "Description from internal",
       publishState: "published",
       sku: "AST-P000001",
       internalNote: "private",
-      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500, sku: "AST-P000001-V001" }],
-      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
-    });
+      images: [{ objectPath: "product-images/prod_1/a.webp", sortOrder: 1, url: "https://cdn.example/a.webp", createdBy: "system" }],
+      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500, sku: "AST-P000001-V001", originalCost: 200 }],
+      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false, internalNote: "private" }],
+    }], []);
 
-    expect(projection).toEqual(expect.objectContaining({ id: "prod_1", name: "Public product" }));
-    expect(projection).not.toHaveProperty("sku");
-    expect(projection).not.toHaveProperty("internalNote");
-    expect(projection.variants[0]).not.toHaveProperty("sku");
+    expect(plan.desiredPublicProducts).toEqual([{
+      id: "prod_1",
+      name: "Internal product",
+      publicDescription: "Description from internal",
+      publishState: "published",
+      images: [{ objectPath: "product-images/prod_1/a.webp", sortOrder: 1, url: "https://cdn.example/a.webp" }],
+      variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500 }],
+      campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
+    }]);
+    expect(plan.operations).toEqual([{
+      type: "set",
+      id: "prod_1",
+      data: {
+        id: "prod_1",
+        name: "Internal product",
+        publicDescription: "Description from internal",
+        publishState: "published",
+        images: [{ objectPath: "product-images/prod_1/a.webp", sortOrder: 1, url: "https://cdn.example/a.webp" }],
+        variants: [{ id: "var_1", productId: "prod_1", name: "Default", priceTwd: 500 }],
+        campaigns: [{ id: "campaign_1", productId: "prod_1", title: "Open", saleType: "inStock", status: "open", requiresSupplement: false }],
+      },
+    }]);
+  });
+
+  it("sets missing or stale projections from internal records and deletes orphan public records", () => {
+    const plan = buildProductProjectionSyncPlan(
+      [
+        { id: "prod_1", name: "Fresh one", publicDescription: "Fresh description", publishState: "published", sku: "AST-P000001", variants: [], campaigns: [] },
+        { id: "prod_2", name: "Missing two", publicDescription: "Second description", publishState: "draft", sku: "AST-P000002", variants: [], campaigns: [] },
+      ],
+      [
+        { id: "prod_1", name: "Stale public name", publicDescription: "Stale", publishState: "archived", variants: [], campaigns: [] },
+        { id: "prod_orphan", name: "Orphan", publicDescription: "Orphan", publishState: "published", variants: [], campaigns: [] },
+      ],
+    );
+
+    expect(plan.operations).toEqual([
+      {
+        type: "set",
+        id: "prod_1",
+        data: { id: "prod_1", name: "Fresh one", publicDescription: "Fresh description", publishState: "published", variants: [], campaigns: [] },
+      },
+      {
+        type: "set",
+        id: "prod_2",
+        data: { id: "prod_2", name: "Missing two", publicDescription: "Second description", publishState: "draft", variants: [], campaigns: [] },
+      },
+      { type: "delete", id: "prod_orphan" },
+    ]);
   });
 
   it("derives the sync write set from internal products rather than stale public documents", () => {

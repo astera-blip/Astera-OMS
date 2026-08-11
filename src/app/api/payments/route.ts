@@ -5,6 +5,7 @@ import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { buildPaymentAccountSnapshot, type PaymentAccount } from "@/lib/payment/bankAccounts";
 import {
   isStoredMemberPaymentAccountUsableForPayment,
+  normalizeMemberPaymentAccountPayerName,
   type MemberPaymentAccount,
 } from "@/lib/payment/memberBankAccounts";
 import {
@@ -22,7 +23,6 @@ export async function POST(request: Request) {
       receivedAmountTwd?: number;
       receivingPaymentAccountId?: string;
       memberPaymentAccountId?: string;
-      payerName?: string;
       memberNote?: string;
     };
     const paymentRequestId = body.paymentRequestId?.trim() ?? "";
@@ -37,7 +37,6 @@ export async function POST(request: Request) {
     const receivedAmountTwd = body.receivedAmountTwd;
     const receivingPaymentAccountId = body.receivingPaymentAccountId?.trim() ?? "";
     const memberPaymentAccountId = body.memberPaymentAccountId?.trim() ?? "";
-    const payerName = body.payerName?.trim() ?? "";
     const memberNote = body.memberNote?.trim() ?? "";
 
     if (
@@ -47,7 +46,6 @@ export async function POST(request: Request) {
       || typeof receivedAmountTwd !== "number"
       || !Number.isInteger(receivedAmountTwd)
       || receivedAmountTwd <= 0
-      || !payerName
     ) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }
@@ -122,11 +120,18 @@ export async function POST(request: Request) {
       if (memberAccount.memberUid !== claims.uid) {
         throw new Error("forbidden");
       }
-      if (!isStoredMemberPaymentAccountUsableForPayment(memberAccount)) {
+      let payerName: string;
+      try {
+        payerName = normalizeMemberPaymentAccountPayerName(memberAccount.payerName);
+      } catch {
+        throw new Error("payment_account_member_payer_name_required");
+      }
+      const authoritativeMemberAccount = { ...memberAccount, payerName };
+      if (!isStoredMemberPaymentAccountUsableForPayment(authoritativeMemberAccount)) {
         throw new Error("payment_account_member_inactive");
       }
       const receivingPaymentAccount = buildPaymentAccountSnapshot(receivingAccount);
-      const memberPaymentAccount = buildMemberPaymentAccountIdentitySnapshot(memberAccount);
+      const memberPaymentAccount = buildMemberPaymentAccountIdentitySnapshot(authoritativeMemberAccount);
       const manualFingerprintReviewRequired = !memberPaymentAccount.accountFingerprint;
 
       const paymentRefs = allocations.map(() => db.collection("payments").doc());
@@ -149,7 +154,7 @@ export async function POST(request: Request) {
           memberPaymentAccountId,
           memberPaymentAccount,
           manualFingerprintReviewRequired,
-          payerName,
+          payerName: memberPaymentAccount.payerName,
           ...(memberNote ? { memberNote } : {}),
           status: "pendingReview",
           createdAt: FieldValue.serverTimestamp(),
@@ -185,6 +190,7 @@ export async function POST(request: Request) {
                   || message === "payment_account_member_not_found"
                   || message === "payment_account_member_inactive"
                   || message === "payment_account_member_required"
+                  || message === "payment_account_member_payer_name_required"
                   ? 400
               : 500;
 

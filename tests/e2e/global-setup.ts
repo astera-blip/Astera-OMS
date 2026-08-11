@@ -121,6 +121,7 @@ export default async function globalSetup() {
       accountFingerprint: fingerprintFor("012", "00123412345"),
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion,
+      payerName: "測試會員甲",
       verificationStatus: "verified",
       status: "active",
       createdAt: new Date(),
@@ -129,7 +130,10 @@ export default async function globalSetup() {
       updatedBy: "system",
     }),
     db.collection("memberPaymentAccounts").doc("member-a-exact-e2e").set(
-      accountFixture("member-a-exact-e2e", "member-e2e", exactAccountNumber, 3),
+      accountFixture("member-a-exact-e2e", "member-e2e", exactAccountNumber, 3, "測試會員乙"),
+    ),
+    db.collection("memberPaymentAccounts").doc("member-e2e-legacy-name").set(
+      accountFixture("member-e2e-legacy-name", "member-e2e", "00123433333"),
     ),
     db.collection("productsInternal").doc("prod_e2e_flow").set({
       id: "prod_e2e_flow",
@@ -240,6 +244,7 @@ function accountFixture(
   memberUid: string,
   accountNumber: string,
   keyVersion = fingerprintKeyVersion,
+  payerName?: string,
 ) {
   return {
     id,
@@ -249,6 +254,7 @@ function accountFixture(
     accountFingerprint: fingerprintFor("012", accountNumber, keyVersion),
     fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: keyVersion,
+    ...(payerName ? { payerName } : {}),
     verificationStatus: "verified",
     status: "active",
     createdAt: new Date(),

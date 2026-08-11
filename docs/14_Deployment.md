@@ -113,9 +113,11 @@ to Vercel Production and Preview environments, redeploy, then test
   downloaded private key.
 - `roles/iam.workloadIdentityUser` is restricted to Vercel Project
   `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`.
-- All seven OIDC variables above were stored as sensitive variables in both
-  Vercel Preview and Production, then a Preview was rebuilt successfully:
-  `https://astera-n850fxxzw-astera-oms.vercel.app`.
+- Historical 2026-07-30 state: all seven OIDC variables above were stored as
+  sensitive variables in both Vercel Preview and Production, then Preview
+  `https://astera-n850fxxzw-astera-oms.vercel.app` was rebuilt. This record is
+  superseded by the 2026-08-10 Task 7 fixed non-secret identifiers plus two
+  target-specific Sensitive rate-limit secrets documented below.
 
 ### Firebase Production Storage release (2026-08-02)
 
@@ -245,3 +247,428 @@ Rollback 順序：停止 apply／排程、保留安全報告、以 ignored backu
 清理只移除到期的 `refundAccountCiphertext`、`refundEncryptionKeyVersion`、
 `refundAccountExpiresAt`，並將 pending request 標記 `needsReverification`；不刪除任何不相關
 明文字段。Owner reveal／review API 仍在每次請求即時檢查 expiry，作為排程以外的 defense in depth。
+## 2026-08-09 Production security worker — dry run and read-only preflight
+
+`node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod`
+exited 0 with `mode=dry-run`, listing only fixed API, KMS, service-account,
+key-level IAM, Artifact Registry, Cloud Run, Scheduler, and Monitoring
+preparation actions. No cloud command or mutation ran.
+
+The approved design remains: `asia-east1` key ring `astera-oms-security`; Software
+`member-account-fingerprint` (`MAC` / `HMAC_SHA256`) and `refund-account-vault`
+(`ENCRYPT_DECRYPT` / Google symmetric) keys; Vercel-only key-level signer and
+encrypter/decrypter bindings; worker and Scheduler service accounts; `astera-ops`
+Docker repository; private `astera-security-worker` Cloud Run service
+(`min-instances=0`, `max-instances=1`, `concurrency=1`); daily 03:30 and monthly
+day-1 04:00 Asia/Taipei jobs; and `Astera Security Worker non-2xx or timeout`.
+Unauthenticated invocation and project-wide KMS roles are prohibited.
+
+Read-only state on 2026-08-09: project ID/number, active `vercel-oidc` /
+`vercel`, runtime service account, its three existing project roles, and its exact
+Vercel-project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ` principal-set binding matched.
+The provider maps `attribute.project_id` from the assertion but has no separate
+`attributeCondition`; the verified principal-set binding is the scope enforcement.
+Only Monitoring API is enabled; KMS, Run, Scheduler, Cloud Build, and Artifact
+Registry APIs are disabled. Thus planned KMS resources, repository, service, and
+jobs are unverified while API disabled; only the IAM service-account lists can
+establish absence. No named Monitoring policy was
+listed; the email channel was not verified because local gcloud lacks the optional
+beta channel command and no component was installed.
+
+Cost: two active Software KMS versions are roughly USD 0.12/month before
+free/usage effects; two Scheduler jobs are within the usual three-job allowance;
+Cloud Run `min-instances=0` should remain near free tier at MVP volume, but billing
+alerts are required. Future rollback: disable Scheduler jobs, remove exact
+service-level invoker and key IAM bindings, then delete Cloud Run; never destroy a
+KMS version while a fingerprint or payment snapshot references it. Docker remains
+a parked gate because `docker build -f ops/security-worker/Dockerfile -t
+astera-security-worker:test .` cannot run locally without Docker.
+
+Next mutation, not executed:
+`node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply`.
+
+### Review correction — WIF condition is a BLOCKER
+
+This correction supersedes the preceding preflight interpretation of Provider
+scope and resource presence. The empty Provider `attributeCondition` is a
+load-bearing BLOCKER: do not grant any KMS permission or run the security
+`--apply` command while it is empty. The matching `principalSet` binding remains
+required as a second layer; it does not waive the Provider condition requirement.
+
+gcloud `update-oidc --help` confirms that `--attribute-condition` accepts a CEL
+boolean expression over `assertion`. Before KMS rollout, an authorized change
+must set and then read back exactly this condition (these commands are remediation
+instructions, not executed here):
+
+```text
+gcloud iam workload-identity-pools providers update-oidc vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --attribute-condition='assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"'
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --format="value(attributeCondition)"
+```
+
+Review must confirm the read-back condition and the existing exact principal set
+before unblocking KMS. Fixed identifiers: project `astera-oms-prod` / number
+`1032606875618`, region `asia-east1`, ring `astera-oms-security`, keys
+`member-account-fingerprint` and `refund-account-vault`, Vercel SA
+`astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`, Worker SA
+`astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`, Scheduler SA
+`astera-security-scheduler@astera-oms-prod.iam.gserviceaccount.com`, repository
+`astera-ops`, Cloud Run service `astera-security-worker`, jobs
+`astera-refund-vault-cleanup-daily` (daily 03:30 Asia/Taipei) and
+`astera-fingerprint-key-report-monthly` (day 1 monthly 04:00 Asia/Taipei), and
+Monitoring policy `Astera Security Worker non-2xx or timeout` to email
+`astera.0920@gmail.com`.
+
+For every disabled API, all planned resource state is **unverified while API
+disabled**, not confirmed absent. Only the Worker and Scheduler service-account
+lists returned no match through an enabled IAM API. The security `--apply`
+command remains BLOCKED pending the tested Provider-condition remediation and
+review.
+
+Fresh post-remediation readback is also a BLOCKER gate (commands below are not
+executed here):
+
+```text
+gcloud iam workload-identity-pools providers describe vercel --location=global --workload-identity-pool=vercel-oidc --project=astera-oms-prod --format="json(state,attributeMapping,attributeCondition)"
+gcloud iam service-accounts get-iam-policy astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com --project=astera-oms-prod --flatten="bindings[]" --filter="bindings.role=roles/iam.workloadIdentityUser AND bindings.members:principalSet://iam.googleapis.com/projects/1032606875618/locations/global/workloadIdentityPools/vercel-oidc/attribute.project_id/prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ" --format="table(bindings.role,bindings.members)"
+```
+
+All four must pass together: Provider state `ACTIVE`; mapping
+`attributeMapping.attribute.project_id == assertion.project_id`; condition exactly
+`assertion.project_id == "prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ"`; and the runtime SA
+binding exactly `roles/iam.workloadIdentityUser` for the stated principal set.
+The exact inventory also includes Pool `vercel-oidc`, Provider `vercel`, Vercel
+project `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`, and API IDs
+`cloudkms.googleapis.com`, `run.googleapis.com`, `cloudscheduler.googleapis.com`,
+`cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and
+`monitoring.googleapis.com`. KMS and security `--apply` remain BLOCKED until all
+four fresh readbacks pass and are reviewed.
+
+### 2026-08-10 Task 5 authorization checkpoint
+
+The WIF preflight in `1c8387f` has an approved review result. Worker Firestore
+IAM changes in `3bec6e9` and `5961b9a` also passed approved re-review. Fresh
+controller evidence passed: focused 52/52, full Unit 43 files / 334 tests,
+TypeScript, ESLint, secret scan, and document diff check.
+
+The guarded apply is READY in code but remains BLOCKED pending explicit user
+authorization. It remediates the Provider condition and adds the Worker exact
+`roles/datastore.user` binding; Scheduler receives no project-wide role. No cloud
+command or `--apply` has run. The only next command is:
+
+```text
+node scripts/setup-production-security.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+It must not continue to API/KMS work until readback proves Provider `ACTIVE`, the
+exact mapping, exact Vercel-project condition, and exact `principalSet`. Docker
+build remains unverified because Docker CLI is unavailable.
+
+### 2026-08-09 Task 5 apply authorization retry
+
+The user replied with a general approval, but the managed execution safety review
+rejected the live command before it started because the approval did not explicitly
+name the complete Production blast radius. No WIF, API, KMS, IAM, service-account,
+or Artifact Registry mutation occurred.
+
+The next attempt must use the same reviewed command only after the user explicitly
+authorizes changes to `astera-oms-prod` covering the WIF Provider condition, six
+approved APIs, both KMS keys, Worker and Scheduler service accounts, the Worker
+Firestore role, key-level KMS IAM, and the `astera-ops` Artifact Registry repository.
+
+### 2026-08-10 Task 5 Production security apply complete
+
+The user explicitly authorized the complete Task 5 scope. Three fail-closed
+compatibility stops exposed Windows gcloud behavior before later actions; reviewed
+fixes `abd32a6`, `7cb07d1`, and `861a99f` replaced unsupported/projected reads with
+standard JSON and exact enabled-API validation. Final controller evidence passed:
+focused 35/35, full Unit 43 files / 340 tests, TypeScript, ESLint, secret scan, and
+diff check. The final idempotent apply exited 0.
+
+Readback confirms project `astera-oms-prod` / `1032606875618`; Provider `vercel`
+is ACTIVE with the exact mapping, condition, and Vercel-project principal set;
+all six approved APIs are enabled; HMAC key version 1 is `HMAC_SHA256`, SOFTWARE,
+ENABLED; refund key primary version 1 is `GOOGLE_SYMMETRIC_ENCRYPTION`, SOFTWARE,
+ENABLED. Vercel has only HMAC signer and refund encrypter/decrypter on the
+individual keys. Worker has HMAC viewer plus project `roles/datastore.user`, and
+no refund-key crypto grant. Scheduler has no project-wide role. Both service
+accounts are active and `astera-ops` is a Docker repository in `asia-east1`.
+
+No Cloud Run service, Scheduler job, or Monitoring policy was deployed in Task 5.
+Those remain Task 6. Local Docker image construction also remains unverified because
+this host has no Docker CLI.
+
+### 2026-08-10 Task 6 source ready; live deployment blocked
+
+Task 6 deployment tooling commits `2e246e2` and hardening fix `1ac6d13` passed
+independent review: all three High and two Medium findings are addressed, Spec PASS,
+Quality APPROVED. Latest implementer evidence passed focused 42/42, Unit 44 files /
+374 tests, TypeScript, ESLint, Build, secret scan, and diff checks. Safe dry-run
+prints only seven fixed actions.
+
+No Task 6 Cloud Build, image push, Cloud Run service, service-level invoker binding,
+Scheduler job, Monitoring channel/policy, authenticated smoke test, or alert test has
+run. Controller fresh full verification was attempted but the managed-execution
+usage limit rejected it before command start; retry is available after 2026-08-16
+10:05.
+
+After fresh verification and explicit Task 6 Production authorization, the exact
+mutation command is:
+
+```text
+node scripts/deploy-production-security-worker.mjs --project astera-oms-prod --confirm-project astera-oms-prod --apply
+```
+
+The first run may create an email notification channel and stop safely while it is
+`UNVERIFIED`. The operator must complete the Google email verification; only a
+subsequent readback of `VERIFIED` permits alert-policy creation. Never bypass this
+gate. Budget-alert state and current Worker/Scheduler/Monitoring resource absence
+must also be read back before authorization.
+
+### 2026-08-10 Task 6 controller gate and Production preflight
+
+The earlier managed-execution limit is no longer active. Fresh controller checks
+passed focused 42/42, Unit 44 files / 374 tests, TypeScript, ESLint, Next.js Build,
+secret scan, diff check, and the seven-action dry-run.
+
+Read-only Production state:
+
+- Billing is enabled through `billingAccounts/01B794-2E6BD7-33D714`.
+- Cloud Run service `astera-security-worker` is absent in `asia-east1`.
+- Both fixed Scheduler jobs are absent in `asia-east1`.
+- No matching `Astera Security Worker email` channel exists.
+- No matching `Astera Security Worker non-2xx or timeout` policy exists.
+- `billingbudgets.googleapis.com` is disabled, so Budget Alert state is unverified.
+
+Design requires a Budget Alert before deployment. The next allowed mutation is
+only to enable `billingbudgets.googleapis.com` after explicit authorization, then
+rerun the read-only budget list. Do not run Task 6 `--apply` before this gate passes.
+
+### 2026-08-10 Billing Budget API enabled and alert verified
+
+The user authorized only API enablement and a read-only Budget inventory. The
+following mutation completed successfully on `astera-oms-prod`:
+
+```text
+gcloud services enable billingbudgets.googleapis.com --project=astera-oms-prod --quiet
+```
+
+Readback for `billingAccounts/01B794-2E6BD7-33D714` found the existing budget
+`Firebase Project astera-oms-prod`, scoped only to project number `1032606875618`:
+
+- monthly amount: TWD 200;
+- thresholds: 50%, 90%, and 100% of current spend;
+- all credits included;
+- default Billing Account Administrator/User email recipients are not disabled.
+
+No Budget was created, modified, or deleted. No Cloud Build, Artifact Registry push,
+Cloud Run, service IAM, Scheduler, Monitoring channel, or alert-policy mutation ran.
+The Budget gate passes. The next exact step is separate explicit authorization for
+the reviewed Task 6 apply blast radius before running the guarded command.
+
+### 2026-08-10 Task 6 Production deployment applied
+
+Explicit authorization covered Cloud Build/image push, private Cloud Run,
+service-level Scheduler invoker IAM, two OIDC jobs, the fixed Monitoring email
+channel, and the non-2xx/timeout policy. The guarded apply now exits 0.
+
+Final readback:
+
+- service `astera-security-worker` is Ready in `asia-east1`;
+- max instances 1, min instances omitted/default 0, concurrency 1, timeout 300s;
+- runtime SA is `astera-security-worker@astera-oms-prod.iam.gserviceaccount.com`;
+- image is digest-pinned in `astera-ops`; only the fixed project and HMAC key env
+  values are present;
+- service IAM contains exactly one `roles/run.invoker` member, the Scheduler SA;
+- daily cleanup is enabled at `03:30 Asia/Taipei` and monthly report at day 1
+  `04:00 Asia/Taipei`, both with POST, exact service URL audience, and Scheduler SA;
+- exactly one enabled `Astera Security Worker email` channel points to
+  `astera.0920@gmail.com`;
+- exactly one enabled `Astera Security Worker non-2xx or timeout` policy has the
+  fixed non-2xx and 504 conditions and references only that channel.
+
+Deployment encountered three fail-closed live readback differences. Commits
+`774740d`, `78e5c42`, and `246e51d` add real fixtures and narrowly normalize only
+Google-managed defaults; unexpected headers, explicit `UNVERIFIED`, unknown states,
+non-zero threshold differences, duplicates, and configuration drift still fail.
+
+Smoke evidence:
+
+- unauthenticated POSTs to both job routes: 403;
+- pure-read monthly Scheduler job: 200, empty status, fresh last-attempt timestamp;
+- recent payload-only Worker log scan: zero sensitive-key, long-digit, or failure
+  marker matches.
+
+Do not grant a human Token Creator merely for `/healthz`; the attempted short-lived
+Scheduler-SA impersonation was denied as intended. Before marking Task 6 complete,
+obtain explicit authorization for two cleanup executions and confirm the deletion
+count/idempotency. Cleanup can delete expired refund-vault fields, so a generic
+deployment authorization is not sufficient for that destructive smoke step.
+
+Monitoring delivery is confirmed. The user provided a screenshot of the received
+Google Cloud alert email showing `Alert firing`, policy
+`Astera Security Worker non-2xx or timeout`, request-count value 4, and the exact
+Production project, service, and `asia-east1` labels. This satisfies the controlled
+non-sensitive alert and recipient-delivery gate without accessing the mailbox.
+
+### 2026-08-10 Task 6 cleanup idempotency complete
+
+The user separately authorized two manual executions of
+`astera-refund-vault-cleanup-daily`, acknowledging its permanent deletion behavior.
+Only count aggregations and request metadata were inspected:
+
+- pre-run expired refund-vault count: 0;
+- run 1: Scheduler OIDC request 200; post-run count 0; aggregate `cleaned=0`;
+- run 2: Scheduler OIDC request 200; post-run count 0; aggregate `cleaned=0`;
+- post-run payload-only log scan: 0 forbidden sensitive-key matches, 0 long-digit
+  matches, and 0 `security_worker_failed` markers.
+
+No refund record or field was deleted because no expired record existed. Two
+authenticated 200 cleanup runs plus the earlier authenticated 200 monthly report
+exercise more of the private runtime than `/healthz`, so they are the approved
+health substitute. Do not add Token Creator to a human account. Task 6 is complete;
+Task 7 is the next stage.
+
+### 2026-08-10 Task 7 Vercel preflight; no mutation yet
+
+Read-only CLI state:
+
+- project: `astera-oms/astera-oms`;
+- project ID: `prj_0R0Z3jMOdoonvApGG7Ii2BjgoUYJ`;
+- framework: Next.js; root directory `.`; Node.js 24.x;
+- custom Environment Variables: none.
+
+The exact 17-variable security configuration has been assembled from live
+Production readbacks. One ACTIVE Firebase Web App provides the six public Firebase
+SDK values; Task 5 provides the fixed GCP/WIF/KMS values and HMAC version 1. A
+child-process-only schema test with a non-production placeholder secret passed the
+strict security environment check. No value was saved locally.
+
+Do not run `vercel env add` or redeploy until separately authorized. The intended
+mutation is: 16 fixed non-secret values for both Production and Preview; two
+independent random rate-limit secrets written to their respective Vercel Secret
+targets through stdin without stdout/history disclosure; then Preview redeploy and
+security-only strict verification. Production redeploy remains a later gate.
+
+### 2026-08-10 Task 7 Vercel variables configured; deployment blocked by drift
+
+The user authorized only project `astera-oms/astera-oms`, Production/Preview
+environment-variable writes, and Preview deployment. The configuration write
+completed:
+
+- 16 verified fixed names were added or overwritten for Production and Preview;
+- Production and Preview each received a distinct 48-byte in-memory random
+  `REFUND_RATE_LIMIT_HASH_SECRET` through stdin as a Sensitive Secret;
+- no secret value was displayed, saved locally, or written to Git/documentation.
+
+The mandatory post-write inventory revealed pre-existing drift that must be removed
+before building a safe Preview:
+
+- `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` targets Production and Preview;
+- seven older unscoped Preview Sensitive GCP/WIF records overlap the verified fixed
+  records: project/project-number, pool/provider/audience, service-account email,
+  and `GOOGLE_CLOUD_PROJECT`.
+
+The current authorization explicitly prohibited removing other settings, so no
+record was deleted or normalized. No Preview deployment was started and no
+Production deployment occurred. Next exact action is a separately authorized,
+name-scoped cleanup of only the Emulator variable and those seven duplicate Preview
+records, followed by a fresh names/targets-only inventory. Do not deploy until that
+inventory reports zero forbidden names and zero overlaps.
+
+### 2026-08-10 Task 7 cleanup and Preview deployment checkpoint
+
+The user authorized only the exact drift cleanup. The forbidden Emulator variable
+and the seven older Preview Sensitive duplicates were removed by record ID; all
+verified fixed Production/Preview records and both target-specific Sensitive
+Secrets were preserved. Fresh inventory passed with 21 total records, 16/16 fixed
+records, 0 bad fixed records, 2 rate-limit secrets, 0 forbidden names, and 0
+Preview overlaps.
+
+Two initial Preview attempts were blocked with `TEAM_ACCESS_REQUIRED` because the
+Git author email was not a member of team Astera OMS. Empty commit `e9db99b` uses
+the verified team-member author `Astera OMS <astera.0920@gmail.com>` and contains no
+file or secret change. The resulting Preview deployment
+`dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` reached Ready:
+
+- unique URL: `https://astera-ix5gsqvlu-astera-oms.vercel.app`;
+- stable alias: `https://astera-oms-astera-blip-astera-oms.vercel.app`;
+- target: Preview only; no Production deployment or promotion;
+- build: compile and TypeScript pass, 39/39 static pages.
+
+Vercel used Node.js 24.15.0 while `package.json` currently requires
+`>=24.18.0 <25`, producing an `EBADENGINE` warning even though the build passed.
+Resolve this version-policy mismatch before Production promotion rather than
+silently treating the warning as a release pass.
+
+Public Preview browser checks pass for the home page, Product catalog, Brand page,
+and empty Cart; `/e2e-auth` is unavailable in Preview as required. Google sign-in
+is blocked on both the unique URL and stable alias because Firebase Authentication
+Authorized Domains does not contain those hosts. A separately authorized next
+step should add only the stable alias, then run the approved `測試專用` member
+binding, payment fingerprint snapshot, refund mismatch/match, Owner reveal, and
+vault-deletion flow. Do not add every one-off deployment hostname and do not deploy
+Production as part of that verification.
+
+### 2026-08-10 Stable Preview Authorized Domain added
+
+The user separately authorized one Firebase mutation. The Production Firebase
+Console added only `astera-oms-astera-blip-astera-oms.vercel.app` to Authentication
+Authorized Domains. The Console reported success, and a complete settings reload
+showed the original list unchanged plus that single Custom domain. No one-off
+Preview hostname, other Firebase setting, Vercel setting, or Production deployment
+was changed.
+
+Google login no longer reports `auth/unauthorized-domain`: a later attempt reaches
+the Google account chooser. The automated browser loses the popup/opener binding
+when Google account selection closes, so the user must complete that identity
+interaction in the visible browser. Do not substitute a test-auth route, enable a
+new sign-in provider, or issue an Admin custom token. After member login, continue
+only on the stable Preview with synthetic test data and do not deploy Production.
+
+### 2026-08-10 Authenticated Preview checkpoint
+
+OAuth completed on the stable Preview and redirected to `/account/profile`. A
+test-only member profile saved successfully and redirected home. The member
+payment-account UI initially showed `0/5`; one synthetic test-only account was
+added, after which it showed `1/5`, masked display data only, an empty full-account
+input, and a success status. No account value, masked digits, token, fingerprint,
+ciphertext, or secret was recorded.
+
+This checkpoint verifies only the authenticated profile and member-account UI
+outcomes. It does not establish the remaining WIF or KMS runtime checks. Any
+further authorized refund, Owner, and vault testing must follow the static Task 7
+flow audit; do not deploy Production.
+
+### 2026-08-10 Preview test-data continuation; no deployment
+
+The stable Preview correctly denied the signed-in member `/workspace`. A labelled
+test-only checkout created one NT$520 Order and PaymentRequest; a second synthetic
+account then created one `pendingReview` Payment. No real transfer occurred. A
+narrow ADC read attempt timed out without result or write; a later browser process
+reset made active synthetic complete values unavailable. One value briefly appeared
+only in browser-tool output, not in tracked documentation or application storage.
+No recovery was attempted.
+
+The remaining authorized flow requires one fresh account/order/payment in a single
+active process, then Owner confirmation, mismatch/match, reveal without capture,
+full refund, and vault-field absence. This checkpoint made no Vercel deployment,
+Production promotion, domain addition, or other Firebase/Vercel configuration
+change.
+
+### 2026-08-11 Preview deployment recovery
+
+Commit `abf88be` contains the verified redirect-error visibility fix. A direct
+Preview upload created a Vercel deployment that remained `UNKNOWN` with no build
+logs, so its automatic stable-alias assignment was restored to the prior Ready
+Preview immediately. This was Preview-only recovery: no Production deployment,
+Firebase/domain change, or data mutation. Redeploy through Vercel Git integration
+only after explicit authorization to push `codex/production-security-worker`.
+
+### 2026-08-11 Stable Preview authentication retest
+
+The stable Preview returned to the application after Google account selection, but
+did not retain the Firebase member session across navigation. This blocked the
+remaining Preview-only security acceptance flow before any new test data or
+configuration mutation. Do not promote or deploy Production on this evidence. The
+next release-gate action is a retained-session browser retest, or a separately
+approved test-first diagnostic fix that preserves redirect-result error context.

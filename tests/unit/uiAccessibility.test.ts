@@ -72,10 +72,14 @@ describe("shared UI accessibility contract", () => {
     }
     expect(cart).toContain('autoComplete="name"');
     expect(cart).toContain('autoComplete="tel"');
-    expect(cart).toContain('value="seven_eleven"');
+    expect(cart).toContain('const shippingMethod = "seven_eleven" as const;');
+    expect(cart).toContain("7-Eleven 賣貨便");
+    expect(cart).not.toContain("shippingAddress");
     expect(cart).not.toContain("shippingStoreInfo");
     expect(cart).not.toContain("family_mart");
     expect(cart).not.toContain("宅配地址");
+    expect(cart).not.toContain('value="address"');
+    expect(cart).not.toContain('value="family_mart"');
   });
 
   it("exposes a clear Owner payment-account settings entry", () => {
@@ -119,13 +123,34 @@ describe("shared UI accessibility contract", () => {
     expect(product).toContain('disabled={isProductsLoading}');
   });
 
-  it("falls back to redirect-based Google sign-in when popup sign-in cannot complete", () => {
+  it("uses redirect-based Google sign-in without a mobile popup flash", () => {
     const authProvider = read("src/components/auth/AuthProvider.tsx");
     expect(authProvider).toContain("getRedirectResult");
     expect(authProvider).toContain("signInWithRedirect");
-    expect(authProvider).toContain("isPopupFallbackError");
+    expect(authProvider).not.toContain("signInWithPopup");
+    expect(authProvider).not.toContain("isPopupFallbackError");
     expect(authProvider).toContain("getGoogleSignInErrorMessage");
     expect(authProvider).toContain("這個網址尚未允許 Google 登入");
+  });
+
+  it("keeps a Google redirect failure visible when Firebase reports signed-out afterwards", () => {
+    const authProvider = read("src/components/auth/AuthProvider.tsx");
+
+    expect(authProvider).toContain("redirectResultError");
+    expect(authProvider).toContain("if (!redirectResultError)");
+  });
+
+  it("catches Firebase initialization failures when Google sign-in starts", () => {
+    const authProvider = read("src/components/auth/AuthProvider.tsx");
+    const signInStart = authProvider.slice(
+      authProvider.indexOf("const signInWithGoogle"),
+      authProvider.indexOf("const signOutCurrentUser"),
+    );
+
+    expect(signInStart).toMatch(
+      /try\s*\{[\s\S]*const \[\{ auth \}, \{ GoogleAuthProvider, signInWithRedirect \}\]/,
+    );
+    expect(signInStart).toContain("setError(getGoogleSignInErrorMessage(error))");
   });
 
   it("places storefront brand text before the large buyer title", () => {

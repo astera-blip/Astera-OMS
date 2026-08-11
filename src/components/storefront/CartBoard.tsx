@@ -28,7 +28,7 @@ export function CartBoard() {
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [shippingMethod] = useState<"seven_eleven">("seven_eleven");
+  const shippingMethod = "seven_eleven" as const;
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
@@ -312,21 +312,17 @@ export function CartBoard() {
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               />
             </label>
-            <label htmlFor="shippingMethod" className="grid gap-2 text-sm">
+            <div className="grid gap-2 text-sm">
               <span className="font-medium">配送方式</span>
-              <select
+              <input
                 id="shippingMethod"
                 name="shippingMethod"
+                type="hidden"
                 value={shippingMethod}
-                disabled
-                className="rounded-2xl border border-slate-300 px-4 py-3"
-              >
-                <option value="seven_eleven">7-Eleven 賣貨便</option>
-              </select>
-            </label>
-            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              配送方式目前固定為 7-Eleven 賣貨便；下單後再依客服通知完成寄件資訊確認。
-            </p>
+              />
+              <p className="rounded-2xl border border-slate-300 px-4 py-3 font-medium">7-Eleven 賣貨便</p>
+              <p className="text-xs text-slate-600">目前僅提供 7-Eleven 賣貨便。</p>
+            </div>
           </div>
         </div>
 

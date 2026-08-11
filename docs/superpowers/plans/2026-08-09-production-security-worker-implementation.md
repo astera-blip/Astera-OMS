@@ -128,6 +128,7 @@ git commit -m "refactor: share refund governance jobs"
 - Create: `ops/security-worker/package.json`
 - Create: `ops/security-worker/package-lock.json`
 - Create: `ops/security-worker/Dockerfile`
+- Create: `ops/security-worker/Dockerfile.dockerignore`
 - Create: `tests/unit/productionSecurityWorker.test.ts`
 
 **Interfaces:**
@@ -185,7 +186,10 @@ const routes = new Map([
 `ops/security-worker/package.json` uses Node `>=24.18.0 <25` and contains only
 `@google-cloud/kms` and `firebase-admin`. The Dockerfile uses
 `node:24.18.0-bookworm-slim`, runs `npm ci --omit=dev`, exposes `$PORT`, uses the
-non-root `node` user, and starts `node server.mjs`.
+non-root `node` user, and starts `node server.mjs`. Because the shared job module
+imports `src/lib/payment/fingerprintIdentity.mjs`, the build uses repository-root
+context plus a Dockerfile-specific default-deny ignore file that sends only the
+Worker package and that pure helper.
 
 - [ ] **Step 5: Verify worker behavior and container construction.**
 
@@ -195,7 +199,7 @@ Run:
 npx vitest run tests/unit/productionSecurityWorker.test.ts tests/unit/fingerprintMigration.test.ts
 npm run typecheck
 npm run lint
-docker build -t astera-security-worker:test ops/security-worker
+docker build -f ops/security-worker/Dockerfile -t astera-security-worker:test .
 ```
 
 Expected: tests and static checks exit 0; Docker image builds without copying root
@@ -396,19 +400,19 @@ secret in a command whose output is captured.
 - Mutation additionally requires `--apply`.
 - Deploys `astera-security-worker` from `ops/security-worker` with authentication required.
 
-- [ ] **Step 1: Write failing deployment-plan tests.**
+- [x] **Step 1: Write failing deployment-plan tests.**
 
 Assert exact region, service name, service account, `min=0`, `max=1`,
 `concurrency=1`, no `--allow-unauthenticated`, two OIDC Scheduler jobs, exact
 audience equal to the deployed service URL, and fixed Asia/Taipei schedules.
 
-- [ ] **Step 2: Implement the dry-run deployment planner and guarded executor.**
+- [x] **Step 2: Implement the dry-run deployment planner and guarded executor.**
 
 The planner builds argv arrays for Cloud Run deploy, service-level
 `roles/run.invoker`, Scheduler creation/update, and Monitoring policy creation.
 Mutation requires exact project confirmation and uses `shell: false`.
 
-- [ ] **Step 3: Run focused and full local checks.**
+- [x] **Step 3: Run focused and full local checks.**
 
 Run:
 
@@ -423,7 +427,7 @@ npm run check:secrets
 
 Expected: all commands exit 0.
 
-- [ ] **Step 4: Apply the deployment.**
+- [x] **Step 4: Apply the deployment.**
 
 Run:
 
@@ -434,13 +438,13 @@ node scripts/deploy-production-security-worker.mjs --project astera-oms-prod --c
 Expected: Cloud Run service is private, both Scheduler jobs are enabled, and no
 `allUsers` or `allAuthenticatedUsers` invoker binding exists.
 
-- [ ] **Step 5: Run authenticated smoke tests.**
+- [x] **Step 5: Run authenticated smoke tests.**
 
 Use an identity token with audience equal to the Cloud Run URL. Call `/healthz`,
 then each job route once. Verify cleanup is idempotent, the report is read-only,
 unauthenticated calls return 401/403, and no response/log contains sensitive data.
 
-- [ ] **Step 6: Verify Monitoring and commit.**
+- [x] **Step 6: Verify Monitoring and commit.**
 
 Trigger one controlled non-sensitive `405` response, verify alert policy
 `Astera Security Worker non-2xx or timeout` receives the non-2xx metric and sends
@@ -451,6 +455,20 @@ tool and its tests.
 git add scripts/deploy-production-security-worker.mjs tests/unit/productionSecurityDeployment.test.ts docs/14_Deployment.md
 git commit -m "ops: deploy refund governance worker"
 ```
+
+2026-08-10 checkpoint: guarded apply completed and readback verifies the private
+Worker, exact service-level Scheduler invoker, both OIDC jobs, one enabled email
+channel, and one enabled alert policy. The pure-read monthly job returned 200 and
+recent Worker payload logs had zero sensitive-field, long-account-number, or
+failure-marker matches. Step 5 is complete: after explicit authorization, cleanup
+ran twice through Scheduler OIDC with 200 responses; aggregate expired-vault counts
+were 0 before, after run 1, and after run 2, proving `cleaned=0` idempotency without
+reading IDs or payloads. Authenticated 200 monthly and cleanup routes are accepted
+as stronger runtime evidence than `/healthz`, avoiding persistent human Token
+Creator access.
+Step 6 is complete: the user's received-email screenshot confirms the fixed policy
+fired on a non-sensitive request-count value of 4 for the exact Production service,
+project, and region. Human impersonation was intentionally not enabled.
 
 ### Task 7: Configure Vercel security environment and run release gates
 
@@ -464,12 +482,12 @@ git commit -m "ops: deploy refund governance worker"
 - `npm run production:env:check -- --scope security --strict`
 - Existing full gate remains `npm run production:env:check -- --strict`.
 
-- [ ] **Step 1: Add non-secret Vercel Production and Preview identifiers.**
+- [x] **Step 1: Add non-secret Vercel Production and Preview identifiers.**
 
 Set the verified project, WIF, service-account, KMS key names, and HMAC version.
 Confirm no Emulator/Test Auth variable is present in either environment.
 
-- [ ] **Step 2: Add the stable rate-limit secret without disclosure.**
+- [x] **Step 2: Add the stable rate-limit secret without disclosure.**
 
 Generate at least 32 cryptographically random bytes directly into the Vercel
 Secret input. Do not display, copy into documentation, save locally, or include in
@@ -477,14 +495,64 @@ shell history. Apply the same stable value to Production and Preview only if bot
 environments intentionally share the Production backend; otherwise use separate
 values and document only that they are configured.
 
-- [ ] **Step 3: Redeploy Preview and verify WIF/KMS access.**
+2026-08-10 checkpoint: the explicitly authorized Vercel mutation targeted only
+`astera-oms/astera-oms`. All 16 fixed names were added or overwritten for
+Production and Preview. Two independent 48-byte cryptographically random values
+were generated only in process memory, piped through stdin to separate Production
+and Preview Sensitive Secret records, then cleared; neither value was printed,
+saved, or documented. Step 2 is complete.
+
+The post-write name/target inventory initially found pre-existing configuration
+drift:
+
+- `NEXT_PUBLIC_USE_FIREBASE_EMULATORS` is present for both Production and Preview;
+- seven GCP/WIF names have an older unscoped Preview Sensitive record overlapping
+  the verified Production+Preview fixed record: `GOOGLE_CLOUD_PROJECT`,
+  `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`, `GCP_WORKLOAD_IDENTITY_POOL_ID`,
+  `GCP_WORKLOAD_IDENTITY_PROVIDER_ID`, `GCP_WORKLOAD_IDENTITY_AUDIENCE`, and
+  `GCP_SERVICE_ACCOUNT_EMAIL`.
+
+The subsequently authorized cleanup removed exactly the Emulator variable and the
+seven old Preview duplicate records. Fresh metadata inventory passed with 21 total
+records, fixed 16/16, bad fixed 0, rate-limit secrets 2, forbidden names 0, and
+Preview overlaps 0. Step 1 is complete.
+
+- [ ] **Step 3: Redeploy Preview and run the authorized Preview security flow.**
 
 Run the security-only environment gate, then perform authenticated member binding,
 payment fingerprint snapshot, refund mismatch, refund match, Owner reveal, and
 vault deletion tests with records explicitly named `測試專用`. Do not use a real
 bank account or real payment.
 
-- [ ] **Step 4: Run the full local release gate.**
+2026-08-10 checkpoint: Preview deployment
+`dpl_BCk2r5e8ZfyeKxezbi5tffwRibmA` is Ready and public route checks pass. Google
+sign-in is blocked because the stable Preview alias is absent from Firebase
+Authentication Authorized Domains. Therefore authenticated WIF/KMS and the
+`測試專用` security flow remain open; no Production deployment occurred.
+
+2026-08-10 continuation checkpoint: with exact authorization, Firebase Console
+added only the stable Preview alias and a full reload proved the existing domain
+set was preserved. After the chooser was reached, OAuth completed on the stable
+Preview and redirected to `/account/profile`. A test-only member profile saved and
+redirected home. The member payment-account UI moved from `0/5` to `1/5` after one
+synthetic test-only account was added, while showing masked display data only, an
+empty full-account input, and a success status. This is not evidence that the
+remaining WIF or KMS runtime checks passed. No test Payment, CancellationRequest,
+refund reveal, or vault deletion record exists yet, so Step 3 remains open.
+
+2026-08-10 continuation gate: the authenticated member was correctly rejected at
+`/workspace`. A clearly labelled test-only checkout created one NT$520 Order and
+PaymentRequest; a second synthetic account then created one `pendingReview`
+Payment, with no real transfer. A narrow ADC Firestore read timed out without
+result or write. A later browser process reset made active synthetic complete values
+unavailable; one value had briefly appeared only in browser-tool output and was not
+copied into tracked documentation or application storage. The complete values must
+not be reconstructed from stored HMAC data. Step 3 remains open: create a fresh
+synthetic account/order/payment in one active process, then Owner confirm,
+mismatch/match, reveal without capture, full refund, and vault absence. No Production
+deployment, new domain, or other Firebase/Vercel mutation is authorized.
+
+- [x] **Step 4: Run the full local release gate.**
 
 Run:
 
@@ -502,15 +570,44 @@ npm run audit:production
 Expected: every command exits 0. Existing ExcelJS transitive UUID moderate
 advisories may remain documented; no high or critical production advisory is allowed.
 
-- [ ] **Step 5: Update handoff and stop before migration apply.**
+2026-08-10 result: TypeScript, ESLint, Build (39 pages), Unit 44 files / 374
+tests, Rules 2 files / 32 tests, Emulator Playwright 34 passed / 8 skipped / 0
+failed, secret scan, production dependency audit, and diff check all pass. The
+first full E2E run exposed two stale Pixel 7 label assertions; focused correction
+passed 3/3 before the green full rerun.
+
+- [x] **Step 5: Update handoff and stop before migration apply.**
 
 Record KMS, IAM, Worker, Scheduler, Monitoring, Preview, and test results. The next
 Production data step is migration dry-run and ignored local backup. Do not run
 `--apply` migration in this task; it requires its own exact user confirmation after
 the dry-run report has been reviewed.
 
-- [ ] **Step 6: Commit safely isolated documentation and push only after authorization.**
+- [x] **Step 6: Commit safely isolated documentation and push only after authorization.**
 
 Never include unrelated dirty UI, reconciliation, product, or user documentation
 changes. If the required documentation hunks cannot be isolated, leave them
 unstaged and record the exact continuation step in the SDD ledger.
+
+2026-08-10 result: the stale mobile acceptance correction is isolated in local
+commit `a68b6e3`; the five Task 7 checkpoint documents are the only remaining files
+in the documentation commit. Independent diff review found no unrelated or secret
+change. The branch has no upstream and was not pushed because push authorization
+was not granted.
+
+2026-08-11 redirect-observability fix: `abf88be` preserves a Google redirect-result
+error when the following Firebase auth event is signed-out. The regression was
+red-green verified and local release checks passed. Direct Vercel Preview upload
+created an `UNKNOWN` zero-ms deployment with no logs; the stable Preview alias was
+restored to the prior Ready deployment. Do not use that unknown deployment. Step 3
+remains open pending explicit push authorization for this branch and a Git-integrated
+Preview build.
+
+2026-08-11 authenticated-session retest: Google account selection returned to the
+stable Preview, but application navigation rendered a signed-out state and the
+member payment-account route again required login. No mutation followed. The client
+currently clears redirect-result error context after a signed-out Firebase state, so
+the run does not distinguish an in-app redirect-runtime limitation from an external
+configuration cause. Keep Step 3 open; do not create another synthetic account or
+order until a browser demonstrably retains authentication, or a separately approved
+test-first diagnostic fix identifies the cause.
