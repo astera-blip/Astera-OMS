@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     setError(null);
-    const [{ auth }, { GoogleAuthProvider, signInWithPopup, signInWithRedirect }] =
+    const [{ auth }, { GoogleAuthProvider, signInWithRedirect }] =
       await Promise.all([
         import("@/lib/firebase/client"),
         import("firebase/auth"),
@@ -142,12 +142,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new GoogleAuthProvider();
 
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithRedirect(auth, provider);
     } catch (error) {
-      if (isPopupFallbackError(error)) {
-        await signInWithRedirect(auth, provider);
-        return;
-      }
       setError(getGoogleSignInErrorMessage(error));
     }
   }, []);
@@ -224,19 +220,6 @@ function isFirebaseError(error: unknown): error is { code: string } {
     && error !== null
     && "code" in error
     && typeof (error as { code?: unknown }).code === "string";
-}
-
-function isPopupFallbackError(error: unknown) {
-  if (!isFirebaseError(error)) {
-    return false;
-  }
-
-  return [
-    "auth/cancelled-popup-request",
-    "auth/popup-blocked",
-    "auth/popup-closed-by-user",
-    "auth/operation-not-supported-in-this-environment",
-  ].includes(error.code);
 }
 
 function getGoogleSignInErrorMessage(error: unknown) {
