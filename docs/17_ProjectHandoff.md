@@ -1492,3 +1492,21 @@ domain, or change any other Firebase/Vercel setting.
   Next build, and diff check pass. Exact continuation: deploy the repair to the
   stable Preview, verify the signed-in list renders, then resume only the approved
   test-only payment/refund flow.
+
+## 2026-08-11 Preview test-only flow checkpoint
+
+- The repaired stable Preview retained member authentication through normal
+  navigation and rendered incomplete legacy accounts as masked, inactive
+  re-verification records. A new clearly test-only member account was added;
+  its full-account input was cleared and only masked UI information remained.
+- A clearly test-only product was checked out using synthetic recipient data and
+  both required consents, creating one new test-only Order and PaymentRequest.
+  The payment form was explicitly narrowed to that new request; no historical
+  request was submitted.
+- No Payment exists from this run. Browser automation cannot commit a value into
+  the native transfer-date input, so client validation correctly prevented
+  submission. The visible Preview form remains the exact handoff point: manually
+  select a transfer date, submit once, confirm `pendingReview`, then use the
+  separate Owner account for confirmation, reverse, mismatch/match, reveal, and
+  cleanup verification. Do not classify this date-control limitation as an app
+  defect without a manual browser result.

@@ -1435,3 +1435,21 @@ four fresh readbacks pass and are reviewed.
   diff check passed locally. Next: deploy this repair to the stable Preview,
   re-check the signed-in account page, and only then create explicitly authorised
   test-only payment/refund data.
+
+## 2026-08-11 Preview member-flow continuation
+
+- Stable Preview now verifies the repaired signed-in account list after a normal
+  navigation. A clearly test-only member account was added through the UI; the
+  UI retained only masked display data and cleared the full-account input.
+- A clearly test-only public product was added, checked out with synthetic
+  recipient data and both required consents, and created one new test-only order
+  plus payment request. No old order or payment request was selected for the
+  next step.
+- The Payment Report form is now ready with only the new request selected and
+  the test-only member account selected. The browser automation cannot input the
+  native `type=date` control, even though the other controlled fields retain
+  their values. No Payment was created. Exact next step: manually choose the
+  test transfer date in the visible Preview form, submit once, confirm
+  `pendingReview`, then continue Owner confirmation/reverse and refund-vault
+  acceptance. Treat this as an automation limitation until a manual date-control
+  test proves otherwise, not as an application defect.
