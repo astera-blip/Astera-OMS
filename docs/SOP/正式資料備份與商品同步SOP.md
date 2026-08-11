@@ -60,11 +60,13 @@ npm run production:products:audit -- --project astera-oms-prod --confirm-project
 ## 5. Smoke
 
 ```powershell
-npm run production:smoke -- --base-url https://astera-oms.vercel.app
+npm run production:smoke -- --base-url https://astera-oms.vercel.app --product-id prod_002
 ```
 
-驗證首頁、商品列表、Terms、Privacy，以及頁面中可發現的第一個公開商品
-詳情。請另以未登入瀏覽器確認 `productsPublic` 可讀、後台與私有資料拒絕。
+驗證首頁、商品列表、Terms、Privacy，以及 `--product-id` 指定的已刊登商品
+詳情。商品目錄由 Client 端載入，因此不可依賴原始 HTML 自動尋找商品連結。
+若 `prod_002` 已封存，先從稽核結果選擇另一筆目前已刊登的公開 Product ID。
+請另以未登入瀏覽器確認 `productsPublic` 可讀、後台與私有資料拒絕。
 
 ## 6. 回滾與復原
 

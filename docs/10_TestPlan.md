@@ -54,8 +54,11 @@ The following commands are read-only and must run before a production release:
 ```powershell
 npm run production:env:check
 npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
-npm run production:smoke -- --base-url https://astera-oms.vercel.app
+npm run production:smoke -- --base-url https://astera-oms.vercel.app --product-id prod_002
 ```
+
+`--product-id` must reference a currently published public Product. Replace
+`prod_002` if that test Product is archived or superseded.
 
 `production:products:audit` compares Product IDs and counts, Variant/Campaign
 counts, immutable SKU formats, projected prices, public image fields, and absence

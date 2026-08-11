@@ -5,7 +5,9 @@ Last updated: 2026-08-11 Asia/Taipei
 ## Active Objective
 
 Complete the Production security release gates without redesigning the existing
-Astera OMS MVP architecture. Task 7 currently stops before Production deployment.
+Astera OMS MVP architecture. Task 7 has completed member-side Preview acceptance
+and currently stops before the action-time-authorised Owner financial lifecycle and
+Production promotion.
 
 Current execution plan:
 
@@ -18,10 +20,25 @@ Current execution plan:
 ## Repository State
 
 - Working branch: `codex/mvp-completion`; the previously isolated Production
-  security worker branch is being merged locally under the user's selected option.
-- No GitHub push or Production deployment is authorized by this local merge.
+  security worker branch is merged and its worktree/local branch were safely removed.
+- Local and GitHub were synchronized through documented checkpoint `4630f72` before
+  the current Production smoke-tool batch. The stable Preview alias runs the Ready
+  merged Preview; Production still runs the older Ready 2026-08-03 deployment.
 - Existing product authority remains `productsInternal`; public storefront reads only `productsPublic`.
 - Complete continuation entrypoint for another AI: `docs/20_CompleteAIHandoff_2026-07-30.md`.
+
+Current release evidence:
+
+- Prior merged-tree gate: Unit 50 files / 418 tests, Firestore + Storage Rules
+  32 tests, TypeScript, ESLint,
+  Ready Vercel Preview Build, regular Playwright 18 passed, Emulator Playwright
+  37 passed, secret scan, and production dependency audit all passed.
+- Production project and `asia-east1` default Storage bucket exist. Projection audit
+  passes `internalCount=2`, `publicCount=2`, `issues=[]`.
+- Explicit-product Production smoke passes all five routes. The script now requires
+  `--product-id` because `/products` is Client-rendered and its raw HTML cannot
+  reliably expose a detail link.
+- `asteratw.com`, `www.asteratw.com`, and `updates.asteratw.com` remain unresolved.
 
 ## Decisions Confirmed
 
@@ -39,7 +56,10 @@ Current execution plan:
 - Member Dashboard is currently a visual skeleton only; do not invent operational metrics, reminders, or notification business rules.
 - Astera receiving-bank account recognition is approved for MVP: Owner creates/activates/deactivates accounts; members choose an active account when reporting a transfer; payment history stores a masked snapshot.
 
-## Approved ProductWorkspace Changes Pending Implementation
+## Approved ProductWorkspace Changes (Completed)
+
+The following approved ProductWorkspace scope is implemented and retained here as
+the acceptance contract, not as a pending work list:
 
 - Add `Products（商品管理）` and `Classifications（分類管理）` tabs.
 - Add Product ID and SKU copy buttons; do not add direct identifier editing.
@@ -301,7 +321,7 @@ Run the first real product image upload against the linked Production bucket, th
 ```powershell
 npm run production:env:check
 npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
-npm run production:smoke -- --base-url https://astera-oms.vercel.app
+npm run production:smoke -- --base-url https://astera-oms.vercel.app --product-id prod_002
 ```
 
 Related files:
@@ -2050,3 +2070,31 @@ domain, or change any other Firebase/Vercel setting.
   Preview Build, 18 regular Playwright tests, 37 Emulator Playwright tests, secret
   scan, and production dependency audit all passed. The remaining 28 regular and 9
   emulated cases were intentional environment/project skips.
+
+## 2026-08-11 Production read-only inventory and next external gate
+
+- Firebase project readback confirms Development and Production are active with
+  default Storage buckets; Production Storage is Regional `ASIA-EAST1`.
+- Production product projection is healthy: 2 internal / 2 public / no audit issue,
+  with one published and one archived public record. Explicit-product Production
+  smoke passes 5/5 against `https://astera-oms.vercel.app`.
+- The no-ID smoke path was a test-tool false negative, not missing Production data.
+  Because the catalog hydrates on the Client, the CLI now rejects a missing
+  `--product-id` with `product_id_required`; current runbooks include the required
+  published Product ID argument. Focused regression is green.
+- Vercel inspection: Production is Ready on its 2026-08-03 deployment; the stable
+  Preview alias resolves to the Ready 2026-08-11 merged Preview. No deployment,
+  promotion, alias, environment, Firebase, payment, or refund mutation occurred.
+- DNS remains unresolved for the root, `www`, and Resend sender subdomain. Direct
+  Firebase Rules release-metadata read returned 403 for the current gcloud account;
+  do not reinterpret this as a Rules failure or redeploy blindly. Prior successful
+  combined Firestore/Storage deployment is still the latest release evidence.
+- Next exact action: sign in as Owner on stable Preview and only read the newest
+  clearly test-only Payment to confirm `pendingReview`. A fresh, action-time approval
+  is mandatory before confirm/reverse/refund or vault mutations. After Preview
+  financial acceptance, complete DNS/Resend, real receiving account, Product image,
+  Production promotion, strict runtime checks, and desktop/Pixel 7/physical-phone
+  acceptance.
+- Current smoke-tool batch verification: focused 26/26; full Unit 50 files / 419
+  tests; TypeScript; ESLint; Next Build with 42 routes; diff check; secret scan;
+  production audit with 0 vulnerabilities; explicit-product Production smoke 5/5.

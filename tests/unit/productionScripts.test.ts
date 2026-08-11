@@ -401,6 +401,11 @@ describe("anonymous production smoke", () => {
       .toThrow("https_base_url_required");
   });
 
+  it("requires an explicit product id because the production catalog is client-rendered", () => {
+    expect(() => parseSmokeArgs(["--base-url", "https://example.com"]))
+      .toThrow("product_id_required");
+  });
+
   it("accepts an explicit product id for hydrated storefront pages", () => {
     expect(parseSmokeArgs([
       "--base-url", "https://example.com",

@@ -17,7 +17,10 @@ export function parseSmokeArgs(argv) {
   if (productIndex >= 0 && (!productId || productId.startsWith("--"))) {
     throw new Error("invalid_product_id");
   }
-  return { baseUrl: url.origin, productId: productId || undefined };
+  if (!productId) {
+    throw new Error("product_id_required");
+  }
+  return { baseUrl: url.origin, productId };
 }
 
 export async function runAnonymousSmoke(baseUrl, fetcher = fetch, productId) {

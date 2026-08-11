@@ -49,7 +49,7 @@ Run these commands before any production write or Rules deployment:
 ```powershell
 npm run production:env:check -- --strict
 npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
-npm run production:smoke -- --base-url https://astera-oms.vercel.app
+npm run production:smoke -- --base-url https://astera-oms.vercel.app --product-id prod_002
 ```
 
 - The environment checker prints variable names and `configured` / `missing` only.

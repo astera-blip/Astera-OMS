@@ -503,7 +503,7 @@ expect(overflow).toBe(false);
 **Interfaces:**
 - `npm run production:env:check`
 - `npm run production:products:audit -- --project <id> --confirm-project <id>`
-- `npm run production:smoke -- --base-url <https-url>`
+- `npm run production:smoke -- --base-url <https-url> --product-id <published-product-id>`
 - All commands are read-only unless a future separately reviewed migration command is added
 
 - [ ] Write tests for argument parsing, mismatched project confirmation, secret-name-only reporting, anonymous smoke behavior, and non-mutating audit mode.

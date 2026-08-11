@@ -383,7 +383,7 @@ Production 唯讀 preflight：
 ```powershell
 npm run production:env:check
 npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod
-npm run production:smoke -- --base-url https://astera-oms.vercel.app
+npm run production:smoke -- --base-url https://astera-oms.vercel.app --product-id prod_002
 ```
 
 注意：Windows managed sandbox 可能使 Java / Firebase Emulator / Playwright 出現 `spawn EPERM`；需要經核准的非 sandbox 執行。Production audit 指令是唯讀，仍不可把它當作已完成 migration 或 Rules deploy。
