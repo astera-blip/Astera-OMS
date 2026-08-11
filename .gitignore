@@ -38,6 +38,9 @@ yarn-error.log*
 
 # vercel
 .vercel
+.tmp/
+.superpowers/
+LINE記事本-需求書.md
 
 # local tool state
 .firebase-local/
