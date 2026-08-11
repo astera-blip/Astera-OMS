@@ -11,6 +11,8 @@ vi.mock("@/lib/firebase/admin", () => ({
   getAdminFirestore: firestore.getAdminFirestore,
 }));
 
+import { POST } from "@/app/api/member/payment-accounts/[id]/payer-name/route";
+
 const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 
 type AccountOverrides = {
@@ -47,10 +49,6 @@ function createFirestore(overrides: AccountOverrides = {}) {
   return { db, accountRef, update };
 }
 
-async function loadRoute() {
-  return import("@/app/api/member/payment-accounts/[id]/payer-name/route").catch(() => null);
-}
-
 function request(payerName: unknown) {
   return new Request("https://example.test/api/member/payment-accounts/account-a/payer-name", {
     method: "POST",
@@ -68,12 +66,10 @@ beforeEach(() => {
 
 describe("member payment account payer-name completion API", () => {
   it("lets the owning member complete a missing payer name exactly once", async () => {
-    const route = await loadRoute();
-    expect(route).not.toBeNull();
     const setup = createFirestore();
     firestore.getAdminFirestore.mockReturnValue(setup.db);
 
-    const response = await route!.POST(request("  王小明  "), context);
+    const response = await POST(request("  王小明  "), context);
 
     expect(response.status).toBe(200);
     expect(setup.update).toHaveBeenCalledWith(setup.accountRef, {
@@ -102,15 +98,13 @@ describe("member payment account payer-name completion API", () => {
   });
 
   it("uses the same not-found response for a missing or cross-member account", async () => {
-    const route = await loadRoute();
-    expect(route).not.toBeNull();
     for (const overrides of [
       { exists: false },
       { memberUid: "member-b" },
     ]) {
       const setup = createFirestore(overrides);
       firestore.getAdminFirestore.mockReturnValue(setup.db);
-      const response = await route!.POST(request("王小明"), context);
+      const response = await POST(request("王小明"), context);
       expect(response.status).toBe(404);
       await expect(response.json()).resolves.toMatchObject({
         error: "member_payment_account_not_found",
@@ -120,12 +114,10 @@ describe("member payment account payer-name completion API", () => {
   });
 
   it("refuses to overwrite an existing payer name", async () => {
-    const route = await loadRoute();
-    expect(route).not.toBeNull();
     const setup = createFirestore({ payerName: "原匯款人" });
     firestore.getAdminFirestore.mockReturnValue(setup.db);
 
-    const response = await route!.POST(request("新匯款人"), context);
+    const response = await POST(request("新匯款人"), context);
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({
@@ -135,12 +127,10 @@ describe("member payment account payer-name completion API", () => {
   });
 
   it.each(["", "王\n小明"])("rejects invalid payer name input: %s", async (payerName) => {
-    const route = await loadRoute();
-    expect(route).not.toBeNull();
     const setup = createFirestore();
     firestore.getAdminFirestore.mockReturnValue(setup.db);
 
-    const response = await route!.POST(request(payerName), context);
+    const response = await POST(request(payerName), context);
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
