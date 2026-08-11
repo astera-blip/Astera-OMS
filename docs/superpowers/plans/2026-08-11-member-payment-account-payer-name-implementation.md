@@ -34,7 +34,7 @@
 - Consumes: existing `MemberPaymentAccountInput`, `MemberPaymentAccount`, `PublicMemberPaymentAccount` and account fingerprint validation.
 - Produces: `normalizeMemberPaymentAccountPayerName(input: unknown): string`; `MemberPaymentAccountInput.payerName`; `MemberPaymentAccount.payerName?`; `PublicMemberPaymentAccount.payerName?`; `needsPayerName: boolean` on the public snapshot.
 
-- [ ] **Step 1: Write failing payer-name normalization and usability tests**
+- [x] **Step 1: Write failing payer-name normalization and usability tests**
 
 Add focused cases equivalent to:
 
@@ -48,7 +48,7 @@ expect(() => normalizeMemberPaymentAccountPayerName("𠮷".repeat(81))).toThrow(
 
 Add snapshot tests proving a verified active account without `payerName` returns `needsPayerName: true` and is not usable, while the same account with a valid name is usable.
 
-- [ ] **Step 2: Run focused tests and observe the missing contract failure**
+- [x] **Step 2: Run focused tests and observe the missing contract failure**
 
 Run:
 
@@ -58,7 +58,7 @@ npx vitest run tests/unit/memberPaymentAccounts.test.ts tests/unit/memberPayment
 
 Expected: FAIL because payer-name normalization and `needsPayerName` do not exist.
 
-- [ ] **Step 3: Implement the minimal domain extension**
+- [x] **Step 3: Implement the minimal domain extension**
 
 Add the interface fields and a single shared normalizer:
 
@@ -75,11 +75,11 @@ export function normalizeMemberPaymentAccountPayerName(input: unknown): string {
 
 Have `validateMemberPaymentAccountInput` normalize `payerName`. When building a public snapshot, retain legacy records with `payerName: undefined` and `needsPayerName: true`; require `!account.needsPayerName` in both public and stored payment-usability helpers. Add `member_payment_account_payer_name_invalid` and `member_payment_account_payer_name_required` Chinese error messages.
 
-- [ ] **Step 4: Run focused tests and verify green**
+- [x] **Step 4: Run focused tests and verify green**
 
 Run the Task 1 command again. Expected: all selected tests PASS.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```powershell
 git add src/lib/payment/memberBankAccounts.ts tests/unit/memberPaymentAccounts.test.ts tests/unit/memberPaymentAccountsUi.test.ts

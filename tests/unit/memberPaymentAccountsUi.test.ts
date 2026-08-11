@@ -54,6 +54,7 @@ describe("member payment account UI contract", () => {
       accountFingerprint: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
       fingerprintAlgorithm: "HMAC-SHA-256",
       fingerprintKeyVersion: 7,
+      payerName: "王小明",
       status: "active",
       verificationStatus: "unknown" as never,
     });
