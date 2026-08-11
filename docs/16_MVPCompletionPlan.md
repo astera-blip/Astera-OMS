@@ -1992,3 +1992,20 @@ four fresh readbacks pass and are reviewed.
   50 files / 419 tests, TypeScript, ESLint, Next Build (42 routes), `git diff
   --check`, secret scan, production dependency audit (0 vulnerabilities), and
   explicit-product Production smoke 5/5 all pass.
+
+## 2026-08-11 Latest Preview release and role-gate checkpoint
+
+- Commit `694257b` contains the smoke-tool fix and current runbook/handoff cleanup.
+  Because its Git author is not a Vercel Team member, no deployment was created for
+  that commit. Empty commit `44cc5b1`, authored by the already verified Astera OMS
+  team identity and containing no file change, triggered the Git-integrated build.
+- The new Preview reached Ready, and the existing Firebase/OAuth-authorized stable
+  Preview alias was moved to it. Production was not deployed or promoted.
+- Browser reload on the stable alias retained the existing Member session. The home
+  page rendered the published Product/Campaign, while direct `/workspace` access
+  resolved to `需要後台權限`; this verifies the Member role is not Owner/Helper.
+- The active browser account therefore cannot perform the next Owner read-only
+  `pendingReview` check. Exact continuation: the user signs out and signs in with
+  the Owner custom-claim account on the same stable Preview, then reports that the
+  Owner session is ready. Reading the newest clearly test-only Payment is allowed;
+  confirm/reverse/refund/vault mutations still need new action-time approval.

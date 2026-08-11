@@ -2098,3 +2098,19 @@ domain, or change any other Firebase/Vercel setting.
 - Current smoke-tool batch verification: focused 26/26; full Unit 50 files / 419
   tests; TypeScript; ESLint; Next Build with 42 routes; diff check; secret scan;
   production audit with 0 vulnerabilities; explicit-product Production smoke 5/5.
+
+## 2026-08-11 Latest Preview Ready; Owner session required
+
+- `694257b` was pushed with the verified smoke-tool/runbook repair. Vercel did not
+  create a deployment because that commit author is outside the Project team; the
+  existing documented workaround was used without changing files. Empty
+  team-authored commit `44cc5b1` triggered a new Git-integrated Preview.
+- The resulting deployment is Ready and the existing stable, authorized Preview
+  alias points to it. Production remains unchanged.
+- Browser acceptance retained the signed-in Member session, showed the public
+  published Product/Campaign, and correctly denied `/workspace` with
+  `需要後台權限`. The current session is not an Owner session.
+- Next exact step: the user signs into the stable Preview with the Owner custom-claim
+  account. Then perform only a read-only lookup of the newest clearly test-only
+  `pendingReview` Payment. Obtain a fresh action-time authorization immediately
+  before any confirm, reverse, cancellation-review, refund, reveal, or vault write.
