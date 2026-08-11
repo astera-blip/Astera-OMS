@@ -1964,3 +1964,27 @@ domain, or change any other Firebase/Vercel setting.
 - Next exact external step, only after separate authorization: push
   `codex/mvp-completion` and let the Git-integrated Preview run before any Production
   release decision.
+
+## 2026-08-11 Git push and merged Preview acceptance handoff
+
+- The unsafe-merge condition is closed. `codex/mvp-completion` is clean and was
+  pushed to `astera-blip/Astera-OMS`; local and remote both resolved to `b79bd98`.
+  The integrated `codex/production-security-worker` worktree and local branch were
+  removed only after ancestor and clean-worktree checks.
+- Vercel Git integration built a Ready Preview for the merged commit. The existing
+  Firebase/OAuth-authorized stable Preview alias was moved from the earlier feature
+  deployment to this merged Ready deployment. No Production deployment occurred.
+- CLI anonymous smoke receives Vercel SSO `302` by design because Preview Protection
+  is enabled. Verification therefore used the already-authorized in-app browser
+  session. The six public routes loaded without a Next.js error page, and the empty
+  cart showed disabled checkout controls.
+- The signed-in member session persisted across navigation. The account page showed
+  two incomplete legacy re-verification records and one masked bank-code `000`
+  account requiring one-time payer-name completion. The payment page correctly
+  exposed no usable member-account selector until that completion occurs; account
+  fragments and payer name remain read-only there.
+- Current handoff point: obtain the exact payer name and explicit approval to save it
+  once on the clearly test-only bank-code `000` account. After saving, revisit
+  `/payments` and verify account selection, masked last-five linkage, and payer-name
+  linkage without submitting a financial report. A Payment submission still needs
+  its own action-time authorization.

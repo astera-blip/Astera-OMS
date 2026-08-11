@@ -1850,3 +1850,25 @@ four fresh readbacks pass and are reviewed.
   vulnerabilities; all passed.
 - No GitHub push, Vercel deployment, or Production mutation was performed by this
   local integration batch.
+
+## 2026-08-11 Merged Preview verification checkpoint
+
+- The prior unsafe-merge blocker is resolved: all overlapping tracked and
+  untracked work was organized into commits, the feature branch was merged into
+  `codex/mvp-completion`, the worktree was cleaned up, and local/remote both point
+  to merge commit `b79bd98`.
+- Git integration created a Ready Preview. The existing authorized stable Preview
+  alias `astera-oms-astera-blip-astera-oms.vercel.app` was reassigned to that Ready
+  deployment. Production was not deployed or changed.
+- Browser verification under the authenticated Preview session passed for `/`,
+  `/products`, `/brand`, `/cart`, `/terms`, and `/privacy`; no Next.js error page
+  appeared. Empty-cart order creation remains disabled.
+- The merged payer-name flow is present: the legacy bank-code `000` test account is
+  masked, marked `needsPayerName`, and offers the one-time completion action. Until
+  it is completed, `/payments` correctly excludes it from the usable-account
+  selector and keeps linked last-five/payer fields read-only.
+- Exact next action requiring member-data confirmation: provide the payer name to
+  store once on that clearly test-only account, then save it and verify that the
+  Payment Report account selector automatically links the masked last five digits
+  and payer name. Do not submit a Payment Report without separate action-time
+  authorization.
