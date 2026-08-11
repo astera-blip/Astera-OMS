@@ -180,3 +180,7 @@
   allocation／Order／PaymentRequest mutation.
 - Added Unit and Emulator Playwright coverage, including double click, reload, safe
   history, rejection, and Audit Log verification.
+- 2026-08-12: Deployed the rebuilt public Astera storefront to Vercel Production
+  (`dpl_8FPCjc99CzRMXrfFo6GEhTLpsmek`), now available at
+  `https://astera-oms.vercel.app`. Added a test-only import stabilization for the
+  payer-name route; no Collection, Rules, Checkout, pricing, or Order logic changed.

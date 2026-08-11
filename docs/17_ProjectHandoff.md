@@ -2263,3 +2263,20 @@ domain, or change any other Firebase/Vercel setting.
   Playwright 10 passed; Rules 2 files／32 tests. No Collection, Rules, Checkout, Order,
   or pricing logic changed. Implementation commit: `54a8b03`.
 - Deployment state: local branch only; Preview and Production were not deployed.
+
+## 2026-08-12 Production storefront deployment
+
+- The completed public storefront redesign was merged locally into `main`
+  (`189b3c8`). Commit `cbb8dc1` makes the payer-name API test use the same
+  mock-before-static-import pattern as related route tests, eliminating the
+  full-suite parallel import timeout without changing production behavior.
+- Vercel Production deployment `dpl_8FPCjc99CzRMXrfFo6GEhTLpsmek` reached
+  Ready at `https://astera-llgfemo41-astera-oms.vercel.app` and was aliased to
+  `https://astera-oms.vercel.app`.
+- Release verification: Unit 56 files／450 tests; Firestore／Storage Rules 2
+  files／32 tests; TypeScript; ESLint; Next Build 42 routes; public Playwright
+  16 passed／10 expected Emulator-only skips. Anonymous production smoke returned
+  200 for `/`, `/products`, `/terms`, `/privacy`, and `/products/prod_002`.
+- Exact next step: manually test the production alias as a visitor, then repeat
+  the Member and Owner flows with explicitly labelled test data. Do not treat
+  custom-domain, Resend, or authenticated-flow acceptance as complete yet.

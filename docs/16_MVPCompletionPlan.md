@@ -2117,3 +2117,19 @@ Preview deployment update:
   Emulator homepage Playwright 10/10, and Rules 2 files／32 tests. Implementation
   commit: `54a8b03`.
 - [ ] Preview and Production deployment remain separate operations and were not performed.
+
+### 2026-08-12 Production deployment update
+
+- [x] Locally merge the approved public storefront redesign into `main` at
+  `189b3c8` and add `cbb8dc1` to remove a parallel-test timing failure in the
+  payer-name route test.
+- [x] Deploy Vercel Production deployment `dpl_8FPCjc99CzRMXrfFo6GEhTLpsmek`
+  (`https://astera-llgfemo41-astera-oms.vercel.app`) and assign the production
+  alias `https://astera-oms.vercel.app`.
+- [x] Fresh verification before release: Unit 56 files／450 tests; Firestore and
+  Storage Rules 2 files／32 tests; TypeScript; ESLint; Next Build 42 routes; and
+  public Playwright 16 passed／10 expected Emulator-only skips.
+- [x] Production anonymous smoke against the alias: `/`, `/products`, `/terms`,
+  `/privacy`, and `/products/prod_002` all returned HTTP 200.
+- [ ] Production authenticated Member／Owner acceptance, real email delivery,
+  custom domain DNS, and Resend remain separate release gates.
