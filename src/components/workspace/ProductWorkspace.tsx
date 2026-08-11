@@ -14,6 +14,7 @@ import {
   type ProductClassifications,
 } from "@/lib/product/catalog";
 import type { CatalogClassification } from "@/lib/product/classifications";
+import { campaignDateTimeToLocalInput } from "@/lib/product/campaignDates";
 import {
   getNewProductFormDefaults,
   getNewVariantFormDefaults,
@@ -565,7 +566,7 @@ export function ProductWorkspace() {
           </div>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid gap-5 2xl:grid-cols-2">
           <form
             className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
             onSubmit={(event) => {
@@ -734,7 +735,7 @@ export function ProductWorkspace() {
                   </button>
                 </div>
                 {variantForms.map((variant, index) => (
-                  <div key={`${variant.id}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
+                  <div key={`${variant.id}-${index}`} className="grid min-w-0 gap-3 rounded-2xl bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold">Variant（規格） {index + 1}</p>
                       <button
@@ -764,30 +765,30 @@ export function ProductWorkspace() {
                         className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
                       />
                     </label>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Default Price TWD（預設售價）</span>
+                    <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                      <label className="grid min-w-0 gap-2 text-sm">
+                        <span className="break-words font-medium leading-5">Default Price TWD（預設售價）</span>
                         <input
                           type="number"
                           min="0"
                           step="1"
                           value={variant.priceTwd}
                           onChange={(event) => updateVariantForm(index, { priceTwd: event.target.value })}
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         />
                       </label>
-                      <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Original Cost（原幣成本）</span>
+                      <label className="grid min-w-0 gap-2 text-sm">
+                        <span className="break-words font-medium leading-5">Original Cost（原幣成本）</span>
                         <input
                           value={variant.originalCost}
                           onChange={(event) => updateVariantForm(index, { originalCost: event.target.value })}
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         />
                       </label>
                     </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Original Currency（原幣別）</span>
+                    <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                      <label className="grid min-w-0 gap-2 text-sm">
+                        <span className="break-words font-medium leading-5">Original Currency（原幣別）</span>
                         <select
                           value={variant.originalCurrency}
                           onChange={(event) =>
@@ -795,7 +796,7 @@ export function ProductWorkspace() {
                               originalCurrency: event.target.value as VariantFormState["originalCurrency"],
                             })
                           }
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         >
                           {currencyOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -827,7 +828,7 @@ export function ProductWorkspace() {
                   </button>
                 </div>
                 {campaignForms.map((campaign, index) => (
-                  <div key={`${campaign.id}-${index}`} className="grid gap-3 rounded-2xl bg-slate-50 p-4">
+                  <div key={`${campaign.id}-${index}`} className="grid min-w-0 gap-3 rounded-2xl bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold">Campaign（活動） {index + 1}</p>
                       <button
@@ -846,9 +847,9 @@ export function ProductWorkspace() {
                         className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
                       />
                     </label>
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Sale Type（販售類型）</span>
+                    <div className="grid min-w-0 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                      <label className="grid min-w-0 gap-2 text-sm">
+                        <span className="break-words font-medium leading-5">Sale Type（販售類型）</span>
                         <select
                           value={campaign.saleType}
                           onChange={(event) =>
@@ -856,15 +857,15 @@ export function ProductWorkspace() {
                               saleType: event.target.value as CampaignFormState["saleType"],
                             })
                           }
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         >
                           {Object.entries(saleTypeLabels).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
                           ))}
                         </select>
                       </label>
-                      <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Campaign Status（活動狀態）</span>
+                      <label className="grid min-w-0 gap-2 text-sm">
+                        <span className="break-words font-medium leading-5">Campaign Status（活動狀態）</span>
                         <select
                           value={campaign.status}
                           onChange={(event) =>
@@ -872,22 +873,22 @@ export function ProductWorkspace() {
                               status: event.target.value as CampaignFormState["status"],
                             })
                           }
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         >
                           {Object.entries(campaignStatusLabels).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
                           ))}
                         </select>
                       </label>
-                      <label className="grid gap-2 text-sm">
-                        <span className="font-medium">Sale Price TWD（活動價）</span>
+                      <label className="grid min-w-0 gap-2 text-sm">
+                        <span className="break-words font-medium leading-5">Sale Price TWD（活動價）</span>
                         <input
                           type="number"
                           min="0"
                           step="1"
                           value={campaign.salePriceTwd}
                           onChange={(event) => updateCampaignForm(index, { salePriceTwd: event.target.value })}
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                           placeholder="未填則用 Variant 售價"
                         />
                       </label>
@@ -900,23 +901,23 @@ export function ProductWorkspace() {
                       />
                       <span>Supplement Required（可能需要二補）</span>
                     </label>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2 text-sm">
+                    <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                      <label className="grid min-w-0 gap-2 text-sm">
                         <span className="font-medium">Start Time（開始時間）</span>
                         <input
                           type="datetime-local"
                           value={campaign.startsAt}
                           onChange={(event) => updateCampaignForm(index, { startsAt: event.target.value })}
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         />
                       </label>
-                      <label className="grid gap-2 text-sm">
+                      <label className="grid min-w-0 gap-2 text-sm">
                         <span className="font-medium">End Time（結單時間）</span>
                         <input
                           type="datetime-local"
                           value={campaign.endsAt}
                           onChange={(event) => updateCampaignForm(index, { endsAt: event.target.value })}
-                          className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                          className="min-w-0 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
                         />
                       </label>
                     </div>
@@ -1041,11 +1042,19 @@ function buildCampaignForms(product: WorkspaceProduct | null): CampaignFormState
     status: campaign.status,
     salePriceTwd: typeof campaign.salePriceTwd === "number" ? String(campaign.salePriceTwd) : "",
     requiresSupplement: campaign.requiresSupplement,
-    startsAt: campaign.startsAt ?? "",
-    endsAt: campaign.endsAt ?? "",
+    startsAt: campaign.startsAt ? toCampaignDateTimeLocalInput(campaign.startsAt) : "",
+    endsAt: campaign.endsAt ? toCampaignDateTimeLocalInput(campaign.endsAt) : "",
     publicNotice: campaign.publicNotice ?? "",
     supplementNote: campaign.supplementNote ?? "",
   }));
+}
+
+function toCampaignDateTimeLocalInput(value: string) {
+  try {
+    return campaignDateTimeToLocalInput(value);
+  } catch {
+    return "";
+  }
 }
 
 function buildBlankCampaignForm(id: string): CampaignFormState {
