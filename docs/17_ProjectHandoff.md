@@ -1538,3 +1538,16 @@ domain, or change any other Firebase/Vercel setting.
   refresh `/payments`, and verify the purple button is visible. Do not submit the
   already-prepared test-only Payment without a current explicit confirmation,
   because that creates a `pendingReview` financial record.
+
+## 2026-08-11 Preview member Payment Report handoff
+
+- The member manually submitted one expressly approved test-only Payment Report.
+  The stable Preview returned a visible success message for one report and cleared
+  the form. Read-only inspection confirmed that no second submit was triggered.
+- The related member-facing request remains unpaid pending Owner review; this does
+  not indicate submission failure. The next verification target is the separate
+  Payment record in the Owner workspace with status `pendingReview`.
+- No sensitive values or internal identifiers are included in this handoff. Resume
+  by signing in as the Owner test account, opening the Preview payment workspace,
+  and reading the newest test-only report. Obtain a fresh explicit confirmation
+  immediately before confirming, reversing, or otherwise mutating financial state.

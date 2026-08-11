@@ -1481,3 +1481,17 @@ four fresh readbacks pass and are reviewed.
   and confirm the purple `送出付款回報` button is plainly visible. Only after the
   user explicitly confirms the prepared test-only Payment creation may it be
   submitted once.
+
+## 2026-08-11 Preview test-only Payment Report accepted
+
+- After the member explicitly confirmed the test-only financial action, the member
+  manually submitted exactly one Payment Report from the stable Preview. A read-only
+  browser check confirmed the success message and that the report form was cleared;
+  no duplicate submission was performed.
+- The member-facing PaymentRequest remains labelled unpaid until Owner review. This
+  is expected: the newly created Payment is the separate `pendingReview` record.
+- No internal IDs, member identity, bank fragments, or other account values are
+  recorded here. Exact next action: sign in with the Owner test account, open the
+  Preview payment workspace, locate only the newly submitted test report, and verify
+  `pendingReview` before any confirmation action. Owner confirmation requires a new
+  action-time authorization.
