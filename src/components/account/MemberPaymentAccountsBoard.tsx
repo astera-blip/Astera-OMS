@@ -147,8 +147,18 @@ export function MemberPaymentAccountsBoard() {
             <article key={account.id} className="rounded-2xl border border-[#DED7D6] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold">銀行代碼 {account.bankCode}</h3>
-                  <p className="mt-1 text-sm text-[#6C6B70]">帳號 {account.accountNumberMasked}</p>
+                  {account.verificationStatus === "needsReverification" ? (
+                    <>
+                      <h3 className="font-semibold">舊匯款帳戶需要重新驗證</h3>
+                      <p className="mt-1 text-sm text-[#6C6B70]">帳號 {account.accountNumberMasked}</p>
+                      <p className="mt-1 text-sm text-[#6C6B70]">此筆資料缺少目前驗證所需資訊，無法用於付款；請重新新增帳戶。</p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="font-semibold">銀行代碼 {account.bankCode}</h3>
+                      <p className="mt-1 text-sm text-[#6C6B70]">帳號 {account.accountNumberMasked}</p>
+                    </>
+                  )}
                 </div>
                 {account.verificationStatus === "needsReverification" ? (
                   <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">需要重新驗證</span>

@@ -345,6 +345,64 @@ describe("member payment account API contract", () => {
     expect(JSON.stringify(payload)).not.toContain("accountNumberFull");
   });
 
+  it("returns a non-payable re-registration snapshot for a legacy account missing its bank code", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({
+        where: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue(documents([{
+            id: "legacy-account",
+            data: {
+              memberUid: "member-a",
+              accountNumberLast5: "56789",
+              status: "active",
+              verificationStatus: "verified",
+            },
+          }])),
+        })),
+      })),
+    });
+
+    const response = await GET(new Request("https://example.test/api/member/payment-accounts"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      accounts: [{
+        id: "legacy-account",
+        bankCode: "",
+        accountNumberMasked: "***56789",
+        accountNumberLast5: "56789",
+        status: "inactive",
+        verificationStatus: "needsReverification",
+      }],
+    });
+  });
+
+  it("does not count legacy accounts without a bank code toward the five-account limit", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-new" });
+    kms.signCanonicalAccount.mockResolvedValue({ mac: currentFingerprint, keyVersion: 7 });
+    const registration = createRegistrationFirestore({
+      existing: Array.from({ length: 5 }, (_, index) => ({
+        id: `legacy-${index}`,
+        data: {
+          memberUid: "member-new",
+          accountNumberLast5: `0000${index}`,
+          status: "active",
+          verificationStatus: "verified",
+        },
+      })),
+    });
+    firestore.getAdminFirestore.mockReturnValue(registration.db);
+
+    const response = await POST(new Request("https://example.test/api/member/payment-accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789" }),
+    }));
+
+    expect(response.status).toBe(201);
+  });
+
   it("lets the owning member request deletion and returns a masked pending snapshot", async () => {
     auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
     const update = vi.fn();

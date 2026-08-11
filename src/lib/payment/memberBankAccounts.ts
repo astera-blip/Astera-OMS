@@ -114,15 +114,43 @@ export function normalizeMemberPaymentAccount(value: MemberPaymentAccount): Memb
 }
 
 export function buildMemberPaymentAccountSnapshot(value: MemberPaymentAccount): PublicMemberPaymentAccount {
-  const normalized = normalizeMemberPaymentAccount(value);
-  return {
-    id: normalized.id,
-    bankCode: normalized.bankCode,
-    accountNumberMasked: maskMemberAccountNumber(normalized.accountNumberLast5),
-    accountNumberLast5: normalized.accountNumberLast5,
-    status: normalized.status,
-    verificationStatus: normalized.verificationStatus ?? "needsReverification",
-  };
+  try {
+    const normalized = normalizeMemberPaymentAccount(value);
+    return {
+      id: normalized.id,
+      bankCode: normalized.bankCode,
+      accountNumberMasked: maskMemberAccountNumber(normalized.accountNumberLast5),
+      accountNumberLast5: normalized.accountNumberLast5,
+      status: normalized.status,
+      verificationStatus: normalized.verificationStatus ?? "needsReverification",
+    };
+  } catch {
+    const last5 = typeof value.accountNumberLast5 === "string"
+      && /^\d{5}$/.test(value.accountNumberLast5.trim())
+      ? value.accountNumberLast5.trim()
+      : "";
+    return {
+      id: value.id,
+      bankCode: "",
+      accountNumberMasked: last5 ? maskMemberAccountNumber(last5) : "資料待重新驗證",
+      accountNumberLast5: last5,
+      // A legacy record without the fields required by the current identity
+      // contract must remain visible but can never be selected for payment.
+      status: "inactive",
+      verificationStatus: "needsReverification",
+    };
+  }
+}
+
+export function isCountableMemberPaymentAccount(value: MemberPaymentAccount): boolean {
+  try {
+    const normalized = normalizeMemberPaymentAccount(value);
+    return normalized.status === "active" || normalized.status === "pendingDeletion";
+  } catch {
+    // Incomplete legacy records cannot be paid with and must not consume one
+    // of the member's five usable-account slots.
+    return false;
+  }
 }
 
 export function isMemberPaymentAccountUsableForPayment(

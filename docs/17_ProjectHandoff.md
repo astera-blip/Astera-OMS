@@ -1475,3 +1475,20 @@ domain, or change any other Firebase/Vercel setting.
 - Exact continuation: after the user completes account selection, verify retained
   authenticated state on `/account/bank-accounts` and after normal navigation.
   Only then resume the one-pass synthetic payment/refund acceptance flow.
+
+## 2026-08-11 Member account legacy-data repair pending Preview retest
+
+- The selected Preview member stayed authenticated after return to the account
+  page, but the API returned a generic list-read error. Safe server diagnostics
+  proved the request reaches serialization; Firebase Auth, Workload Identity, and
+  Firestore IAM readbacks remain healthy. A read-only aggregate health check found
+  pre-contract account records without a bank code. It emitted no account values,
+  IDs, or member identities.
+- The repair converts incomplete legacy records to inactive, masked
+  `needsReverification` snapshots. They cannot be used for payment and do not
+  count against the five usable-account cap; the member is told to register a new
+  account. New unit regressions cover list recovery and limit handling.
+- Local evidence after repair: Unit 44 files / 379 tests, TypeScript, ESLint,
+  Next build, and diff check pass. Exact continuation: deploy the repair to the
+  stable Preview, verify the signed-in list renders, then resume only the approved
+  test-only payment/refund flow.

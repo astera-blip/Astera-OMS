@@ -5,6 +5,7 @@ import { requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { deriveAccountIdentity, verifyAccountIdentity } from "@/lib/payment/accountIdentity";
 import {
   buildMemberPaymentAccountSnapshot,
+  isCountableMemberPaymentAccount,
   memberPaymentAccountErrorMessage,
   validateMemberPaymentAccountInput,
   type MemberPaymentAccount,
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
         id: document.id,
         ...(document.data() as Omit<MemberPaymentAccount, "id">),
       }));
-      const countable = existing.filter((item) => item.status === "active" || item.status === "pendingDeletion");
+      const countable = existing.filter(isCountableMemberPaymentAccount);
       if (countable.length >= 5) {
         throw new Error("member_payment_account_limit_reached");
       }

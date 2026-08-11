@@ -1417,3 +1417,21 @@ four fresh readbacks pass and are reviewed.
   authenticated state survives return to `/account/bank-accounts` and a normal
   navigation. Do not create any payment-account, order, payment, cancellation, or
   refund test data until that session-persistence check passes.
+
+## 2026-08-11 Legacy member payment-account compatibility repair
+
+- The authenticated Preview retest retained the member session but the account
+  list returned a safe generic read error. Read-only server diagnostics located
+  the failure in legacy-record serialization, not Firebase Auth, WIF, or
+  Firestore IAM. A value-free aggregate audit found legacy records that lack the
+  bank-code field required by the current account contract.
+- The API now returns such records as inactive `needsReverification` snapshots:
+  they are visible only as masked legacy data, cannot be selected for payment,
+  and do not consume a usable-account slot. The UI explains that the member must
+  register a new account. No account number, fingerprint, member identity, or
+  document ID was read into documentation or browser output.
+- Regression coverage: legacy GET compatibility plus five-account limit behavior.
+  Fresh verification: Unit 44 files / 379 tests, TypeScript, ESLint, Build, and
+  diff check passed locally. Next: deploy this repair to the stable Preview,
+  re-check the signed-in account page, and only then create explicitly authorised
+  test-only payment/refund data.
