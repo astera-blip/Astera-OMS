@@ -28,9 +28,7 @@ export function CartBoard() {
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [shippingMethod, setShippingMethod] = useState<"address" | "seven_eleven" | "family_mart">("address");
-  const [shippingAddress, setShippingAddress] = useState("");
-  const [shippingStoreInfo, setShippingStoreInfo] = useState("");
+  const [shippingMethod] = useState<"seven_eleven">("seven_eleven");
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [acceptedSupplementRule, setAcceptedSupplementRule] = useState(false);
   const [message, setMessage] = useState("已載入購物車。");
@@ -114,7 +112,7 @@ export function CartBoard() {
     (document) => document.documentType === "terms" || document.documentType === "privacy",
   );
   const isCartEmpty = cart.length === 0;
-  const isOrderDisabled = placingOrder || isCartEmpty;
+  const isOrderDisabled = placingOrder || isCartEmpty || !user;
 
   function updateQuantity(index: number, quantity: number) {
     setCart((current) =>
@@ -152,8 +150,6 @@ export function CartBoard() {
       recipientName,
       recipientPhone,
       shippingMethod,
-      shippingAddress,
-      shippingStoreInfo,
     });
 
     if (!shippingCheck.ok) {
@@ -185,8 +181,6 @@ export function CartBoard() {
             recipientName: shippingCheck.value.recipientName,
             recipientPhone: shippingCheck.value.recipientPhone,
             shippingMethod,
-            ...(shippingCheck.value.shippingAddress ? { shippingAddress: shippingCheck.value.shippingAddress } : {}),
-            ...(shippingCheck.value.shippingStoreInfo ? { shippingStoreInfo: shippingCheck.value.shippingStoreInfo } : {}),
             legalVersionIds: currentLegalVersionIds(),
             acceptedLegalTerms,
             acceptedSupplementRule,
@@ -268,6 +262,28 @@ export function CartBoard() {
       </div>
 
       <aside className="grid gap-4">
+        <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
+          <p className="text-sm font-semibold text-astera-service">結帳步驟</p>
+          <p className="mt-2 text-sm leading-6 text-astera-secondary">
+            購物車確認完成後，前往獨立結帳頁填寫收件資料與條款同意。
+          </p>
+          <Link
+            href="/checkout"
+            className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold ${
+              isCartEmpty || !user
+                ? "cursor-not-allowed bg-astera-border text-astera-secondary"
+                : "bg-astera-brand text-white hover:bg-astera-ink"
+            }`}
+            aria-disabled={isCartEmpty || !user}
+            onClick={(event) => {
+              if (isCartEmpty || !user) {
+                event.preventDefault();
+              }
+            }}
+          >
+            {isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "前往結帳"}
+          </Link>
+        </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">收件資訊</p>
           <h3 className="mt-2 text-2xl font-semibold">收件資料</h3>
@@ -302,38 +318,15 @@ export function CartBoard() {
                 id="shippingMethod"
                 name="shippingMethod"
                 value={shippingMethod}
-                onChange={(event) => setShippingMethod(event.target.value as typeof shippingMethod)}
+                disabled
                 className="rounded-2xl border border-slate-300 px-4 py-3"
               >
-                <option value="address">宅配地址</option>
                 <option value="seven_eleven">7-Eleven 賣貨便</option>
-                <option value="family_mart">全家好賣+ / 店到店</option>
               </select>
             </label>
-            {shippingMethod === "address" ? (
-              <label htmlFor="shippingAddress" className="grid gap-2 text-sm">
-                <span className="font-medium">收件地址</span>
-                <textarea
-                  id="shippingAddress"
-                  name="shippingAddress"
-                  autoComplete="street-address"
-                  value={shippingAddress}
-                  onChange={(event) => setShippingAddress(event.target.value)}
-                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                />
-              </label>
-            ) : (
-              <label htmlFor="shippingStoreInfo" className="grid gap-2 text-sm">
-                <span className="font-medium">超商門市資訊</span>
-                <textarea
-                  id="shippingStoreInfo"
-                  name="shippingStoreInfo"
-                  value={shippingStoreInfo}
-                  onChange={(event) => setShippingStoreInfo(event.target.value)}
-                  className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                />
-              </label>
-            )}
+            <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              配送方式目前固定為 7-Eleven 賣貨便；下單後再依客服通知完成寄件資訊確認。
+            </p>
           </div>
         </div>
 
@@ -403,7 +396,7 @@ export function CartBoard() {
             disabled={isOrderDisabled}
             className="mt-5 min-h-11 w-full rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {placingOrder ? "建立中…" : isCartEmpty ? "請先加入商品" : "建立訂單"}
+            {placingOrder ? "建立中…" : isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "建立訂單"}
           </button>
           <p aria-live="polite" className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
         </div>

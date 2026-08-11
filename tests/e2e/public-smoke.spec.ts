@@ -53,14 +53,16 @@ test("public storefront headings use buyer-facing Chinese labels", async ({ page
   await page.goto("/products");
   await expect(page.getByRole("heading", { name: "商品列表" })).toBeVisible();
   await expect(page.getByText("Storefront", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("公開商品讀取失敗，請確認網路後再試一次。", { exact: true })).toHaveCount(0);
   if (useEmulatedAuth) {
     await expect(page.getByRole("button", { name: "重新載入" })).toHaveCount(0);
-  } else {
-    await expect(page.getByRole("button", { name: "重新載入" })).toBeVisible();
   }
 
   await page.goto("/cart");
   await expect(page.getByRole("heading", { name: "購物車" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "前往商品列表" })).toBeVisible();
+  await page.goto("/checkout");
+  await expect(page.getByRole("heading", { name: "確認訂單" })).toBeVisible();
   await expect(page.getByText("Checkout", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Cart", { exact: true })).toHaveCount(0);
 });
@@ -69,7 +71,7 @@ test("member-facing routes use customer Chinese headings", async ({ page }) => {
   const pages = [
     { path: "/payments", heading: "付款回報" },
     { path: "/orders", heading: "我的訂單" },
-    { path: "/members", heading: "會員服務" },
+    { path: "/members", heading: "會員工作台" },
     { path: "/about", heading: "關於 Astera" },
   ];
 
@@ -78,6 +80,17 @@ test("member-facing routes use customer Chinese headings", async ({ page }) => {
     await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
     await expect(page.getByText("Customer", { exact: true })).toHaveCount(0);
   }
+});
+
+test("member dashboard exposes a visual skeleton without fake operational data", async ({ page }) => {
+  await page.goto("/members");
+
+  await expect(page.getByRole("heading", { name: "會員工作台" })).toBeVisible();
+  await expect(page.getByText("今天需要處理")).toBeVisible();
+  await expect(page.getByText("即將結單")).toBeVisible();
+  await expect(page.getByText("最新販售")).toBeVisible();
+  await expect(page.getByText(/目前沒有待辦事項|登入後即可查看/)).toBeVisible();
+  await expect(page.getByText("尚未載入真實會員資料")).toHaveCount(0);
 });
 
 test("cart page keeps unauthenticated checkout blocked", async ({ page }) => {

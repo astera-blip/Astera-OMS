@@ -189,16 +189,18 @@ function ProfileCompletionGuard({ children }: { children: ReactNode }) {
   const { status, profile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const canPreviewWithoutProfile = pathname === "/account/profile" || pathname === "/ux-acceptance";
 
   useEffect(() => {
     if (
       status === "signedIn" &&
       !profile &&
-      pathname !== "/account/profile"
+      !canPreviewWithoutProfile
     ) {
-      router.replace("/account/profile");
+      const returnTo = pathname.startsWith("/") ? pathname : "/";
+      router.replace(`/account/profile?returnTo=${encodeURIComponent(returnTo)}`);
     }
-  }, [pathname, profile, router, status]);
+  }, [canPreviewWithoutProfile, pathname, profile, router, status]);
 
   return children;
 }

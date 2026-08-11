@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
   validateMemberProfileDraft,
@@ -67,7 +67,16 @@ function getProfileSaveErrorMessage(error: string | undefined) {
 }
 
 export default function MemberProfilePage() {
+  return (
+    <Suspense fallback={<ProfilePageMessage text="正在載入會員資料…" />}>
+      <MemberProfileForm />
+    </Suspense>
+  );
+}
+
+function MemberProfileForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     status,
     user,
@@ -159,7 +168,15 @@ export default function MemberProfilePage() {
 
       await refreshProfile();
       setMessage("會員資料已儲存。");
-      router.replace("/");
+      const requestedReturnTo = searchParams.get("returnTo");
+      if (!requestedReturnTo) {
+        router.replace("/");
+        return;
+      }
+      const returnTo = requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+        ? requestedReturnTo
+        : "/";
+      router.replace(returnTo);
     } catch {
       setMessage("儲存失敗，請檢查連線後再試一次。");
     } finally {
@@ -173,36 +190,36 @@ export default function MemberProfilePage() {
 
   if (status === "signedOut") {
     return (
-      <main className="min-h-screen bg-slate-50 px-5 py-10 text-slate-950">
-        <section className="mx-auto max-w-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-sm font-semibold text-amber-700">Astera OMS 會員</p>
+      <main className="min-h-dvh bg-astera-page px-5 py-10 text-astera-ink">
+        <section className="mx-auto max-w-lg rounded-xl border border-astera-border bg-astera-surface p-6 sm:p-8">
+          <p className="text-sm font-semibold text-astera-service">Astera 會員</p>
           <h1 className="mt-2 text-2xl font-semibold">登入後建立會員資料</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-astera-secondary">
             目前會員帳號使用 Google 登入。請補齊聯絡資訊，方便訂單、付款與配送聯繫。
           </p>
           <button
             type="button"
             onClick={() => void signInWithGoogle()}
-            className="mt-6 h-11 w-full bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+            className="mt-6 min-h-11 w-full rounded-lg bg-astera-brand px-4 text-sm font-semibold text-white hover:bg-astera-ink"
           >
             使用 Google 登入
           </button>
-          {authError ? <p className="mt-3 text-sm text-red-700">{authError}</p> : null}
+          {authError ? <p role="alert" className="mt-3 text-sm text-red-700">{authError}</p> : null}
         </section>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-8 text-slate-950 sm:py-12">
+    <main className="min-h-dvh bg-astera-page px-5 py-8 text-astera-ink sm:py-12">
       <section className="mx-auto max-w-2xl">
-        <header className="border-b border-slate-200 pb-5">
-          <p className="text-sm font-semibold text-amber-700">會員帳號</p>
-          <h1 className="mt-2 text-3xl font-semibold">{profile ? "會員資料" : "完成會員資料"}</h1>
-          <p className="mt-2 text-sm text-slate-600">登入帳號：{user?.email}</p>
+        <header className="border-b border-astera-border pb-5">
+          <p className="text-sm font-semibold text-astera-service">會員帳號</p>
+          <h1 className="mt-2 font-serif text-3xl">{profile ? "會員資料" : "完成會員資料"}</h1>
+          <p className="mt-2 text-sm text-astera-secondary">登入帳號：{user?.email}</p>
         </header>
 
-        <form onSubmit={handleSubmit} className="mt-6 grid gap-5 border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <form onSubmit={handleSubmit} className="mt-6 grid gap-5 rounded-xl border border-astera-border bg-astera-surface p-6 sm:p-8">
           <div className="grid gap-4 sm:grid-cols-2">
             <ProfileField
               id="lastName"
@@ -249,13 +266,13 @@ export default function MemberProfilePage() {
           />
 
           {message ? (
-            <p role="status" className="text-sm text-slate-700">{message}</p>
+            <p role="status" aria-live="polite" className="text-sm text-astera-service">{message}</p>
           ) : null}
 
           <button
             type="submit"
             disabled={saving}
-            className="h-11 bg-slate-950 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="min-h-11 rounded-lg bg-astera-brand px-5 text-sm font-semibold text-white hover:bg-astera-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? "儲存中..." : "儲存會員資料"}
           </button>
@@ -291,7 +308,7 @@ function ProfileField({
   const errorId = `${id}-error`;
 
   return (
-    <label htmlFor={id} className="grid gap-2 text-sm font-medium text-slate-800">
+    <label htmlFor={id} className="grid gap-2 text-sm font-medium text-astera-ink">
       {label}
       <input
         id={id}
@@ -304,7 +321,7 @@ function ProfileField({
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 border border-slate-300 bg-white px-3 text-base outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100"
+        className="min-h-11 rounded-lg border border-astera-border bg-astera-surface px-3 text-base outline-none focus:border-astera-brand focus:ring-2 focus:ring-astera-brand-soft"
       />
       {error ? <span id={errorId} className="text-sm font-normal text-red-700">{error}</span> : null}
     </label>
@@ -313,7 +330,7 @@ function ProfileField({
 
 function ProfilePageMessage({ text }: { text: string }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-5 text-slate-700">
+    <main className="grid min-h-dvh place-items-center bg-astera-page px-5 text-astera-secondary">
       <p>{text}</p>
     </main>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
 import { RouteFocusManager } from "@/components/accessibility/RouteFocusManager";
 import "./globals.css";
 
@@ -20,6 +21,7 @@ export default function RootLayout({
         <a className="skip-link" href="#main-content">跳至主要內容</a>
         <AuthProvider>
           <div className="flex min-h-dvh flex-col">
+            <StorefrontHeader />
             <RouteFocusManager>{children}</RouteFocusManager>
             <StorefrontFooter />
           </div>

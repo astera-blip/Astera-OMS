@@ -12,7 +12,7 @@ export function ProductCoverImage({
 }) {
   if (!image) {
     return (
-      <div className="flex aspect-[4/3] items-center justify-center rounded-2xl bg-gradient-to-br from-amber-50 to-slate-100 px-4 text-center text-sm text-slate-500">
+      <div className="flex aspect-[4/5] items-center justify-center rounded-2xl bg-gradient-to-br from-amber-50 to-slate-100 px-4 text-center text-sm text-slate-500">
         {productName}
         <br />
         圖片準備中
@@ -20,13 +20,12 @@ export function ProductCoverImage({
     );
   }
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100">
+    <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-slate-100">
       <Image
         src={image.url}
         alt={image.altText || productName}
         fill
         priority={priority}
-        unoptimized
         sizes="(max-width: 768px) 100vw, 420px"
         className="object-cover"
       />

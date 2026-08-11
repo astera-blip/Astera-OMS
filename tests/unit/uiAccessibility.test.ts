@@ -15,6 +15,29 @@ describe("shared UI accessibility contract", () => {
     expect(layout).toContain("min-h-dvh");
   });
 
+  it("defines the approved Astera visual tokens and remaps legacy layout utilities", () => {
+    const css = read("src/app/globals.css");
+
+    for (const token of [
+      "--astera-page: #F7F3F2",
+      "--astera-surface: #FFFFFF",
+      "--astera-ink: #20242B",
+      "--astera-border: #DED7D6",
+      "--astera-secondary: #6C6B70",
+      "--astera-brand: #6E4E64",
+      "--astera-brand-soft: #E7DDDF",
+      "--astera-service: #466060",
+      "--astera-campaign: #F8C7CC",
+      "--astera-catalog: #81A684",
+    ]) {
+      expect(css, token).toContain(token);
+    }
+
+    expect(css).toContain('[class~="bg-slate-50"]');
+    expect(css).toContain('[class~="bg-amber-400"]');
+    expect(css).toContain("min-height: 100dvh");
+  });
+
   it("announces checkout status and prevents duplicate order submission", () => {
     const cart = read("src/components/storefront/CartBoard.tsx");
     expect(cart).toContain("placingOrder");
@@ -41,8 +64,6 @@ describe("shared UI accessibility contract", () => {
       "recipientName",
       "recipientPhone",
       "shippingMethod",
-      "shippingAddress",
-      "shippingStoreInfo",
       "acceptedLegalTerms",
       "acceptedSupplementRule",
     ]) {
@@ -51,7 +72,27 @@ describe("shared UI accessibility contract", () => {
     }
     expect(cart).toContain('autoComplete="name"');
     expect(cart).toContain('autoComplete="tel"');
-    expect(cart).toContain('autoComplete="street-address"');
+    expect(cart).toContain('value="seven_eleven"');
+    expect(cart).not.toContain("shippingStoreInfo");
+    expect(cart).not.toContain("family_mart");
+    expect(cart).not.toContain("宅配地址");
+  });
+
+  it("exposes a clear Owner payment-account settings entry", () => {
+    const workspace = read("src/app/workspace/page.tsx");
+    const payments = read("src/components/workspace/PaymentAccountsBoard.tsx");
+
+    expect(workspace).toContain("收款帳戶設定");
+    expect(workspace).toContain("/workspace/payments#payment-accounts");
+    expect(payments).toContain('id="payment-accounts"');
+  });
+
+  it("allows selecting multiple payment requests in one report", () => {
+    const payments = read("src/components/storefront/PaymentRequestsBoard.tsx");
+
+    expect(payments).toContain("selectedRequestIds");
+    expect(payments).toContain("paymentRequestIds");
+    expect(payments).toContain('type="checkbox"');
   });
 
   it("keeps compact workspace actions touch friendly", () => {
@@ -60,6 +101,14 @@ describe("shared UI accessibility contract", () => {
     expect(product).not.toContain("px-3 py-1.5 text-xs");
     expect(images).toContain("min-h-11");
     expect(images).toContain('aria-live="polite"');
+  });
+
+  it("keeps dense Variant and Campaign fields from overflowing their grid tracks", () => {
+    const product = read("src/components/workspace/ProductWorkspace.tsx");
+
+    expect(product).toContain('className="grid min-w-0 gap-4 md:grid-cols-2"');
+    expect(product).toContain('className="grid min-w-0 gap-4 lg:grid-cols-2 2xl:grid-cols-3"');
+    expect(product).toContain("min-w-0 w-full rounded-2xl border border-slate-300");
   });
 
   it("blocks Product workspace mutations until the initial catalog load completes", () => {
@@ -82,7 +131,7 @@ describe("shared UI accessibility contract", () => {
   it("places storefront brand text before the large buyer title", () => {
     const home = read("src/app/page.tsx");
 
-    expect(home).toContain('<p className="text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">\n              泰國 GL / 藝人周邊代購');
+    expect(home).toContain('<p className="text-sm font-semibold uppercase tracking-[0.22em] text-astera-brand">\n              泰國 GL / 藝人周邊代購');
     expect(home).toContain('<h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">\n              ASTERA OMS');
     expect(home).not.toContain("/ Aatera");
   });

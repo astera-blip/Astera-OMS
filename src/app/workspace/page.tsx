@@ -3,36 +3,41 @@ import Link from "next/link";
 const cards = [
   {
     href: "/workspace/products",
-    title: "Products",
-    detail: "商品、Variant、Sale Campaign 的本機 CRUD 工作區。",
+    title: "商品與活動 Products",
+    detail: "管理商品、Variant 與販售 Campaign。",
   },
   {
     href: "/workspace/members",
-    title: "Members",
+    title: "會員 Members",
     detail: "會員資料、風險標記與內部備註。",
   },
   {
     href: "/workspace/orders",
-    title: "Orders",
+    title: "訂單 Orders",
     detail: "訂單容器、快照與狀態流轉。",
   },
   {
     href: "/workspace/payments",
-    title: "Payments",
-    detail: "匯款確認、分配與對帳紀錄。",
+    title: "付款 Payments",
+    detail: "收款帳戶設定、匯款確認、分配與對帳紀錄。",
+  },
+  {
+    href: "/workspace/payments#payment-accounts",
+    title: "收款帳戶 Payment Accounts",
+    detail: "設定會員付款回報可選擇的 Astera 收款銀行帳戶。",
   },
 ];
 
 export default function WorkspaceHomePage() {
   return (
     <section className="grid gap-5">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
-          Operations
+      <div className="rounded-xl border border-astera-border bg-astera-surface p-6">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-astera-service">
+          Owner Operations
         </p>
-        <h2 className="mt-2 text-2xl font-semibold">工作區總覽</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          先把商品後台做完整，之後再把會員、訂單與付款一起串成同一套營運流程。
+        <h2 className="mt-2 font-serif text-3xl">工作區總覽</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-astera-secondary">
+          從商品、活動到付款與會員服務，集中處理每日營運工作。
         </p>
       </div>
 
@@ -41,10 +46,10 @@ export default function WorkspaceHomePage() {
           <Link
             key={card.href}
             href={card.href}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+            className="rounded-xl border border-astera-border bg-astera-surface p-5 transition-colors hover:border-astera-brand hover:bg-astera-brand-soft"
           >
             <h3 className="text-lg font-semibold">{card.title}</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{card.detail}</p>
+            <p className="mt-2 text-sm leading-6 text-astera-secondary">{card.detail}</p>
           </Link>
         ))}
       </div>

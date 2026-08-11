@@ -66,4 +66,12 @@ describe("member profile persistence diagnostics", () => {
 
     expect(routeSource).toContain('console.error("member_profile_save_failed", { message })');
   });
+
+  it("preserves the original storefront route through profile completion", () => {
+    const authSource = readFileSync("src/components/auth/AuthProvider.tsx", "utf8");
+    const pageSource = readFileSync("src/app/account/profile/page.tsx", "utf8");
+    expect(authSource).toContain("returnTo");
+    expect(pageSource).toContain("useSearchParams");
+    expect(pageSource).toContain("router.replace(returnTo)");
+  });
 });

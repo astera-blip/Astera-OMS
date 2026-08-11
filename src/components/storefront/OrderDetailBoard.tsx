@@ -234,7 +234,6 @@ export function OrderDetailBoard({ orderId }: Props) {
           <p>電話：{order.order.recipientPhone}</p>
           <p>配送方式：{shippingMethodLabel(order.order.shippingMethod)}</p>
           {order.order.shippingAddress ? <p className="md:col-span-2">地址：{order.order.shippingAddress}</p> : null}
-          {order.order.shippingStoreInfo ? <p className="md:col-span-2">門市資訊：{order.order.shippingStoreInfo}</p> : null}
         </div>
 
         {paymentRequest ? (
