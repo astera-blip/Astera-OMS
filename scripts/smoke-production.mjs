@@ -3,6 +3,8 @@ import { pathToFileURL } from "node:url";
 export function parseSmokeArgs(argv) {
   const baseIndex = argv.indexOf("--base-url");
   const value = baseIndex >= 0 ? argv[baseIndex + 1] : "";
+  const productIndex = argv.indexOf("--product-id");
+  const productId = productIndex >= 0 ? argv[productIndex + 1] : "";
   let url;
   try {
     url = new URL(value);
@@ -12,13 +14,16 @@ export function parseSmokeArgs(argv) {
   if (url.protocol !== "https:") {
     throw new Error("https_base_url_required");
   }
-  return { baseUrl: url.origin };
+  if (productIndex >= 0 && (!productId || productId.startsWith("--"))) {
+    throw new Error("invalid_product_id");
+  }
+  return { baseUrl: url.origin, productId: productId || undefined };
 }
 
-export async function runAnonymousSmoke(baseUrl, fetcher = fetch) {
+export async function runAnonymousSmoke(baseUrl, fetcher = fetch, productId) {
   const paths = ["/", "/products", "/terms", "/privacy"];
   const checks = [];
-  let productPath;
+  let productPath = productId ? `/products/${encodeURIComponent(productId)}` : undefined;
   for (const path of paths) {
     const response = await fetcher(new URL(path, baseUrl), {
       credentials: "omit",
@@ -26,7 +31,7 @@ export async function runAnonymousSmoke(baseUrl, fetcher = fetch) {
     });
     const body = await response.text();
     checks.push({ path, status: response.status, ok: response.ok });
-    if (path === "/products") {
+    if (path === "/products" && !productPath) {
       productPath = body.match(/href=["'](\/products\/[^"'?#]+)["']/)?.[1];
     }
   }
@@ -49,8 +54,8 @@ export async function runAnonymousSmoke(baseUrl, fetcher = fetch) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const { baseUrl } = parseSmokeArgs(process.argv.slice(2));
-    const report = await runAnonymousSmoke(baseUrl);
+    const { baseUrl, productId } = parseSmokeArgs(process.argv.slice(2));
+    const report = await runAnonymousSmoke(baseUrl, fetch, productId);
     console.log(JSON.stringify(report, null, 2));
     if (!report.ok) process.exitCode = 1;
   } catch (error) {

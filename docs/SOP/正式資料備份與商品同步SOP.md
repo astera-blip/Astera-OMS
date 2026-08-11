@@ -3,8 +3,9 @@
 ## 目的與安全邊界
 
 本 SOP 用於 Astera OMS production 商品重新儲存與
-`productsInternal → productsPublic` 同步。現有自動化工具全為唯讀；
-任何寫入、遷移或 Rules 部署都必須另行核准。備份只能放在 Git 已忽略的
+`productsInternal → productsPublic` 同步。`production:products:audit` 為唯讀；
+`production:products:sync --apply` 是唯一正式 projection 寫入工具，任何寫入、
+遷移或 Rules 部署都必須另行核准。備份只能放在 Git 已忽略的
 `.local-backups/`，不得提交到 repository。
 
 ## 1. 執行前確認
@@ -49,9 +50,11 @@ npm run production:products:audit -- --project astera-oms-prod --confirm-project
 1. 部署已通過 CI 的 Vercel release，先驗證 OIDC Admin API。
 2. 在 development 部署 Firestore / Storage Rules 並完成匿名公開讀與私有拒絕。
 3. 經 Owner 核准後部署 production Rules。
-4. 逐項透過正式 Owner Product API 重新儲存商品；不得由 Client SDK
+4. 取得 Owner 明確核准後執行：
+   `npm run production:products:sync -- --project astera-oms-prod --confirm-project astera-oms-prod --apply`。
+   工具會先建立 `.local-backups/` 備份，再以 sanitized projection 重新儲存；不得由 Client SDK
    直接寫入，也不得手動修改 SKU。
-5. 每一小批後重新執行 product audit；結果全綠才繼續下一批。
+5. 同步後重新執行 product audit；結果全綠才繼續下一批。
 6. 完成後執行 anonymous production smoke 與桌機、Pixel 7、實機驗收。
 
 ## 5. Smoke

@@ -11,7 +11,9 @@ import {
   parseProductionArgs,
 } from "../../scripts/audit-product-projection.mjs";
 import {
+  buildDesiredPublicProducts,
   buildProjectionFromPublicDocument,
+  buildProjectionSyncPlan,
   parseSyncArgs,
 } from "../../scripts/sync-product-projection.mjs";
 import {
@@ -240,6 +242,59 @@ describe("product projection sync", () => {
     expect(projection).not.toHaveProperty("sku");
     expect(projection).not.toHaveProperty("internalNote");
     expect(projection.variants[0]).not.toHaveProperty("sku");
+  });
+
+  it("derives the sync write set from internal products rather than stale public documents", () => {
+    const desired = buildDesiredPublicProducts([{
+      id: "prod_1",
+      name: "Internal authoritative name",
+      publicDescription: "Current internal description",
+      publishState: "published",
+      sku: "AST-P000001",
+      internalNote: "never public",
+      variants: [{
+        id: "var_1",
+        productId: "prod_1",
+        name: "Default",
+        priceTwd: 500,
+        sku: "AST-P000001-V001",
+      }],
+      campaigns: [],
+      images: [],
+    }]);
+
+    expect(desired).toEqual([{
+      id: "prod_1",
+      name: "Internal authoritative name",
+      publicDescription: "Current internal description",
+      publishState: "published",
+      variants: [{
+        id: "var_1",
+        productId: "prod_1",
+        name: "Default",
+        priceTwd: 500,
+      }],
+      campaigns: [],
+      images: [],
+    }]);
+  });
+
+  it("removes orphan public projections while preserving internal document ids", () => {
+    const plan = buildProjectionSyncPlan(
+      [{
+        id: "prod_1",
+        name: "Internal",
+        publicDescription: "Current",
+        publishState: "published",
+        variants: [],
+        campaigns: [],
+        images: [],
+      }],
+      [{ id: "prod_orphan" }, { id: "prod_1", name: "Stale" }],
+    );
+
+    expect(plan.desiredPublicProducts.map((product: { id: string }) => product.id)).toEqual(["prod_1"]);
+    expect(plan.deletePublicProductIds).toEqual(["prod_orphan"]);
   });
 
   it("keeps the audit script read-only while sync is the only writer", () => {
