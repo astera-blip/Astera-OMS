@@ -1363,3 +1363,24 @@ domain, or change any other Firebase/Vercel setting.
   integration can build the Preview normally. After that Preview is Ready, repeat
   Google login and record the retained Firebase redirect error code or authenticated
   state before creating any new test data.
+
+## 2026-08-11 Stable Preview redirect-login diagnosis
+
+- Git-integrated Preview deployment for `bed5f01` is Ready and is assigned to the
+  existing authorized stable Preview alias. The source changes direct Google sign-in
+  to `signInWithRedirect`, eliminating the mobile popup-flash behaviour. Focused
+  unit, TypeScript, ESLint, Build, secret scan, and diff-check evidence passed
+  before push. Production was not deployed.
+- Retest result: the browser reaches Google account selection, then returns to the
+  Preview application signed out. No Firebase error remains visible and no test
+  account, order, payment, refund, or configuration was created in this retest.
+- Cause established from Firebase's current redirect guidance: Vercel uses a
+  different origin from the Firebase Auth helper. Third-party storage blocking
+  loses the redirect helper session. The documented applicable remedy is a
+  transparent reverse proxy for `/__/auth/` and a same-origin Preview `authDomain`.
+- Next action requiring fresh explicit authorization: modify only Preview to proxy
+  `/__/auth/:path*` transparently to the existing Firebase handler, change only
+  Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` to the stable authorized Preview
+  hostname, deploy Preview, and retest sign-in. Do not modify Production, add a
+  Firebase authorized domain, or start the payment/refund acceptance data flow
+  before the session persists.

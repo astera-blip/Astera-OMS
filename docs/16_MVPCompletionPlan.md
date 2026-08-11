@@ -1300,3 +1300,26 @@ four fresh readbacks pass and are reviewed.
 - Next exact step: obtain explicit GitHub push authorization for
   `codex/production-security-worker`, allow Vercel Git integration to create the
   replacement Preview, and retest authentication before any new test data.
+
+## 2026-08-11 Preview redirect-login root-cause checkpoint
+
+- Commit `bed5f01` removes the mobile-incompatible popup attempt and uses Firebase
+  `signInWithRedirect` directly. The focused unit suite (44 files / 375 tests),
+  TypeScript, ESLint, Build, secret scan, and diff check passed before the commit;
+  the branch was pushed and Vercel produced a Ready Preview. The stable authorized
+  Preview alias was moved to that Ready deployment. Production was not deployed.
+- Browser verification confirms the former popup flash is fixed: Google account
+  chooser opens through the redirect flow. After account selection, however, the
+  app returns to the stable Preview in a signed-out state. No error, test data,
+  Firebase configuration, or Production resource was changed during this retest.
+- Root cause is the cross-origin Firebase redirect helper: the Vercel app uses a
+  Firebase-hosted `authDomain`, and browsers that block third-party storage cannot
+  retain the redirect helper session. Firebase documents a transparent reverse
+  proxy for `/__/auth/` plus same-origin `authDomain` as the applicable solution
+  when the app is hosted outside Firebase Hosting.
+- Exact next action requires separate authorization because it changes Preview
+  configuration: add a transparent Vercel rewrite for `/__/auth/:path*` to the
+  Firebase Auth handler and change only the Preview Firebase `authDomain` to the
+  already-authorized stable Preview hostname. Then deploy Preview only and repeat
+  the sign-in test. Do not change Production, create a new authorized domain, or
+  create new payment/refund test records until authenticated state persists.
