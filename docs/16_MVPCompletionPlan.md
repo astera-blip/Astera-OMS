@@ -1,6 +1,6 @@
 # Astera OMS MVP Completion Plan
 
-Last updated: 2026-07-30 Asia/Taipei
+Last updated: 2026-08-02 Asia/Taipei
 
 ## Execution Rules
 
@@ -15,27 +15,65 @@ Last updated: 2026-07-30 Asia/Taipei
 - Branch: `codex/mvp-completion`.
 - Pre-existing dirty file: `AGENTS.md`.
 - Local baseline from handoff: lint, typecheck, build, unit tests, Firestore rules tests, and Playwright smoke tests pass.
-- Known production gates: Firebase login, Blaze upgrade, Storage buckets, Vercel OIDC, `asteratw.com` purchase, DNS, Resend verified domain.
+- Known production gates: Firebase CLI/ADC verification, Vercel OIDC environment verification, `asteratw.com` purchase, DNS, Resend verified domain, production data sync, and device acceptance. Blaze and the Production Storage bucket are now completed.
 
 ## Batch Status
 
 | Batch | Status | Notes |
 | --- | --- | --- |
 | 0 Safety baseline | Partially complete | Branch created. External backup/deploy actions blocked on Firebase login and console access. |
-| 1 Server trust boundary and rules | Locally complete / deployment pending | Product/classification/profile/cart/content/member-note/order/payment/cancellation/legal/notification business writes now use protected APIs or Admin-only seed paths; Client SDK writes are denied by local rules. Production deployment is pending external Firebase access. |
-| 2 Product, SKU, Campaign | Core locally complete / UI clarity batch pending / migration pending | Owner Product/Variant/Campaign API and transaction SKU assignment are complete. Approved bilingual labels, classification tabs, copy-ID/SKU controls, classification server IDs, and help text are pending implementation. Formal production product re-save/migration remains pending external Firebase access. |
+| 1 Server trust boundary and rules | Firestore + Storage deployed | Product/classification/profile/cart/content/member-note/order/payment/cancellation/legal/notification business writes now use protected APIs or Admin-only seed paths; Firestore and Storage Rules are deployed to `astera-oms-prod`. |
+| 2 Product, SKU, Campaign | Local implementation complete / migration pending | Owner Product/Variant/Campaign API, transaction SKU assignment, bilingual labels, classification tabs, copy-ID/SKU controls, classification server IDs, help text, and Campaign UTC+8 handling are implemented. Formal production product re-save/migration remains pending external Firebase access. |
 | 3 Checkout split and consent | In progress | Checkout UI/API require consent, split cart by Campaign, create multiple orders/payment requests/consents, and assign `AST-YYYYMMDD-0001` order numbers. |
 | 4 Payments and cancellation | In progress | Payment report, owner confirmation, payment reversal, unpaid direct cancellation, paid cancellation review with refund adjustment, and overpayment reporting UI are implemented locally. Auth emulator owner/member Playwright harness is now available; detailed checkout/payment/cancellation E2E flows still need to be added. |
-| 5 Storage images | In progress / bucket pending | Product image Storage rules and emulator tests are complete for the public product image namespace. Actual bucket creation/upload UI still requires Blaze bucket creation. |
+| 5 Storage images | Rules/bucket deployed; live upload pending | Product image upload UI/API, Storage rules, metadata registration, projection fields, and emulator tests are complete. The Firebase default bucket is linked in `asia-east1`; live upload and real-device image acceptance remain pending. |
 | 6 Homepage, content, Resend | In progress | Content write API is complete. Formal Astera consumer copy and Resend DNS/email are still pending. |
+| 7 Campaign timezone and Member Dashboard skeleton | Local implementation complete | Campaign datetime-local now round-trips as Taipei UTC+8; `/members` has a visual-only dashboard skeleton with no fake operational data. |
+| 8 Receiving bank account recognition | Local implementation complete / production setup pending | Owner API/UI manages active/inactive Astera receiving accounts; member payment reports select an active account and store a masked snapshot. Production account setup remains an Owner operation. |
+| 9 Visual system migration | Local implementation complete / device and Production visual gate pending | Approved Astera tokens are defined globally, legacy slate/amber utilities render through the new tokens, and the full authenticated emulator suite remains green. Real-device and Production visual acceptance remain pending. |
 
 ## External Gates
 
 - Buy `asteratw.com`.
-- Enable Blaze on dev and production Firebase projects.
-- Create Storage buckets in `asia-east1`.
-- Configure Vercel OIDC to GCP Workload Identity.
+- Enable Blaze on dev and production Firebase projects (both confirmed; Development and Production use billing account `01B794-2E6BD7-33D714`).
+- Create Storage buckets in `asia-east1` (both default buckets linked and Rules deployed).
+- Configure and verify Vercel OIDC to GCP Workload Identity in the deployed Preview/Production runtime.
 - Verify `updates.asteratw.com` in Resend.
+
+## 2026-08-02 Continuation Record
+
+- Confirmed `Member Preorder` is explicitly out of scope for this release; no Sale Type, permission path, or checkout behavior was added.
+- Added `src/lib/product/campaignDates.ts` and UTC+8 Campaign input/read-back conversion. Product and storefront Campaign date displays now share the same Taipei-time formatter.
+- Added a visual-only Member Dashboard skeleton at `/members`; it contains no fabricated tasks, notifications, or business data.
+- Added the approved Astera visual Token contract in `src/app/globals.css`; the public home, Brand Center, and Workspace shell now use explicit `astera-*` tokens, while remaining legacy utilities render through a compatibility mapping without changing business behavior.
+- Added a UI accessibility regression test for all approved tokens, legacy utility mapping, and `min-h-screen` → `100dvh` behavior.
+- Production read-only checks: `astera-oms-prod` exists as project `1032606875618`; Vercel OIDC pool/provider are `ACTIVE`, and `astera-vercel-admin` has the expected workload identity binding plus `datastore.user`, `firebaseauth.viewer`, and `storage.objectViewer` roles.
+- Production gate recheck: `billingEnabled=true`; Firebase default bucket `gs://astera-oms-prod.firebasestorage.app` is linked in `ASIA-EAST1`; DNS lookups for `asteratw.com`, `www.asteratw.com`, and `updates.asteratw.com` still require external verification. Firebase CLI is authenticated as `ting1811tin@gmail.com`; ADC must still be rechecked with the same Production-authorized account.
+- `npm run production:env:check -- --strict` is now the release-gate form; it exits non-zero when any required Production variable is missing, while the non-strict form remains a diagnostic report.
+- Current anonymous smoke against `https://astera-oms.vercel.app` is not release-ready: `/` and `/products` are 200, while `/terms` and `/privacy` are 404 and no public product detail is discoverable. The URL is serving an older deployment.
+- Firestore Rules deployment: dry-run passed and `node scripts/run-firebase.mjs deploy --project astera-oms-prod --only firestore:rules` completed successfully.
+- Storage default bucket creation completed through the official Firebase Storage API with `location=asia-east1`; `node scripts/run-firebase.mjs deploy --project astera-oms-prod --only storage` compiled and released `storage.rules` successfully.
+- Combined release-gate redeploy `node scripts/run-firebase.mjs deploy --project astera-oms-prod --only firestore:rules,storage` completed successfully; both rulesets were compiled and released (already-up-to-date versions were reused).
+- Read-only Production product audit was attempted with `npm run production:products:audit -- --project astera-oms-prod --confirm-project astera-oms-prod` and returned `7 PERMISSION_DENIED`; ADC must be re-authenticated as a Production-authorized account before the audit can run.
+- After ADC re-authentication as `ting1811tin@gmail.com`, the read-only Production product audit passed: `internalCount=2`, `publicCount=2`, `issues=[]`. No production write or migration was performed in this step.
+- Added `scripts/sync-product-projection.mjs` and `production:products:sync`. With Owner confirmation, it created the ignored backup `.local-backups/production-product-sync-2026-08-02T03-11-00-683Z/product-projection-backup.json`, rewrote 2 sanitized `productsPublic` documents, and completed a post-sync audit with `internalCount=2`, `publicCount=2`, `issues=[]`.
+- Post-sync verification passed: TypeScript, ESLint, Unit (`28 files / 145 tests`), Production build (33 routes), and `git diff --check`.
+- Production smoke recheck remains red on the current Vercel alias: `/` and `/products` return 200, but `/terms` and `/privacy` return 404 and no public product detail is discoverable; the alias still serves an older deployment and must be redeployed before release.
+- Added `src/lib/payment/bankAccounts.ts`, `/api/payment-accounts`, and `/api/workspace/payment-accounts`.
+- Added Owner payment workspace management for Astera receiving accounts. Accounts are soft-disabled, never hard-deleted, and expose only bank/branch/name/last-five metadata.
+- Extended `/api/payments` and `LocalPayment` with optional receiving account ID plus immutable masked account snapshot. When active accounts exist, new reports must select one; legacy environments with no configured account remain backward compatible.
+- Added member payment report account selector and Firestore Rules coverage proving `paymentAccounts` is server-only.
+- Added `tests/unit/paymentAccounts.test.ts`; fresh Unit verification: 28 files / 142 tests passed. Fresh typecheck and lint passed.
+
+## Next Exact Steps
+
+1. Re-run ADC login/check with `ting1811tin@gmail.com`, then run the strict Vercel Production environment check against the deployed Preview/Production runtime.
+2. Run the read-only production projection audit and, after its report is reviewed, perform the approved `productsInternal → productsPublic` synchronization.
+3. Configure real production receiving-account records only after the audit, then run the production checklist including live image upload and device acceptance.
+
+Validation note: full Firestore + Storage Rules passed (30 tests), regular Playwright passed (16 passed / 18 expected emulator skips), and the full Auth／Firestore／Storage emulator suite passed 31/34 with 3 expected auth-gate skips. Unit now passes 28 files / 142 tests after the explicit home/Brand/Workspace token migration. Secret scan passed and production dependency audit reports 0 high-severity vulnerabilities.
+
+Fixture correction: all legacy payment fixtures now include an explicit `receivingPaymentAccountId`; Unit and Rules suites were rerun successfully after the update.
 
 ## Completed Local Work
 
@@ -982,3 +1020,276 @@ and verify profile, cart, and Owner Product writes.
 - The test Product and its Campaign were saved as `Archived` through the Owner Workspace, never deleted. A fresh public `/products` read showed only existing `92帽子`; the exact test Product is no longer public.
 - Retained intentionally: Order, OrderItem, PaymentRequest, ConsentRecord, Audit Log, and any Checkout notification-event record. They are immutable operational evidence and must not be deleted to make a test look clean.
 - All acceptance criteria in `docs/superpowers/specs/2026-07-30-reversible-checkout-test-design.md` are met, except non-Owner authorization and Campaign datetime input persistence, which were explicitly out of this run's scope / recorded follow-up. The next independent work item is the production Firestore Rules deployment checklist, then non-Owner emulator / Preview authorization coverage.
+
+## 2026-08-02 上線收尾：Vercel redeploy 與 Production smoke
+
+### Completed
+
+- Vercel Production was redeployed from `codex/mvp-completion` with
+  `npx vercel --prod --yes`; the deployment reached Ready and the alias remains
+  `https://astera-oms.vercel.app`.
+- Live browser verification after Client Firestore hydration displayed the
+  published Production `92帽子` product, campaign, price and detail link.
+- `scripts/smoke-production.mjs` now accepts `--product-id` for hydrated
+  storefront pages. The explicit Production check passed all five routes:
+  `/`, `/products`, `/terms`, `/privacy`, and `/products/prod_002`.
+- Focused smoke Unit tests passed 16/16. Firebase Rules Emulator passed 30/30;
+  TypeScript, ESLint and secret scan passed. Production product projection
+  remains audited clean at two internal / two public products with zero issues.
+
+### External blockers and exact next steps
+
+1. Vercel Production has Firebase/OIDC variables and the two Resend address
+   variables, but no `RESEND_API_KEY`. Add it as a Production Secret only after
+   Resend domain verification, then redeploy and perform actual order and
+   payment-confirmation delivery tests.
+2. `asteratw.com`, `www.asteratw.com`, and `updates.asteratw.com` currently
+   return NXDOMAIN and no domains are attached to the Vercel project. Register
+   or connect the domain, configure the Vercel records and `www` redirect,
+   add Firebase Authorized Domains, then add Resend SPF/DKIM records.
+3. A formal Production payment account cannot be created without Owner-provided
+   bank name, branch, account name and last five digits. Enter it once in
+   `/workspace/payments`; never send a full account number in chat.
+4. Production image upload is code- and Rules-ready, but needs an Owner session
+   and a real JPEG/PNG/WebP file (max 5 MB, max 8 per product) to verify upload,
+   ordering, alt text, projection and responsive rendering.
+5. Final member/Owner, non-Owner/Helper, desktop, Pixel 7 and physical-phone
+   acceptance remains pending until these external gates are cleared.
+
+## 2026-08-02 外部上線關卡再次檢查
+
+- DNS read-only check: `asteratw.com`, `www.asteratw.com`, and
+  `updates.asteratw.com` are still NXDOMAIN.
+- `npx vercel domains ls` reports zero domains attached to the Vercel project.
+- Vercel Production variable names include Firebase/OIDC and
+  `RESEND_FROM_EMAIL` / `RESEND_REPLY_TO_EMAIL`; `RESEND_API_KEY` is absent.
+- Payment account and image upload remain intentionally Owner-operated because
+  they require real bank metadata and an approved image file. No sensitive
+  values were entered or transmitted by automation.
+- Anonymous responsive smoke passed at 390×844, 768×900 and 1365×900 with no
+  horizontal overflow. Authenticated member/Owner and physical-device checks
+  remain pending.
+
+## 2026-08-02 Production `/payments` runtime fix
+
+- Production member navigation to `/payments` could render the Next error page
+  after a PaymentRequest existed. Root cause was `listMemberPaymentRequests()`
+  returning Firestore Timestamp objects; `PaymentRequestsBoard` rendered
+  `request.createdAt` directly, causing React error #31.
+- Added a red-green regression in `tests/unit/paymentRepository.test.ts`, then
+  normalized `createdAt`, `dueAt` and `updatedAt` at the payment repository
+  boundary for both Firebase `toDate()` and structural `{ seconds, nanoseconds }`
+  timestamps. Owner payment-request reads use the same normalization.
+- Verification: focused test 1/1, full Unit 29 files / 148 tests, TypeScript,
+  ESLint, Build and Production smoke 5/5 passed.
+- Deployed to Production with Vercel; `/payments` now returns HTTP 200 and the
+  anonymous page renders without browser errors. Authenticated payment-report
+  submission still requires a signed-in member session for final confirmation.
+
+## 2026-08-02 收款帳戶、付款複選與配送方式更新
+
+- Workspace dashboard now has an explicit `收款帳戶設定` card linking to
+  `/workspace/payments#payment-accounts`; the Owner-only panel remains protected
+  and stores only bank name, branch, account name and last five digits.
+- Member `/payments` now uses checkbox selection for multiple PaymentRequests.
+  One report sends the transfer amount to the protected Server API, which creates
+  linked pending-review Payment records with a shared `paymentGroupId` and keeps
+  each PaymentRequest independently confirmable/auditable.
+- Checkout now offers only `7-Eleven 賣貨便`. New orders no longer collect or
+  persist address/store fields; legacy order records remain readable for history.
+- Production browser verification after deployment showed the disabled single
+  delivery option and removed store-information field. Full multi-request
+  reporting still needs an authenticated Member session and real transfer data.
+
+## 2026-08-02 付款複選超額保留修正
+
+- 修正多筆付款請求回報的超額金額遺失問題：Server 將無法分配到請求餘額的
+  金額保留在同一 `paymentGroupId` 的最後一筆 Payment，Owner 確認後會正確
+  寫入 `unallocatedAmountTwd`，不建立 Wallet。
+- 驗證：付款／取消流程 Playwright（桌機、手機）2/2 通過；付款 Unit
+  8/8 通過。完整 Unit、Rules、TypeScript、ESLint、Build 與 Production
+  smoke 的既有綠燈結果保留。
+- 修正已部署至 `https://astera-oms.vercel.app`；Production smoke 5/5
+  通過，`/workspace`、`/workspace/payments`、`/payments`、`/cart`、`/brand`
+  皆回傳 HTTP 200。
+
+## 2026-08-02 ProductWorkspace 欄位溢出修正
+
+- 修正 Variant／Campaign 在窄欄位或平板寬度下 label 與 input/select 黏在一起的
+  問題。欄位網格、卡片與控制項加入 `min-w-0`／`w-full`，讓雙語 label 正常
+  換行且控制項不超出自己的 grid track。
+- UI contract 14/14、Workspace UI Playwright 桌機／手機 4/4、TypeScript、
+  ESLint、Build 與 Production smoke 5/5 通過；修正已部署 Production。
+
+## 2026-08-02 會員匯款帳戶與訪客登入閘門
+
+- 新增 `memberPaymentAccounts` Server-only Collection：會員最多 5 筆、完整帳號只在 Server 保存、前端只收到遮罩值；封存採會員申請／Owner 核准，不實體刪除。
+- `POST /api/payments` 現在要求並保存會員來源帳戶與 Astera 收款目的地帳戶的遮罩快照；建立訂單前不攔截帳戶，付款回報時才驗證。
+- 新增 `/account/bank-accounts`、Owner 封存申請審核面板與付款回報來源帳戶選擇。
+- 公開商品列表／詳情加入購物車前要求 Google 登入；Checkout Server 驗證會員資料完整性；商品列表改響應式 Grid、商品圖片 4:5，並加入公開 Header。
+- 驗證：Unit 36 files／169 tests、Rules 31 tests、Emulator Playwright 31 passed／3 skipped、公開 smoke 桌機／手機 16 passed；TypeScript、ESLint、Build 與 secret scan 通過。Production 部署與真人帳戶驗收尚待下一批。
+
+## 2026-08-02 Preview 真人驗收準備
+
+- 以目前 `codex/mvp-completion` 建立 Vercel Preview：
+  `https://astera-6pgj8iggp-astera-oms.vercel.app`；Vercel build 完成，路由包含
+  `/account/bank-accounts`、會員帳戶 API、付款回報與 `/terms`／`/privacy`。
+- 直接 HTTP smoke 收到 Vercel SSO 302，確認 Preview 專案啟用存取保護；未以
+  `--public` 或其他方式繞過保護。
+- In-app browser 可載入 Preview，但 Google `signInWithPopup` 未開出可操作的登入
+  視窗；會員新增／封存／付款回報真人驗收尚未開始，Production 部署刻意暫停。
+- 下一精確步驟：使用者在自己的瀏覽器開啟上述 Preview 並完成 Google 登入，回覆
+  「Preview 已登入」；接著驗收 `/account/bank-accounts` 新增一筆、提出封存申請、
+  Owner 核准，再於 `/payments` 選兩筆付款請求提交一次付款回報。驗收通過後才執行
+  `npx vercel --prod --yes`。
+
+## 2026-08-02 整站改版與台新對帳第一批
+
+- 新增設計規格與執行計畫：
+  `docs/superpowers/specs/2026-08-02-astera-storefront-redesign-design.md`、
+  `docs/superpowers/plans/2026-08-02-astera-storefront-redesign.md`。
+- 新增 `/checkout` presentation route；購物車新增 `前往結帳` 入口，仍沿用既有
+  `POST /api/checkout`、Campaign 拆單、Consent 與冪等邏輯，建立訂單不檢查銀行帳戶。
+- 公開 Header、首頁、Campaign／商品推薦、商品 Grid、商品列表與商品詳情已開始套用
+  新版品牌層級、4:5 圖片、桌面／平板／手機欄數與買家文案。
+- 讀取使用者提供的 `D:\ting1\Desktop\code\main.py` 與台新交易明細格式；新增
+  `src/lib/reconciliation/taishin.ts`、Owner-only
+  `/api/workspace/reconciliation/taishin` 與 Workspace 對帳面板。解析規則為：第二列
+  標題、備註最長連續數字末五碼、金額整數化、金額＋末五碼比對；原始檔不保存，
+  不覆寫 Payment／Allocation／Audit Log。
+- 使用 ExcelJS 取代有高風險公告的 SheetJS `xlsx`；`npm audit --omit=dev --audit-level=high`
+  現在無 high severity（仍有既有／轉移的 moderate advisory，未使用 `--force`）。
+- 驗證：Unit 39 files／178 tests、TypeScript、ESLint、Build 通過；完整 Playwright 與
+  Preview 真人驗收尚未因登入阻塞而重跑。
+
+### 2026-08-02 改版驗收修正
+
+- 會員資料、銀行帳戶、付款回報與訂單頁進一步套用新版 page／surface／service
+  Token、`min-h-dvh`、44px 控制項與 aria 狀態；付款回報仍只在付款回報階段要求
+  選擇會員匯款帳戶與 Astera 收款帳戶。
+- Owner ProductWorkspace 的 Variant／Campaign 欄位改為較寬的 responsive grid，並
+  讓雙語 label 可換行，避免欄位黏在一起；Product ID／SKU 維持唯讀並提供複製。
+- 公開驗收先發現 `/brand` 500 與過期頁面內容，確認來源為舊的 Next.js server
+  process；清理舊程序後重新啟動，最新版 `/brand`、`/cart`、`/checkout` 均正常。
+- 驗證結果：公開 Playwright 桌機／Pixel 7 14 passed／2 skipped；Firebase Emulator
+  Playwright 31 passed／3 skipped；Unit 39 files／178 tests、Firestore／Storage Rules
+  31 tests、TypeScript、ESLint、Build 全部通過。
+- 尚待：Owner Workspace 各子頁完整 Token 遷移、Firebase Emulator authenticated E2E、
+  Rules／Production smoke、正式 Preview／Production 部署與真人驗收。
+
+### 2026-08-03 Preview／Production 部署與驗收
+
+- Preview：`https://astera-isf54e52l-astera-oms.vercel.app`；主要公開路由均通過頁面驗收。
+- Production：`https://astera-icaqtdzea-astera-oms.vercel.app`，已 alias 至
+  `https://astera-oms.vercel.app`。
+- Production smoke 使用正式商品 `prod_002` 通過 5/5；Production 公開 Playwright 桌機／
+  Pixel 7 通過 14 passed／2 skipped。
+- 首次 smoke 未指定商品 ID 而回報 `public_product_not_found`，補入 `prod_002` 後通過，
+  確認是測試參數問題，不是網站路由錯誤。
+- 新分頁逐一檢查 Production 主要路由，未發現 404、500 或新的 Console error。真人 Google
+  登入、付款回報、Owner 圖片／對帳與 Resend 仍需外部帳號與服務驗收。
+
+### 2026-08-03 Vercel Node runtime 檢查
+
+- `vercel project inspect astera-oms` 確認 Project Node.js Version 已是 `24.x`。
+- Repository `package.json` 已要求 `>=24.18.0 <25`；目前 Vercel build image 實際回報
+  `v24.15.0`，因此出現 EBADENGINE warning，但建置仍成功。
+- Vercel Project Settings／CLI 目前只提供 major Node 版本選擇，不能直接指定
+  `24.18.0` minor 版本；未將設定降級或改成不符合正式需求的範圍。待 Vercel 24.x
+  build image 更新至 24.18+ 後重新部署並確認 warning 消失。
+
+## 2026-08-03 銀行帳號資料最小化執行補充
+
+- [x] Task 1：正規化與 HMAC 身分服務（review clean）。
+- [x] Task 2：會員帳戶移除新明文保存、碰撞通知與封存流程（review clean；consumer baseline Minor deferred）。
+- [x] Task 3：付款指紋快照、Client identity 不信任、legacy manual-review fallback 與 Owner UI 快照顯示完成；commit `96dbc7e..39d19b2`，Task 3 獨立複審通過。
+- [x] Task 4：14 天退款帳號加密暫存、歷史版本 HMAC 驗證、三層節流、過期重驗、Owner reveal、一般 API 私密欄位清除、付款來源拆分與 refunded 交易式密文刪除完成；commits `9433a77..3e09b8c`，三輪 scoped re-review 最終 APPROVED。
+- [x] 舊 `paymentAccountSelectionApi.test.ts` source-contract 名稱已於 `dd2d8e5` 修正；完整 Unit 現為 42 files／219 tests 全通過。
+- [ ] Task 5–8：Task 4 gate 已解除，依序接續執行。Task 4 deferred Minor：over-limit mismatch 目前仍會先執行 KMS 驗證／scope hash，需在後續 rate-limit 工作加入 KMS 前置限流以控制成本。
+
+### 2026-08-04 銀行帳號退款安全 Task 5 完成
+
+- [x] Task 5：Firestore Rules／通知／Audit 與退款限流收緊，commits `22db1c5..7433ec3`，scoped re-review APPROVED（Critical 0、Important 0）。
+- `cancellationRequests`、`memberPaymentAccounts`、`notificationEvents`、`auditLogs` 已對所有 Client SDK 角色 deny-all；匿名／Member／Helper／Owner 四角色 × 四個 protected collections read/write matrix 已於 Rules 32 tests 驗證，`productsPublic` 公開讀取保留。
+- Owner 通知、取消與 Audit 顯示改走 custom-claim Server API strict allowlist；retry response 不再回傳 provider diagnostics，internal rate-limit reservation 不出現在 Audit API。
+- 退款 mismatch 在 HMAC／KMS／加密前以 transaction reservation 限流；成功刪 reservation，失敗寫入安全 limiter 與 immutable audit，60 秒殘留 reservation 到期清理。
+- 驗證：Rules 2 files／32 tests、focused Unit 4 files／43 tests、完整 Unit 43 files／242 tests、TypeScript、zero-warning ESLint 通過。
+- [ ] Task 6：需將穩定且至少 32 字元的 `REFUND_RATE_LIMIT_HASH_SECRET` 納入 Production secret、環境檢查與部署文件，再處理 KMS／金鑰治理與月度報告。
+
+### 2026-08-04 Task 6 baseline 決策已解除
+
+- [x] 已提交安全可隔離部分：commit `81cb342`，新增 member account fingerprint migration、退款暫存 cleanup、fingerprint key usage 月報三個腳本與 migration tests。
+- 驗證：focused Unit 2 files／26 tests、完整 Unit 44 files／252 tests、TypeScript、ESLint 通過；dry-run 預設唯讀，`--apply` 需 project double-confirmation 與本機 ignored backup，stdout 不印完整帳號、末五碼或 HMAC fingerprint。
+- [x] 使用者已選方案 A；`cbf9648` 正式收錄 `scripts/check-production-env.mjs` 與 `tests/unit/productionScripts.test.ts` 完整 baseline，版本控制阻塞已解除。
+- Task 6 已進入 independent review fix loop；文件 14／16／17 仍維持只追加、不 stage，待後續文件整合批次處理。
+
+### 2026-08-04 Task 6 本機完成紀錄
+
+- [x] 新增會員帳戶指紋 migration runner：預設／`--dry-run` 完全唯讀；`--apply` 需 exact
+  project confirmation，且 ignored 本機備份成功後才更新會員帳戶。
+- [x] 舊完整帳號只在 migration runner 記憶體內交給 KMS HMAC；apply 移除明文字段。只有末五碼
+  的舊帳戶標 `needsReverification`；歷史付款快照不改寫，缺指紋者只列人工覆核 ID。
+- [x] Migration CLI stdout 使用白名單，只列 ID、status／operation、key version 與統計；
+  不列完整帳號、末五碼、HMAC 或 canonical input。
+- [x] 新增退款密文到期清理工具：只刪三個限時密文字段，pending request 改為
+  `needsReverification`，不刪 unrelated plaintext。Reveal／review 仍逐次檢查到期。
+- [x] 新增月度 HMAC key usage report：分別統計會員帳戶與付款快照引用數、最早／最近引用、
+  未引用版本與無法分類文件 ID；報告不會自動 disable／destroy key。
+- [x] 清理／月報失敗使用既有 `notificationEvents` 建立安全 Owner alert，不新增 Collection。
+- [x] `production:env:check -- --strict` 納入 HMAC key name/latest version、退款 encryption key、
+  WIF 設定與至少 32 字元的穩定 `REFUND_RATE_LIMIT_HASH_SECRET`。
+- [x] 部署文件記錄舊 key 長期保留、只在 authenticated re-entry 重新指紋化、每日清理／每月報告、
+  protected Scheduler OIDC → Cloud Run／2nd-gen Function contract 與 rollback。
+- [ ] 外部 Scheduler endpoint、專用 service account、Monitoring alert 與 Production dry-run 尚未部署
+  或執行；需 Owner／平台憑證與正式維護窗口，不屬於本機 Task 6 寫入範圍。
+
+### 2026-08-04 Task 6 複審結案
+
+- [x] Task 6 commits `81cb342..135a42e` 已完成三輪 scoped re-review，最終為 Critical 0、Important 0、Minor 0。
+- [x] 遷移僅對可正規化的舊明文帳號建立 latest-version HMAC；合法既有指紋才可 backfill
+  `verified`，不改變既有 lifecycle status；未知或不合法資料 fail-closed 為需重新驗證。
+- [x] 退款比對的 expected／actual 指紋都必須是 canonical HMAC-SHA-256 Base64（固定 44 字元）；
+  新註冊在 transaction 前先完成 strict KMS identity derivation，避免不完整資料進入永久帳戶。
+- 驗證記錄：完整 Unit 45 files／291 tests、TypeScript、完整 ESLint 通過。Task 7 可開始 Emulator
+  端到端驗收；Task 6 的外部 Scheduler／IAM／Production dry-run 仍是上線前 external gate。
+
+### 2026-08-09 Task 7／8 最終修正與發布 Gate
+
+- [x] Task 7 commits `572e53f..fc9ecdd` 完成並通過 scoped re-review，Critical 0、
+  Important 0、Minor 0。
+- [x] 真實受保護 API Emulator 測試涵蓋：會員綁定、重複末五碼事件、付款指紋快照、
+  退款帳號不符／符合、Owner reveal、完成退款後刪除所有相關 vault、Member／Helper 403。
+- [x] exact `npm run test:e2e:emulated` 的 Task 7 獨立證據為 36 passed／8 expected skipped／
+  0 failed。
+- [x] Emulator KMS 具有雙重 guard：只在
+  `PLAYWRIGHT_USE_FIREBASE_EMULATORS=true` 且 project 為
+  `demo-astera-oms` 時啟用；Production 永遠走 Cloud KMS。
+- [x] final broad review 的 I1–I4 已由 `4999e4c` 修正；scoped fix re-review 發現的
+  mixed cancellation replay regression 已由 `6bf9f9d` 修正，`a276aa0` 再將 legacy
+  cancellation replay 改為 fail-closed。最終 focused review APPROVED：Critical 0、
+  Important 0、Minor 0。
+- [x] Task 8 final fresh：TypeScript、ESLint、Unit 46 files／310 tests、Build、
+  Firestore／Storage Rules 32 tests、Emulator E2E 36 passed／8 expected skipped／
+  0 failed、secret scan、production dependency audit exit 0。
+- [x] NanoID override 為 `3.3.17`，已消除先前 high advisory。ExcelJS 的 transitive UUID
+  仍有 2 項 moderate advisories；強制修正將導致 ExcelJS breaking／downgrade，列為非阻擋
+  dependency follow-up。
+- [x] Task 8 本機完整驗證 release gate 已完成。
+
+### Production rollout 尚待外部完成
+
+1. 在 `astera-oms-prod` 建立／驗證不可匯出的 Cloud KMS HMAC key 與退款 encryption key；
+   最新 HMAC version 僅供新永久指紋寫入，舊 version 只供既有資料驗證。
+2. 將最小權限授予 Vercel Production service account：必要 Firestore、KMS MAC、
+   KMS encrypt／decrypt 與 Firebase Auth 驗證權限；不可使用長期私鑰。
+3. 設定穩定且至少 32 字元的 `REFUND_RATE_LIMIT_HASH_SECRET`，並以
+   `npm run production:env:check -- --strict` 驗證所有 WIF／KMS／Firebase／Resend 變數。
+4. 先執行會員帳戶 migration dry-run 與 ignored local backup；人工核對報告後才可用 exact
+   project confirmation apply。歷史付款 snapshot 不遷移，缺指紋保留人工覆核。
+5. 部署受保護的每日 vault cleanup 與每月 key-usage report；使用 Scheduler OIDC、
+   exact audience、專用 service account、`roles/run.invoker` 與 Cloud Monitoring
+   非 2xx／逾時告警。
+6. 舊 HMAC key version 在仍有任何永久帳戶或付款 snapshot 引用時不得停用或銷毀；
+   系統禁止從舊 HMAC 推導新 HMAC，只有會員重新輸入完整帳號才能建立最新版指紋。
+7. 本機 Build、完整 Firestore／Storage Rules、Emulator E2E 已全部 exit 0；下一階段為
+   Preview 真人驗收，完成後才可進 Production rollout。

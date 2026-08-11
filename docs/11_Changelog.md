@@ -80,3 +80,91 @@
 - Final review hardened nested private-field detection, made public Product-detail
   discovery mandatory in production smoke, and added Classification-tab Pixel 7
   overflow acceptance.
+
+## 2026-08-02: Production payment page Timestamp fix
+
+- Fixed `/payments` crash after a member has a PaymentRequest: Firestore
+  Timestamp values are now normalized at `src/lib/payment/repository.ts` before
+  React renders `createdAt`, `dueAt`, or `updatedAt`.
+- Added `tests/unit/paymentRepository.test.ts` covering Firebase-style and
+  structural Timestamp values.
+- Deployed to Vercel Production. Verification passed: Unit 29/148, TypeScript,
+  ESLint, Build, Production smoke 5/5, and `/payments` HTTP 200.
+
+## 2026-08-02: Payment account entry, multi-request reports, and delivery policy
+
+- Added an explicit Owner Workspace `收款帳戶設定` entry and retained the
+  Owner-only API boundary.
+- Added multi-select PaymentRequest reporting with per-request pending-review
+  Payments linked by `paymentGroupId`.
+- Restricted new Checkout delivery to `7-Eleven 賣貨便` and removed new
+  address/store-information collection while preserving historical order reads.
+
+## 2026-08-02: Preserve multi-request overpayment
+
+- When one transfer is reported against multiple PaymentRequests, any amount
+  beyond the selected outstanding balances is attached to the last linked
+  Payment. Owner confirmation now persists the excess as
+  `unallocatedAmountTwd` instead of silently dropping it.
+- Focused payment/cancellation Playwright: 2/2 desktop/mobile passed.
+- Deployed the fix to Vercel Production; smoke checks passed 5/5 and the
+  payment/workspace/public routes returned HTTP 200.
+
+## 2026-08-02: ProductWorkspace responsive field layout
+
+- Prevented bilingual Variant and Campaign labels/controls from overlapping in
+  narrow workspace panels by constraining grid children with `min-w-0` and
+  full-width controls.
+- Workspace UI Playwright passed on desktop/mobile (4/4); Production smoke 5/5.
+
+## 2026-08-02: Storefront redesign and Taishin reconciliation
+
+- Added the buyer-facing `/checkout` presentation route and refreshed public
+  Header, Home, Brand, Product Grid, Product Detail, Member Profile, Payments,
+  Orders, and Workspace shell styling with the approved Astera tokens.
+- Adjusted ProductWorkspace responsive breakpoints so bilingual Variant/Campaign
+  labels and controls remain separated on narrow panels.
+- Added Owner-only Taishin `.xlsx` preview reconciliation API/UI using ExcelJS;
+  original files are not persisted and payment history is not overwritten.
+- Verification: Unit 39 files/178 tests, Rules 31 tests, public Playwright
+  14 passed/2 skipped, Emulator Playwright 31 passed/3 skipped, TypeScript,
+  ESLint, Build, secret scan, and production dependency audit passed.
+
+## 2026-08-06／09: Bank-account fingerprint and refund security rollout
+
+- Task 1 (`db51c0f..b93e447`) added strict bank-account normalization and a
+  versioned Cloud KMS HMAC-SHA-256 identity service.
+- Task 2 (`cd2660c..20a7b9e`) changed member account persistence to bank code,
+  last five, canonical HMAC fingerprint, and key version. Same bank-code／last-five
+  combinations remain bindable and create an Owner review event.
+- Task 3 (`96dbc7e..39d19b2`, contract correction `dd2d8e5`) made payment
+  account snapshots server-authoritative and routed legacy missing-fingerprint
+  records to manual review.
+- Task 4 (`9433a77..3e09b8c`) added source-specific refund verification,
+  fourteen-day encrypted refund-account vaults, immutable adjustments／audit
+  records, multi-payment-source refunds, and transactional deletion of all
+  related vaults after final refund.
+- Task 5 (`22db1c5..7433ec3`) moved private audit／cancellation／notification
+  reads behind protected APIs, denied direct Client SDK access, added safe Owner
+  alerts, and reserved mismatch rate limits before KMS work.
+- Task 6 (`81cb342..135a42e`) added dry-run-first fingerprint migration,
+  expired-vault cleanup, monthly key-usage reporting, strict KMS／WIF production
+  environment validation, and fail-closed canonical fingerprint validation.
+- Task 7 (`572e53f..fc9ecdd`) exercised the protected account／refund APIs with
+  owner, helper, member A, and member B in the Firebase Emulator. Its scoped
+  review was approved; the exact suite passed 36, skipped 8 expected cases, and
+  failed 0.
+- Final refund-verification hardening commits `4999e4c`, `6bf9f9d`, and
+  `a276aa0` resolved the final broad-review Important findings and one
+  mixed-cancellation replay regression found during scoped re-review. The final
+  focused review was approved: 0 Critical, 0 Important, 0 Minor.
+- The test KMS implementation is doubly restricted to the Playwright Emulator
+  flag and `demo-astera-oms`; Production continues to use Cloud KMS.
+- Task 8 final fresh results: TypeScript, ESLint, Unit (46 files／310 tests), Build,
+  Firestore／Storage Rules (32 tests), Emulator E2E (36 passed／8 expected
+  skipped／0 failed), secret scan, and production dependency audit all passed.
+- NanoID is overridden to `3.3.17`, resolving the earlier high advisory. Two
+  ExcelJS transitive UUID advisories remain moderate; forcing a fix would be a
+  breaking／downgrade ExcelJS change, so this is a non-blocking dependency follow-up.
+  Local verification is complete; Production infrastructure and live acceptance
+  remain external release gates.
