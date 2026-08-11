@@ -2187,3 +2187,19 @@ domain, or change any other Firebase/Vercel setting.
   Ready Vercel Preview, return to `AST-20260811-0001`. The member must personally
   enter the exact original full account for the selected confirmed Payment; do not
   place that value in chat, logs, documentation, screenshots, or test fixtures.
+
+## 2026-08-11 Paid-cancellation Preview deployment checkpoint
+
+- Commit `d543094` was pushed, its Vercel Preview reached Ready, and the existing
+  Firebase-authorized stable Preview alias was moved to that deployment. Production
+  was not deployed.
+- Deployed browser verification on `AST-20260811-0001` confirms the paid item is
+  checked and enabled, the cancel button is enabled, and the protected Order API
+  supplies exactly one masked confirmed-Payment option for the new test Payment.
+- The UI shows the expected bank code, masked last five, payer label, 14-day
+  retention notice, and an empty `type=password` / `autocomplete=off` full-account
+  field. No full account was entered and no cancellation request was submitted.
+- Exact continuation: the user personally enters the original full account directly
+  in the Preview password field and reports readiness without copying the value into
+  chat. Obtain/confirm action-time approval immediately before submitting the paid
+  cancellation request.

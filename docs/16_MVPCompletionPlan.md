@@ -2057,3 +2057,14 @@ four fresh readbacks pass and are reviewed.
   enters the exact original full account directly in the password field; never send
   it through chat. Obtain fresh confirmation immediately before the final POST if
   the user has not personally clicked submit.
+
+## 2026-08-11 Paid-cancellation Preview readiness
+
+- [x] Push `d543094`; wait for a Ready Vercel Preview; move only the existing stable
+  Firebase-authorized Preview alias. Production remains unchanged.
+- [x] Verify the deployed paid item is selectable and the masked confirmed-Payment,
+  bank-code, full-account password field, retention notice, and submit button render.
+- [ ] User enters the exact original full account directly in the browser without
+  sharing it in chat, then confirms readiness before the cancellation POST.
+- [ ] After submission, verify `cancelRequested`, pending Owner review, encrypted
+  vault metadata without plaintext, mismatch/match semantics, and Audit Log.
