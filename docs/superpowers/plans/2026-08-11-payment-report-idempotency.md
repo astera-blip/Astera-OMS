@@ -102,5 +102,6 @@
 - [x] Run regular and Emulator Playwright suites.
 - [x] Run secret scan and production audit scripts defined in `package.json`.
 - [x] Update execution/handoff documents with exact files, commits, counts, verification output, deployment state, and next action.
-- [ ] Push `codex/mvp-completion`, deploy Preview only, and run the member report plus Owner rejection acceptance flow.
+- [x] Push `codex/mvp-completion`, deploy Preview only, and verify the deployed Owner rejection controls read-only.
+- [ ] Run the mutation portion of the member report plus Owner rejection acceptance flow after action-time approval.
 - [ ] Before changing either existing duplicate test Payment, present the exact safe action and obtain fresh action-time approval; then keep one valid record and reject the other through the new audited API.

@@ -2226,3 +2226,19 @@ domain, or change any other Firebase/Vercel setting.
   Preview, then perform authenticated member and Owner acceptance. Before rejecting
   either existing duplicate Preview Payment, obtain fresh action-time approval and
   name the exact Payment ID to keep and the exact Payment ID to reject.
+
+### Preview Ready and read-only Owner acceptance
+
+- GitHub branch `codex/mvp-completion` was pushed through `e844505`. Vercel Preview
+  `dpl_7Y3oLMmmBExgZ1Y9AwpLYUoTaif1` reached Ready; the existing Firebase-authorized
+  stable alias now points to that deployment. Production was not deployed.
+- The retained Owner custom-claim session opened the deployed payment workspace.
+  The selected pending report shows `處理理由`, `確認匯款`, and the new
+  `拒絕回報`; `撤銷確認` is disabled as expected. No button was pressed.
+- The two known duplicate test records remain `pendingReview` and untouched:
+  `lA8Fje6lU2vAqLvdp0VN` and `pdfwANGEnxaldM6iM3Q7`, both linked to
+  `pr_order_8lYcH5qCLOTf8TpKF2gifLibyjf1_20260811130149055_1`.
+- Exact continuation requiring user authorization: decide which of those two IDs is
+  the retained valid report, then authorize rejecting only the other through the new
+  API with reason `測試專用：重複付款回報`. Afterward verify Member status and the
+  `payment.rejected` Audit Log. Do not confirm either duplicate.

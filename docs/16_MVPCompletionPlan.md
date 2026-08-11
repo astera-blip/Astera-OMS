@@ -2083,6 +2083,16 @@ four fresh readbacks pass and are reviewed.
   immutable `payment.rejected` Audit Log, and no financial-state mutation.
 - [x] Verify rapid double click creates one Payment and the status survives reload
   in Auth／Firestore／Storage Emulator Playwright.
-- [ ] Deploy the commits to Preview and run one authenticated member／Owner browser
+- [x] Deploy the commits to Preview and run an authenticated Owner read-only browser
   acceptance pass. Do not alter the two existing duplicate Preview Payments until
   exact action-time approval identifies which record to reject.
+
+Preview deployment update:
+
+- [x] Push through `e844505`; Vercel deployment `dpl_7Y3oLMmmBExgZ1Y9AwpLYUoTaif1`
+  reached Ready and the existing authorized stable Preview alias was moved to it.
+- [x] Owner session loaded `/workspace/payments`; the deployed UI shows the required
+  `處理理由` field and enabled `拒絕回報` action for the selected pending report.
+- [ ] Authenticated Member live submission／reload and an actual Owner rejection
+  remain pending because they create external data mutations. Existing duplicate
+  Payments `lA8Fje6lU2vAqLvdp0VN` and `pdfwANGEnxaldM6iM3Q7` remain unchanged.
