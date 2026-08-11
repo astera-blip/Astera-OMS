@@ -197,6 +197,38 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   }));
   expect(JSON.stringify(memberPaymentsPayload)).not.toContain(memberAccountFingerprint);
 
+  const rejectedCandidateResponse = await request.post("/api/payments", {
+    headers: authorized(memberToken),
+    data: {
+      paymentRequestId: paidOrder!.paymentRequestId,
+      receivedAt: "2026-07-27",
+      receivedAmountTwd: 700,
+      receivingPaymentAccountId: "e2e-account",
+      memberPaymentAccountId: "member-e2e-account",
+      idempotencyKey: "e2e_payment_rejected_duplicate_20260727",
+      memberNote: "E2E duplicate report to reject",
+    },
+  });
+  expect(rejectedCandidateResponse.ok()).toBe(true);
+  const rejectedCandidate = await rejectedCandidateResponse.json() as { payment: { id: string } };
+  const rejectResponse = await request.post(
+    `/api/workspace/payments/${rejectedCandidate.payment.id}/reject`,
+    {
+      headers: authorized(ownerToken),
+      data: { reason: "E2E 重複付款回報" },
+    },
+  );
+  expect(rejectResponse.ok()).toBe(true);
+  await expect(rejectResponse.json()).resolves.toMatchObject({
+    paymentId: rejectedCandidate.payment.id,
+    paymentStatus: "rejected",
+    alreadyRejected: false,
+  });
+  expect((await db.collection("payments").doc(rejectedCandidate.payment.id).get()).data()?.status)
+    .toBe("rejected");
+  expect((await db.collection("auditLogs").doc(`audit_reject_${rejectedCandidate.payment.id}`).get()).data())
+    .toMatchObject({ action: "payment.rejected", targetId: rejectedCandidate.payment.id });
+
   const confirmResponse = await request.post(`/api/workspace/payments/${paymentPayload.payment.id}/confirm`, {
     headers: authorized(ownerToken),
     data: { reason: "E2E 對帳確認" },

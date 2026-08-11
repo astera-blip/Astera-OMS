@@ -82,10 +82,10 @@
 - Modify: `tests/e2e/member-payment-cancellation-flow.spec.ts`
 - Create or modify: `tests/unit/paymentOperationsBoard.test.tsx`
 
-- [ ] Add failing tests for the `拒絕回報` action only on `pendingReview`, mandatory reason, disabled in-flight controls, and accessible success/error feedback.
-- [ ] Implement the protected reject call and refresh the Owner list after success.
-- [ ] Confirm confirmed/reversed/rejected records cannot be rejected from the UI.
-- [ ] Add Owner Playwright coverage and commit the task.
+- [x] Add failing tests for the `拒絕回報` action only on `pendingReview`, mandatory reason, disabled in-flight controls, and accessible success/error feedback.
+- [x] Implement the protected reject call and refresh the Owner list after success.
+- [x] Confirm confirmed/reversed/rejected records cannot be rejected from the UI.
+- [x] Add Owner Playwright coverage and commit the task.
 
 ## Task 6: Regression verification, Preview, and controlled duplicate cleanup
 

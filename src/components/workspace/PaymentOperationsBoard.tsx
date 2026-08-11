@@ -26,6 +26,7 @@ export function PaymentOperationsBoard() {
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("等待付款確認。");
+  const [activeAction, setActiveAction] = useState<"confirm" | "reverse" | "reject" | null>(null);
 
   const selectedPayment = useMemo(
     () => payments.find((payment) => payment.id === selectedPaymentId) ?? null,
@@ -241,6 +242,54 @@ export function PaymentOperationsBoard() {
     }
   }
 
+  async function rejectSelectedPayment() {
+    if (!selectedPayment || selectedPayment.status !== "pendingReview") {
+      setMessage("請先選擇待審付款回報。");
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage("請填寫拒絕理由。");
+      return;
+    }
+
+    setActiveAction("reject");
+    try {
+      const { auth } = await import("@/lib/firebase/client");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        setMessage("請重新登入後再拒絕付款回報。");
+        return;
+      }
+      const response = await fetch(`/api/workspace/payments/${selectedPayment.id}/reject`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (!response.ok) {
+        throw new Error("reject_failed");
+      }
+      setPayments((current) => current.map((payment) => (
+        payment.id === selectedPayment.id
+          ? {
+              ...payment,
+              status: "rejected",
+              adminNote: reason.trim(),
+              updatedAt: new Date().toISOString(),
+            }
+          : payment
+      )));
+      setMessage(`已拒絕 ${selectedPayment.id}，並建立稽核紀錄。`);
+      setReason("");
+    } catch {
+      setMessage("拒絕付款回報失敗，請稍後再試。");
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
   async function retryNotification(event: OwnerEmailNotificationSnapshot) {
     try {
       const { auth } = await import("@/lib/firebase/client");
@@ -411,31 +460,39 @@ export function PaymentOperationsBoard() {
               />
             </label>
             <label className="grid gap-2 text-sm">
-              <span className="font-medium">確認理由</span>
+              <span className="font-medium">處理理由</span>
               <textarea
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 className="min-h-24 rounded-2xl border border-slate-300 px-4 py-3"
-                placeholder="例如：對帳末五碼 12345"
+                placeholder="例如：對帳末五碼相符，或重複付款回報"
               />
             </label>
             <button
               type="button"
               onClick={() => void confirmSelectedRequest()}
-              disabled={selectedPayment?.status !== "pendingReview"}
+              disabled={selectedPayment?.status !== "pendingReview" || activeAction !== null}
               className="rounded-full bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950"
             >
               確認匯款
             </button>
             <button
               type="button"
+              onClick={() => void rejectSelectedPayment()}
+              disabled={selectedPayment?.status !== "pendingReview" || activeAction !== null}
+              className="rounded-full border border-rose-300 px-4 py-3 text-sm font-semibold text-rose-700 disabled:border-slate-200 disabled:text-slate-400"
+            >
+              {activeAction === "reject" ? "拒絕中…" : "拒絕回報"}
+            </button>
+            <button
+              type="button"
               onClick={() => void reverseSelectedPayment()}
-              disabled={selectedPayment?.status !== "confirmed"}
+              disabled={selectedPayment?.status !== "confirmed" || activeAction !== null}
               className="rounded-full border border-rose-300 px-4 py-3 text-sm font-semibold text-rose-700 disabled:border-slate-200 disabled:text-slate-400"
             >
               撤銷確認
             </button>
-            <p className="text-sm leading-6 text-slate-600">{message}</p>
+            <p role="status" aria-live="polite" className="text-sm leading-6 text-slate-600">{message}</p>
           </div>
         </div>
 
