@@ -6,8 +6,8 @@ import { RouteFocusManager } from "@/components/accessibility/RouteFocusManager"
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Astera OMS | Operations Workspace",
-  description: "Astera OMS operations workspace for preorder commerce and internal work.",
+  title: "Astera｜泰國 GL／藝人周邊代購",
+  description: "Astera 整理泰國 GL、藝人周邊商品、販售活動、結單時間與銀行匯款流程。",
 };
 
 export default function RootLayout({

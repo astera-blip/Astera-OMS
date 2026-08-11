@@ -48,6 +48,18 @@ body {
   margin: 0;
 }
 
+.font-serif {
+  font-family: Georgia, "Times New Roman", "Noto Serif TC", serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:where(a, button) {
+  touch-action: manipulation;
+}
+
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 3px solid var(--astera-brand);
   outline-offset: 3px;

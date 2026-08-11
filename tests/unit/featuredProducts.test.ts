@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatCampaignDeadline,
   rankFeaturedProducts,
   saleTypeCustomerLabels,
 } from "@/lib/catalog/featuredProducts";
@@ -70,5 +71,14 @@ describe("featured products", () => {
       rushPurchase: "代搶",
       waitlist: "候補",
     });
+  });
+
+  it("formats buyer-facing Taipei campaign countdowns", () => {
+    const now = new Date("2026-08-11T16:00:00.000Z");
+
+    expect(formatCampaignDeadline("2026-08-14T15:59:00.000Z", now)).toBe("剩 3 天｜8/14 23:59 結單");
+    expect(formatCampaignDeadline("2026-08-11T21:59:00.000Z", now)).toBe("剩 6 小時｜今日 05:59 結單");
+    expect(formatCampaignDeadline("2026-08-11T15:59:00.000Z", now)).toBe("已截止｜8/11 23:59");
+    expect(formatCampaignDeadline(undefined, now)).toBe("結單時間依活動公告");
   });
 });

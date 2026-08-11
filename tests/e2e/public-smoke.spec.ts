@@ -5,11 +5,13 @@ const useEmulatedAuth = process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true"
 test("public storefront navigation renders without seed fallback", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "ASTERA OMS" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "泰國 GL／藝人周邊代購" })).toBeVisible();
   await expect(page.getByRole("link", { name: "立即看商品" })).toBeVisible();
   await expect(page.getByRole("contentinfo")).toContainText("客服資訊");
 
   await page.getByRole("link", { name: "立即看商品" }).click();
+  await expect(page).toHaveURL(/\/#featured-products$/);
+  await page.getByRole("navigation", { name: "公開導覽" }).getByRole("link", { name: "商品", exact: true }).click();
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: "商品列表" })).toBeVisible();
   await expect(page.getByRole("link", { name: "回首頁" })).toBeVisible();

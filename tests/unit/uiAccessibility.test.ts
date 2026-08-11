@@ -153,12 +153,24 @@ describe("shared UI accessibility contract", () => {
     expect(signInStart).toContain("setError(getGoogleSignInErrorMessage(error))");
   });
 
-  it("places storefront brand text before the large buyer title", () => {
+  it("uses buyer-facing public metadata and an ASTERA-only storefront brand", () => {
     const home = read("src/app/page.tsx");
+    const header = read("src/components/storefront/StorefrontHeader.tsx");
+    const accountActions = read("src/components/auth/AccountActions.tsx");
+    const layout = read("src/app/layout.tsx");
 
-    expect(home).toContain('<p className="text-sm font-semibold uppercase tracking-[0.22em] text-astera-brand">\n              泰國 GL / 藝人周邊代購');
-    expect(home).toContain('<h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">\n              ASTERA OMS');
+    expect(home).toContain("ASTERA SELECT");
+    expect(home).toContain("泰國 GL／藝人周邊代購");
     expect(home).not.toContain("/ Aatera");
+    expect(home).not.toContain("ASTERA OMS");
+    expect(header).toContain("AccountActions");
+    expect(header).toContain("ASTERA");
+    expect(header).not.toContain("ASTERA OMS");
+    expect(accountActions).toContain("使用 Google 登入");
+    expect(accountActions).toContain('aria-live="polite"');
+    expect(accountActions).toContain("min-h-11");
+    expect(layout).toContain('title: "Astera｜泰國 GL／藝人周邊代購"');
+    expect(layout).not.toContain("Operations Workspace");
   });
 
   it("uses separated member last and first name fields, omits blank birthday, and redirects home after save", () => {
