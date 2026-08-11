@@ -19,10 +19,13 @@ export function MemberPaymentAccountsBoard() {
   const [accounts, setAccounts] = useState<PublicMemberPaymentAccount[]>([]);
   const [bankCode, setBankCode] = useState("");
   const [accountNumberFull, setAccountNumberFull] = useState("");
+  const [payerName, setPayerName] = useState("");
+  const [payerNameDrafts, setPayerNameDrafts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [pendingId, setPendingId] = useState("");
+  const [payerNamePendingId, setPayerNamePendingId] = useState("");
 
   const loadAccounts = useCallback(async () => {
     if (!user) {
@@ -67,7 +70,7 @@ export function MemberPaymentAccountsBoard() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ bankCode, accountNumberFull }),
+        body: JSON.stringify({ bankCode, accountNumberFull, payerName }),
       });
       const payload = await response.json() as ApiPayload;
       if (!response.ok || !payload.account) {
@@ -76,6 +79,7 @@ export function MemberPaymentAccountsBoard() {
       setAccounts((current) => [...current, payload.account as PublicMemberPaymentAccount]);
       setBankCode("");
       setAccountNumberFull("");
+      setPayerName("");
       setMessage(payload.warning === "member_payment_account_duplicate_review_pending"
         ? "匯款帳戶已新增；系統發現相同帳號識別，已通知 Owner 核對，帳戶仍已新增。"
         : "匯款帳戶已新增。");
@@ -83,6 +87,45 @@ export function MemberPaymentAccountsBoard() {
       setMessage(error instanceof Error ? error.message : "匯款帳戶新增失敗，請稍後再試。");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function completePayerName(
+    event: FormEvent<HTMLFormElement>,
+    account: PublicMemberPaymentAccount,
+  ) {
+    event.preventDefault();
+    if (!user || payerNamePendingId) {
+      return;
+    }
+    setPayerNamePendingId(account.id);
+    setMessage("");
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `/api/member/payment-accounts/${encodeURIComponent(account.id)}/payer-name`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ payerName: payerNameDrafts[account.id] ?? "" }),
+        },
+      );
+      const payload = await response.json() as ApiPayload;
+      if (!response.ok || !payload.account) {
+        throw new Error(payload.message ?? "匯款人姓名補填失敗。");
+      }
+      setAccounts((current) => current.map((item) => (
+        item.id === account.id ? payload.account as PublicMemberPaymentAccount : item
+      )));
+      setPayerNameDrafts((current) => ({ ...current, [account.id]: "" }));
+      setMessage("匯款人姓名已補填，這個帳戶現在可以用於付款回報。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "匯款人姓名補填失敗，請稍後再試。");
+    } finally {
+      setPayerNamePendingId("");
     }
   }
 
@@ -157,6 +200,34 @@ export function MemberPaymentAccountsBoard() {
                     <>
                       <h3 className="font-semibold">銀行代碼 {account.bankCode}</h3>
                       <p className="mt-1 text-sm text-[#6C6B70]">帳號 {account.accountNumberMasked}</p>
+                      {account.payerName ? (
+                        <p className="mt-1 text-sm text-[#6C6B70]">匯款人 {account.payerName}</p>
+                      ) : null}
+                      {account.needsPayerName ? (
+                        <form onSubmit={(event) => void completePayerName(event, account)} className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <label className="grid gap-1 text-sm font-medium">
+                            需要補填匯款人姓名
+                            <input
+                              required
+                              name="payerName"
+                              autoComplete="name"
+                              value={payerNameDrafts[account.id] ?? ""}
+                              onChange={(event) => setPayerNameDrafts((current) => ({
+                                ...current,
+                                [account.id]: event.target.value,
+                              }))}
+                              className="min-h-11 rounded-2xl border border-[#DED7D6] px-4"
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={Boolean(payerNamePendingId)}
+                            className="min-h-11 self-end rounded-full bg-[#466060] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                          >
+                            {payerNamePendingId === account.id ? "保存中…" : "保存姓名"}
+                          </button>
+                        </form>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -181,6 +252,7 @@ export function MemberPaymentAccountsBoard() {
           </div>
           <label className="grid gap-2 text-sm font-medium">銀行代碼<input required inputMode="numeric" maxLength={3} value={bankCode} onChange={(event) => setBankCode(event.target.value)} className="min-h-11 rounded-2xl border border-[#DED7D6] px-4" /></label>
           <label className="grid gap-2 text-sm font-medium">完整銀行帳號<input required inputMode="numeric" autoComplete="off" value={accountNumberFull} onChange={(event) => setAccountNumberFull(event.target.value)} className="min-h-11 rounded-2xl border border-[#DED7D6] px-4" /></label>
+          <label className="grid gap-2 text-sm font-medium">匯款人姓名<input required name="payerName" autoComplete="name" value={payerName} onChange={(event) => setPayerName(event.target.value)} className="min-h-11 rounded-2xl border border-[#DED7D6] px-4" /></label>
           <button type="submit" disabled={isSaving} className="min-h-11 rounded-full bg-[#6E4E64] px-5 text-sm font-semibold text-white disabled:opacity-50">{isSaving ? "保存中…" : "保存匯款帳戶"}</button>
         </form>
       ) : <p className="rounded-3xl bg-[#E7DDDF] p-5 text-sm leading-6 text-[#6E4E64]">已達 5 筆帳戶上限；請對舊帳戶提出封存申請，Owner 核准後才能新增。</p>}

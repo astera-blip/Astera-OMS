@@ -20,8 +20,6 @@ export function PaymentRequestsBoard() {
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [receivedAt, setReceivedAt] = useState("");
   const [amount, setAmount] = useState("");
-  const [last5, setLast5] = useState("");
-  const [payerName, setPayerName] = useState("");
   const [memberNote, setMemberNote] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -67,7 +65,6 @@ export function PaymentRequestsBoard() {
       setSelectedPaymentAccountId(nextAccounts[0]?.id ?? "");
       setMemberPaymentAccounts(nextMemberAccounts);
       setSelectedMemberPaymentAccountId(nextMemberAccounts[0]?.id ?? "");
-      setLast5(nextMemberAccounts[0]?.accountNumberLast5 ?? "");
       const firstRequest = nextRequests.find((request) => request.status !== "paid" && request.status !== "cancelled");
       setSelectedRequestIds(firstRequest ? [firstRequest.id] : []);
       setAmount(firstRequest ? String(firstRequest.amountTwd - (firstRequest.allocatedAmountTwd ?? 0)) : "");
@@ -83,6 +80,10 @@ export function PaymentRequestsBoard() {
       void loadRequests();
     });
   }, [loadRequests]);
+
+  const selectedMemberPaymentAccount = memberPaymentAccounts.find(
+    (account) => account.id === selectedMemberPaymentAccountId,
+  );
 
   if (!user) {
     return (
@@ -144,8 +145,8 @@ export function PaymentRequestsBoard() {
     }
 
     const receivedAmountTwd = Number(amount);
-    if (!receivedAt || !Number.isInteger(receivedAmountTwd) || receivedAmountTwd <= 0 || !/^[0-9]{5}$/.test(last5) || !payerName.trim()) {
-      setMessage("請填寫日期、金額、帳號末五碼與匯款人。");
+    if (!receivedAt || !Number.isInteger(receivedAmountTwd) || receivedAmountTwd <= 0) {
+      setMessage("請填寫正確的匯款日期與金額。");
       return;
     }
 
@@ -164,7 +165,6 @@ export function PaymentRequestsBoard() {
           receivedAmountTwd,
           receivingPaymentAccountId: selectedPaymentAccountId,
           memberPaymentAccountId: selectedMemberPaymentAccountId,
-          payerName: payerName.trim(),
           memberNote: memberNote.trim(),
         }),
       });
@@ -176,8 +176,6 @@ export function PaymentRequestsBoard() {
       setMessage(`已送出 ${selectedRequestIds.length} 筆付款回報，等待客服對帳確認。`);
       setSelectedRequestIds([]);
       setAmount("");
-      setLast5("");
-      setPayerName("");
       setMemberNote("");
     } catch {
       setMessage("付款回報送出失敗，請稍後再試。");
@@ -251,16 +249,12 @@ export function PaymentRequestsBoard() {
                 id="member-payment-account"
                 name="memberPaymentAccountId"
                 value={selectedMemberPaymentAccountId}
-                onChange={(event) => {
-                  const selected = memberPaymentAccounts.find((account) => account.id === event.target.value);
-                  setSelectedMemberPaymentAccountId(event.target.value);
-                  setLast5(selected?.accountNumberLast5 ?? "");
-                }}
+                onChange={(event) => setSelectedMemberPaymentAccountId(event.target.value)}
                 className="min-h-11 rounded-lg border border-astera-border px-4 py-3"
               >
                 {memberPaymentAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    銀行代碼 {account.bankCode} · {account.accountNumberMasked}
+                    銀行代碼 {account.bankCode}・{account.accountNumberMasked}・{account.payerName}
                   </option>
                 ))}
               </select>
@@ -293,20 +287,17 @@ export function PaymentRequestsBoard() {
           <label className="grid gap-2 text-sm">
             <span className="font-medium">匯款帳號末五碼</span>
             <input
-              inputMode="numeric"
-              maxLength={5}
-              readOnly={memberPaymentAccounts.length > 0}
-              value={last5}
-              onChange={(event) => setLast5(event.target.value.replace(/\D/g, "").slice(0, 5))}
-              className="min-h-11 rounded-lg border border-astera-border px-4 py-3"
+              readOnly
+              value={selectedMemberPaymentAccount?.accountNumberLast5 ?? ""}
+              className="min-h-11 rounded-lg border border-astera-border bg-[#F7F3F2] px-4 py-3"
             />
           </label>
           <label className="grid gap-2 text-sm">
             <span className="font-medium">匯款人</span>
             <input
-              value={payerName}
-              onChange={(event) => setPayerName(event.target.value)}
-              className="min-h-11 rounded-lg border border-astera-border px-4 py-3"
+              readOnly
+              value={selectedMemberPaymentAccount?.payerName ?? ""}
+              className="min-h-11 rounded-lg border border-astera-border bg-[#F7F3F2] px-4 py-3"
             />
           </label>
           <label className="grid gap-2 text-sm md:col-span-2">
@@ -321,7 +312,7 @@ export function PaymentRequestsBoard() {
         <button
           type="button"
           onClick={() => void reportPayment()}
-          disabled={isSubmitting}
+          disabled={isSubmitting || memberPaymentAccounts.length === 0}
           className="mt-4 min-h-11 rounded-lg bg-[#6E4E64] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5D4255] disabled:cursor-not-allowed disabled:bg-[#6E4E64]/60 disabled:text-white"
         >
           {isSubmitting ? "送出中…" : "送出付款回報"}

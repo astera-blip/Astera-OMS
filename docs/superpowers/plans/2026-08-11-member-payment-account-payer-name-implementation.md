@@ -303,7 +303,7 @@ git commit -m "feat: snapshot member account payer names"
 - Consumes: public account `{ id, bankCode, accountNumberMasked, accountNumberLast5, payerName?, needsPayerName, status, verificationStatus }` and the Task 3 completion API.
 - Produces: registration payload `{ bankCode, accountNumberFull, payerName }`; one-time completion UI; Payment POST payload without `payerName` or account last five.
 
-- [ ] **Step 1: Write failing UI contract tests**
+- [x] **Step 1: Write failing UI contract tests**
 
 Assert the account form sends:
 
@@ -313,7 +313,7 @@ JSON.stringify({ bankCode, accountNumberFull, payerName })
 
 Assert legacy account markup contains `需要補填匯款人` and calls `/payer-name`. Assert the payment board renders `account.payerName`, uses one member-account `<select>`, displays last five and payer name as `readOnly`, and does not include `payerName` or `last5` in the POST body.
 
-- [ ] **Step 2: Run the UI test and observe failure**
+- [x] **Step 2: Run the UI test and observe failure**
 
 ```powershell
 npx vitest run tests/unit/memberPaymentAccountsUi.test.ts
@@ -321,7 +321,7 @@ npx vitest run tests/unit/memberPaymentAccountsUi.test.ts
 
 Expected: FAIL against the old registration and payment form.
 
-- [ ] **Step 3: Implement account-management UI**
+- [x] **Step 3: Implement account-management UI**
 
 - Add a required `payerName` registration input with `name="payerName"` and `autoComplete="name"`.
 - Clear the full account and payer-name inputs after a successful registration.
@@ -329,7 +329,7 @@ Expected: FAIL against the old registration and payment form.
 - For `needsPayerName`, show a focused one-time completion input and button. During submission disable the button and show `保存中…`; update only the returned account in local state.
 - Keep re-verification and deletion-request messages distinct from missing-name completion.
 
-- [ ] **Step 4: Implement payment-report account linkage**
+- [x] **Step 4: Implement payment-report account linkage**
 
 - Keep the existing member-account select as the single source selection.
 - Render each option as `銀行代碼 {bankCode}・{accountNumberMasked}・{payerName}`.
@@ -338,11 +338,11 @@ Expected: FAIL against the old registration and payment form.
 - Remove `payerName` and last-five from the Payment POST body; retain date, amount, receiving account, selected payment requests and member note.
 - If there are no usable accounts, disable submission and show the existing account-management link.
 
-- [ ] **Step 5: Run the UI test and verify green**
+- [x] **Step 5: Run the UI test and verify green**
 
 Run the Task 5 test command. Expected: PASS.
 
-- [ ] **Step 6: Commit Task 5**
+- [x] **Step 6: Commit Task 5**
 
 ```powershell
 git add src/components/account/MemberPaymentAccountsBoard.tsx src/app/account/bank-accounts/page.tsx src/components/storefront/PaymentRequestsBoard.tsx tests/unit/memberPaymentAccountsUi.test.ts
