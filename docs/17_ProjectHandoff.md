@@ -1412,3 +1412,21 @@ domain, or change any other Firebase/Vercel setting.
   wait for Ready, attach only the existing stable Preview alias, then verify
   `/__/auth/iframe` and retained Google redirect login. Do not create test
   banking/payment/refund data before authenticated state is retained.
+
+## 2026-08-11 Same-origin helper pass; Google-button diagnostic blocker
+
+- A Ready Git-integrated Preview was verified and only the existing stable Preview
+  alias was assigned to it. Production was not deployed. The exact lowercase
+  Preview `authDomain` existed before this build.
+- `/__/auth/iframe` returned under the stable Preview hostname and loaded its
+  helper script under the same hostname, proving the proxy rewrite is transparent
+  to the browser.
+- The Google button now remains on the account page without navigating and without
+  a visible error. `AuthProvider` imports Firebase outside the handler's `try/catch`;
+  a client initialization rejection therefore bypasses the current error UI. This
+  is a testable leading hypothesis, not yet a claimed root cause.
+- No payment-account or financial acceptance data was created. Resume only after
+  fresh authorization for a test-first, Preview-only diagnostic: move those dynamic
+  imports into the current `try/catch`, render its existing safe error text on
+  failure, deploy Preview, and retest the button. Do not alter proxy routing,
+  providers, Firebase domains, or Production.

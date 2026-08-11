@@ -106,14 +106,14 @@ change any Production variable.
 > from the approved hostname. After fresh explicit authorization, the exact
 > lowercase hostname below was added as Preview-only non-sensitive configuration.
 
-- [ ] **Step 3: Push the source commit and wait for the Git-integrated Preview**
+- [x] **Step 3: Push the source commit and wait for the Git-integrated Preview**
 
 Run: `git push origin codex/production-security-worker`
 
 Expected: Vercel creates a new Preview deployment. Wait for status `Ready`; do not
 promote it to Production.
 
-- [ ] **Step 4: Assign the stable alias only after Vercel reports Ready**
+- [x] **Step 4: Assign the stable alias only after Vercel reports Ready**
 
 Use Vercel aliasing to point the existing stable Preview hostname to the Ready
 deployment. Do not create a new alias or modify the Production hostname.
@@ -130,7 +130,7 @@ deployment. Do not create a new alias or modify the Production hostname.
 - Produces: a documented pass/fail result for Auth helper availability and retained
   Firebase user state.
 
-- [ ] **Step 1: Check the public same-origin helper route**
+- [x] **Step 1: Check the public same-origin helper route**
 
 Open `https://<stable-preview>/__/auth/iframe` in the controlled browser and
 confirm it serves Firebase helper content without changing the visible hostname.
@@ -141,6 +141,11 @@ From `/account/bank-accounts`, select Google login. After account selection,
 confirm the application displays authenticated state and retains it after a normal
 navigation back to `/account/bank-accounts`. Do not inspect cookies, storage,
 tokens, account values, or create test records.
+
+> 2026-08-11 checkpoint: the Ready Preview was assigned to the stable alias and
+> `/__/auth/iframe` loaded with same-origin helper scripts. Clicking Google sign-in
+> did not navigate to Google and did not expose an error. This is a new client
+> initialization/error-observability blocker; stop this plan before any data test.
 
 - [ ] **Step 3: Record the result and commit the handoff**
 

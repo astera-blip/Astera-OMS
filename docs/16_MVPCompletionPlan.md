@@ -1352,3 +1352,22 @@ four fresh readbacks pass and are reviewed.
   Preview must be built after this environment replacement, reach Ready, and then
   receive only the existing stable Preview alias before the same-origin helper and
   Google redirect session are retested.
+
+## 2026-08-11 Same-origin Auth helper verification; client blocker
+
+- Vercel confirmed a Ready Git-integrated Preview and the existing stable Preview
+  alias now points to it. The Preview-only public Firebase `authDomain` was present
+  before this build. Production was not deployed or changed.
+- Direct browser verification passed for `/__/auth/iframe`: it remained on the
+  stable Preview origin and loaded the helper script from that same origin. This
+  proves the transparent rewrite path is working.
+- Google sign-in did not proceed to Google account selection and displayed no
+  error. The client imports Firebase before its `try/catch`, so a missing/failed
+  Firebase initialization can reject the event handler without rendering the
+  existing user-facing error. This is the leading hypothesis, but no error value
+  has been read or inferred from storage.
+- No member account, order, payment, refund, Firebase, or Production mutation was
+  created. Exact next action needs a narrowly scoped diagnostic approval: move the
+  Firebase dynamic imports inside the existing Google sign-in `try/catch`, add a
+  red/green regression test for an initialization rejection, deploy Preview only,
+  and retry the button. Do not change login provider, proxy, or Production.
