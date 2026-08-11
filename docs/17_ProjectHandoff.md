@@ -1461,3 +1461,17 @@ domain, or change any other Firebase/Vercel setting.
   client credentials, other redirect URIs, Firebase domains, one-off Vercel hosts,
   or Production. After saving, retry Preview sign-in and only then test retained
   session state; no payment/refund test data may be created beforehand.
+
+## 2026-08-11 Preview OAuth redirect URI saved
+
+- The user explicitly authorized one exact change. The stable Preview handler URI
+  was appended to the existing Google OAuth Client, saved, and re-opened to verify
+  it persisted. No existing URI, OAuth consent configuration, Firebase domain,
+  one-off Vercel host, or Production setting was changed.
+- Retest reaches the Google account chooser without `redirect_uri_mismatch`. The
+  chooser is deliberately held for the user to select the intended test account;
+  no account was selected by automation and no member/payment/order/refund record
+  was created.
+- Exact continuation: after the user completes account selection, verify retained
+  authenticated state on `/account/bank-accounts` and after normal navigation.
+  Only then resume the one-pass synthetic payment/refund acceptance flow.

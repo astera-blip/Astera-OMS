@@ -1403,3 +1403,17 @@ four fresh readbacks pass and are reviewed.
   existing OAuth Client's Authorized redirect URIs, save, and retry Preview Google
   login. Do not alter other OAuth settings, add a one-off Vercel hostname, or change
   Production.
+
+## 2026-08-11 Preview OAuth redirect URI configured
+
+- Under explicit authorization, exactly one stable Preview handler URI was appended
+  to the existing Google OAuth Client's Authorized redirect URI list. Existing URI
+  entries, OAuth consent screen, Firebase domains, and Production settings were not
+  changed. The saved value was re-opened and verified in the Console.
+- Immediate Preview retest now reaches Google account selection without the prior
+  `redirect_uri_mismatch` error. The browser is held at account selection for the
+  user to choose the intended test member; no account was selected automatically.
+- Exact next action: user selects the intended Preview test member, then verify
+  authenticated state survives return to `/account/bank-accounts` and a normal
+  navigation. Do not create any payment-account, order, payment, cancellation, or
+  refund test data until that session-persistence check passes.

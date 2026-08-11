@@ -159,6 +159,12 @@ tokens, account values, or create test records.
 > existing Google OAuth Client's Authorized redirect URIs, then retry this step.
 > Do not add a one-off deployment hostname or change Production.
 
+> 2026-08-11 OAuth continuation: the explicitly authorized URI was added to the
+> existing OAuth Client, saved, and read back. Retest reaches Google account
+> selection without `redirect_uri_mismatch`. User account choice is pending; do not
+> select an account automatically or create any acceptance data until the user
+> completes that identity interaction.
+
 - [ ] **Step 3: Record the result and commit the handoff**
 
 Append only non-sensitive deployment status, route result, authentication result,
