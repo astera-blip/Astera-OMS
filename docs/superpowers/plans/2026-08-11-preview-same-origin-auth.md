@@ -152,6 +152,13 @@ tokens, account values, or create test records.
 > existing safe error UI. The new regression test first failed then passed; full
 > unit and local release checks passed. Preview retest remains pending.
 
+> 2026-08-11 retest result: the latest Ready Preview reaches the same-origin
+> `/__/auth/handler` and then Google, which rejects the Preview handler with
+> `redirect_uri_mismatch`. The remaining action is external OAuth configuration,
+> not an application-code defect. Add the exact stable Preview handler URI to the
+> existing Google OAuth Client's Authorized redirect URIs, then retry this step.
+> Do not add a one-off deployment hostname or change Production.
+
 - [ ] **Step 3: Record the result and commit the handoff**
 
 Append only non-sensitive deployment status, route result, authentication result,

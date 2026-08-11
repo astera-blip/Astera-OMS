@@ -1445,3 +1445,19 @@ domain, or change any other Firebase/Vercel setting.
   Preview alias, and retry Google sign-in. Record only safe visible error text if
   it fails; do not create any test banking/payment/refund data until signed-in state
   persists on `/account/bank-accounts`.
+
+## 2026-08-11 Preview OAuth redirect-URI gate
+
+- The latest Git-integrated Preview was Ready and received only the existing stable
+  Preview alias. A separate direct CLI Preview upload timed out and was not assigned
+  to that alias. Production was not deployed or changed.
+- The corrected client flow reaches the same-origin Preview Auth handler and then
+  Google. Google rejects it with `redirect_uri_mismatch`, establishing that the
+  outstanding blocker is the OAuth Client redirect-URI allowlist.
+- Exact action requiring fresh external-configuration authorization: in the existing
+  Google OAuth Client, add only
+  `https://astera-oms-astera-blip-astera-oms.vercel.app/__/auth/handler` to
+  Authorized redirect URIs and save. Do not change the OAuth consent screen,
+  client credentials, other redirect URIs, Firebase domains, one-off Vercel hosts,
+  or Production. After saving, retry Preview sign-in and only then test retained
+  session state; no payment/refund test data may be created beforehand.

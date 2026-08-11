@@ -1386,3 +1386,20 @@ four fresh readbacks pass and are reviewed.
   an error appears, record only its safe displayed code/text and stop; if Google
   opens and authentication persists, resume the already-authorized one-pass test
   flow without creating data until that persistence check passes.
+
+## 2026-08-11 Preview OAuth redirect-URI blocker
+
+- The latest Git-integrated Preview is Ready and the existing stable alias now
+  targets it. A direct CLI Preview upload timed out without becoming the stable
+  alias; it was not used. Production was not deployed or changed.
+- Retest proves the client fix and same-origin proxy now reach the stable Preview
+  `/__/auth/handler`, after which Google returns `redirect_uri_mismatch`. This is
+  the expected external OAuth allowlist requirement for a custom `authDomain`, not
+  a Firebase session or application-data error.
+- No member/payment/order/refund test data was created and no browser storage,
+  tokens, or account values were inspected. Exact next action requires explicit
+  authorization for Google Cloud Console: add only
+  `https://astera-oms-astera-blip-astera-oms.vercel.app/__/auth/handler` to the
+  existing OAuth Client's Authorized redirect URIs, save, and retry Preview Google
+  login. Do not alter other OAuth settings, add a one-off Vercel hostname, or change
+  Production.
