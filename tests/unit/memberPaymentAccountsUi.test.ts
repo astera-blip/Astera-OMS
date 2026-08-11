@@ -72,4 +72,14 @@ describe("member payment account UI contract", () => {
       "onInput={(event) => setReceivedAt(event.currentTarget.value)}",
     );
   });
+
+  it("keeps the payment-report submit action visibly branded", () => {
+    const paymentBoard = readFileSync(
+      "src/components/storefront/PaymentRequestsBoard.tsx",
+      "utf8",
+    );
+
+    expect(paymentBoard).toContain("bg-[#6E4E64]");
+    expect(paymentBoard).toContain("disabled:bg-[#6E4E64]/60");
+  });
 });

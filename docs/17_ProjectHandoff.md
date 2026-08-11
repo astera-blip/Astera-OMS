@@ -1522,3 +1522,19 @@ domain, or change any other Firebase/Vercel setting.
   check pass. Exact continuation: deploy this commit to stable Preview, pick the
   date for the already-prepared test-only payment report, verify the button
   enables, submit once, and then continue Owner-side lifecycle tests.
+
+## 2026-08-11 Payment Report submit-action contrast repair
+
+- A subsequent signed-in Preview screenshot established that the submit action was
+  present but visually invisible: its white text appeared on the white form area.
+  Investigation confirmed that `PaymentRequestsBoard` used an undefined
+  `bg-astera-brand` theme utility. This is a presentation defect; no payment record
+  was created and no account or order data was changed.
+- The button now uses the approved Astera brand color with explicit hover and
+  disabled states. A red/green source-contract regression test prevents returning
+  to an unresolved token for this financial action.
+- Local verification is green: Unit 44 files / 381 tests, TypeScript, ESLint,
+  Build, and diff check. Exact handoff: deploy this commit to the stable Preview,
+  refresh `/payments`, and verify the purple button is visible. Do not submit the
+  already-prepared test-only Payment without a current explicit confirmation,
+  because that creates a `pendingReview` financial record.

@@ -322,7 +322,7 @@ export function PaymentRequestsBoard() {
           type="button"
           onClick={() => void reportPayment()}
           disabled={isSubmitting}
-          className="mt-4 min-h-11 rounded-lg bg-astera-brand px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 min-h-11 rounded-lg bg-[#6E4E64] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5D4255] disabled:cursor-not-allowed disabled:bg-[#6E4E64]/60 disabled:text-white"
         >
           {isSubmitting ? "送出中…" : "送出付款回報"}
         </button>

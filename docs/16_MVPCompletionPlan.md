@@ -1466,3 +1466,18 @@ four fresh readbacks pass and are reviewed.
   Fresh local verification: Unit 44 files / 380 tests, TypeScript, ESLint,
   Build, and diff check passed. Next: deploy Preview, choose the date again,
   confirm that `送出付款回報` enables, then submit only the prepared test request.
+
+## 2026-08-11 Payment Report submit-action contrast repair
+
+- Fresh manual Preview evidence showed that the payment-report submit control was
+  rendered but its white label sat on the page background. The control referenced
+  `bg-astera-brand`, while the current global Tailwind theme did not define that
+  color token. This is a visible UI defect, independent of payment validation.
+- The control now uses the approved Astera brand color directly, including an
+  accessible hover color and a visible disabled background. A regression test first
+  failed against the unresolved token and now asserts the verified class contract.
+- Fresh verification: Unit 44 files / 381 tests, TypeScript, ESLint, Next build,
+  and diff check passed. Exact next action: deploy Preview, refresh `/payments`,
+  and confirm the purple `送出付款回報` button is plainly visible. Only after the
+  user explicitly confirms the prepared test-only Payment creation may it be
+  submitted once.
