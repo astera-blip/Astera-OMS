@@ -1510,3 +1510,15 @@ domain, or change any other Firebase/Vercel setting.
   separate Owner account for confirmation, reverse, mismatch/match, reveal, and
   cleanup verification. Do not classify this date-control limitation as an app
   defect without a manual browser result.
+
+## 2026-08-11 Payment Report date-state repair pending Preview retest
+
+- The member's manual mobile screenshot proved a real form bug: a native date
+  value was visibly present but React validation retained an empty `receivedAt`,
+  leaving the submit control disabled. The control now handles both `change` and
+  `input` events. A test was added first, observed failing, then passed after the
+  minimal handler addition.
+- Evidence: Unit 44 files / 380 tests, TypeScript, ESLint, Next build, and diff
+  check pass. Exact continuation: deploy this commit to stable Preview, pick the
+  date for the already-prepared test-only payment report, verify the button
+  enables, submit once, and then continue Owner-side lifecycle tests.

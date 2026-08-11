@@ -61,4 +61,15 @@ describe("member payment account UI contract", () => {
     expect(snapshot.verificationStatus).toBe("needsReverification");
     expect(isMemberPaymentAccountUsableForPayment(snapshot)).toBe(false);
   });
+
+  it("updates the payment report date from native date-input events", () => {
+    const paymentBoard = readFileSync(
+      "src/components/storefront/PaymentRequestsBoard.tsx",
+      "utf8",
+    );
+
+    expect(paymentBoard).toContain(
+      "onInput={(event) => setReceivedAt(event.currentTarget.value)}",
+    );
+  });
 });

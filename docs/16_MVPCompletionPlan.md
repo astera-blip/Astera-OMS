@@ -1453,3 +1453,16 @@ four fresh readbacks pass and are reviewed.
   `pendingReview`, then continue Owner confirmation/reverse and refund-vault
   acceptance. Treat this as an automation limitation until a manual date-control
   test proves otherwise, not as an application defect.
+
+## 2026-08-11 Payment Report native date-event repair
+
+- Manual mobile evidence showed the transfer-date field visibly populated while
+  the submit button remained disabled and validation still reported a missing
+  date. This is an application event-handling defect, not merely automation:
+  the native date control can emit `input` before the React `change` path used
+  by the form state.
+- The date control now updates `receivedAt` on both `change` and native `input`.
+  A regression test first failed without the `onInput` handler and now passes.
+  Fresh local verification: Unit 44 files / 380 tests, TypeScript, ESLint,
+  Build, and diff check passed. Next: deploy Preview, choose the date again,
+  confirm that `送出付款回報` enables, then submit only the prepared test request.

@@ -276,6 +276,7 @@ export function PaymentRequestsBoard() {
               type="date"
               value={receivedAt}
               onChange={(event) => setReceivedAt(event.target.value)}
+              onInput={(event) => setReceivedAt(event.currentTarget.value)}
               className="min-h-11 rounded-lg border border-astera-border px-4 py-3"
             />
           </label>
