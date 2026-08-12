@@ -2323,3 +2323,22 @@ domain, or change any other Firebase/Vercel setting.
   `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` with `astera-oms.vercel.app`; redeploy
   Production and manually verify session persistence. No Firebase Rules, provider,
   data, DNS, payment, order, or refund change is needed.
+
+### 2026-08-12 Production same-origin Auth repair
+
+- Firebase Console readback found `astera-oms.vercel.app` was already a Production
+  Authorized Domain, so no Firebase-domain mutation was needed.
+- Under explicit authorization, exactly one Google OAuth redirect URI was appended
+  to the existing auto-created Web client:
+  `https://astera-oms.vercel.app/__/auth/handler`. Existing redirect URIs, client
+  identity, consent settings, and client secrets were not altered.
+- Vercel Production `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` was replaced with
+  `astera-oms.vercel.app` and deployment `dpl_A8uq9wwsdtzZLRWR85VzBh9wgE6a`
+  reached Ready and owns `https://astera-oms.vercel.app`.
+- Read-only verification: both same-origin Auth proxy paths return HTTP 200;
+  clicking Google login without selecting an account reached Google account choice
+  using the exact same-origin handler URI, without `redirect_uri_mismatch`.
+- Exact user action: open the Production alias, select a Google account yourself,
+  then reload and open `/account/profile`. Report whether the header displays the
+  signed-in user. Only after session persistence passes should the guest-cart
+  continuation, profile write, or other business-flow testing resume.

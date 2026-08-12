@@ -188,3 +188,8 @@
   existing Firebase default host and redeployed as
   `dpl_79zMNBTmdKrsNq58pcx6tK3fMJeH`; this prevents client initialization from
   failing solely because the public auth configuration is absent.
+- 2026-08-12: Replaced that cross-origin fallback with the Production same-origin
+  Auth domain, appended only the matching Google OAuth redirect URI, and deployed
+  `dpl_A8uq9wwsdtzZLRWR85VzBh9wgE6a`. This addresses redirect-session loss in
+  browsers that block third-party storage; cart, Checkout, Rules, and data models
+  were not changed.
