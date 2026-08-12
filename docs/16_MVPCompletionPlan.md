@@ -2156,3 +2156,22 @@ Preview deployment update:
 - [ ] Conduct real Google sign-in and the protected Member／Owner acceptance flow
   from the Production alias. This needs a person to complete OAuth and explicit
   action-time authority before any test Payment, reversal, cancellation, or refund.
+
+### 2026-08-12 Production Google redirect-session blocker
+
+- [ ] Do not use `astera-oms-prod.firebaseapp.com` as the Vercel Production
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`. It is a cross-origin redirect helper and can
+  lose the Firebase redirect session in browsers that block third-party storage;
+  this exactly matches the reported "Google account completes, site remains signed
+  out" symptom.
+- [ ] With fresh external-configuration authorization, add only
+  `astera-oms.vercel.app` to Firebase Authentication Authorized Domains, add only
+  `https://astera-oms.vercel.app/__/auth/handler` to the existing Google OAuth
+  Client Authorized redirect URIs, then set Vercel Production
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=astera-oms.vercel.app` and redeploy. The
+  existing `next.config.ts` transparent `/__/auth/:path*` proxy is already present;
+  no application code, Collection, Firebase Rule, Checkout, or payment logic needs
+  to change.
+- [ ] After the configuration is applied, manually complete Google login on the
+  Production alias, reload once, and navigate to `/account/profile` to prove the
+  Firebase user session persists before testing any write operation.

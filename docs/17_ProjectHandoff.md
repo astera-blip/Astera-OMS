@@ -2305,3 +2305,21 @@ domain, or change any other Firebase/Vercel setting.
   Member, then separately sign in as Owner to verify workspace read access. Do
   not perform Payment confirmation, reversal, cancellation review, or refund
   unless a clearly-labelled test target and fresh action-time approval are given.
+
+### 2026-08-12 Production Google-login diagnosis
+
+- Reported symptom: a visitor selects Google while adding a recommended product,
+  returns to the Production site, and is still signed out. This is not a cart or
+  pending-intent failure: the user session must exist before that continuation runs.
+- Root cause is the previously documented Firebase redirect-storage constraint. The
+  Production Vercel variable was set to the Firebase-hosted default
+  `astera-oms-prod.firebaseapp.com`, whereas the application is served from
+  `astera-oms.vercel.app`. The repository already has a transparent Vercel rewrite
+  for `/__/auth/:path*`, so the supported fix is a same-origin `authDomain`.
+- Exact next external changes, requiring explicit authorization: append only
+  `astera-oms.vercel.app` to Firebase Authentication Authorized Domains; append only
+  `https://astera-oms.vercel.app/__/auth/handler` to the existing Google OAuth
+  Client's Authorized redirect URIs; replace only the Production Vercel
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` with `astera-oms.vercel.app`; redeploy
+  Production and manually verify session persistence. No Firebase Rules, provider,
+  data, DNS, payment, order, or refund change is needed.
