@@ -2520,7 +2520,12 @@ domain, or change any other Firebase/Vercel setting.
   product read failures because this isolated worktree contains `.env.example` but
   no production `.env.local`. The same public product checks passed against the
   Firestore Emulator. Do not treat that external-config gap as a payment regression.
-- Next exact step: commit and push `codex/storefront-product-order`, wait for Vercel
-  Preview, reassign the already-authorized stable Preview alias if required, and
-  manually confirm the affected request is disabled after reload. Do not deploy
-  Production without explicit authorization.
+- Delivery: commit `c9fac21` was pushed to `codex/storefront-product-order`; Vercel
+  Preview `dpl_Goc9f15HDyBiH3gEzrH7Ng85ZHSu` reached Ready at
+  `https://astera-9do052lnh-astera-oms.vercel.app`. The existing Firebase-authorized
+  stable alias `https://astera-oms-astera-blip-astera-oms.vercel.app` now points to
+  that deployment. Production was not changed.
+- Next exact step: sign in on the stable Preview as the member who owns a pending
+  report, open `/payments`, and confirm the linked request is disabled and labelled
+  `已回報／待確認`; then open `/orders` and confirm unpaid orders precede paid and
+  cancelled orders. Production deployment requires separate authorization.

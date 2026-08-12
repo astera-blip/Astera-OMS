@@ -2314,5 +2314,6 @@ Preview deployment update:
   skips but its two product-data checks could not initialize Firebase because this
   isolated worktree intentionally has no `.env.local`; the Emulator public-product
   checks passed in the full run.
-- [ ] Push the branch and wait for the fixed authenticated Preview alias to reach a
-  Ready deployment. Production remains unchanged and needs separate authorization.
+- [x] Push commit `c9fac21`; Vercel Preview `dpl_Goc9f15HDyBiH3gEzrH7Ng85ZHSu`
+  reached Ready and the existing Firebase-authorized stable Preview alias was moved
+  to it. Production remains unchanged and needs separate authorization.
