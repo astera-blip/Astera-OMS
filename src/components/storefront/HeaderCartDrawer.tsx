@@ -19,30 +19,40 @@ export function HeaderCartDrawer({ open, onClose }: Props) {
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
 
   const loadDrawerData = useCallback(async () => {
-    const [{ db }, { listPublicProducts }] = await Promise.all([
-      import("@/lib/firebase/client"),
-      import("@/lib/product/repository"),
-    ]);
-    const nextCatalog = (await listPublicProducts(db)).filter(
-      (item) => item.product.publishState === "published",
-    );
-    setCatalog(nextCatalog);
+    try {
+      const [{ db }, { listPublicProducts }] = await Promise.all([
+        import("@/lib/firebase/client"),
+        import("@/lib/product/repository"),
+      ]);
+      const nextCatalog = (await listPublicProducts(db)).filter(
+        (item) => item.product.publishState === "published",
+      );
+      setCatalog(nextCatalog);
+    } catch {
+      // The drawer must still allow cart navigation if public catalog data is
+      // temporarily unavailable (including smoke tests without Firebase config).
+      setCatalog([]);
+    }
 
     if (!user) {
       setCart(loadAnonymousCart());
       return;
     }
 
-    const token = await user.getIdToken();
-    const response = await fetch("/api/cart", {
-      headers: { authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return;
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/cart", {
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as { items?: CartLineItem[] };
+      setCart(payload.items ?? []);
+    } catch {
+      // Keep the current summary visible until the next successful sync.
     }
-    const payload = (await response.json()) as { items?: CartLineItem[] };
-    setCart(payload.items ?? []);
   }, [user]);
 
   useEffect(() => {

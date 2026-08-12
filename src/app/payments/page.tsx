@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { PaymentRequestsBoard } from "@/components/storefront/PaymentRequestsBoard";
 
 export default function PaymentsPage() {
@@ -15,7 +16,9 @@ export default function PaymentsPage() {
         </div>
 
         <div className="mt-6">
-          <PaymentRequestsBoard />
+          <Suspense fallback={<p className="rounded-xl border border-astera-border bg-astera-surface p-5 text-sm text-astera-secondary">正在準備付款資料…</p>}>
+            <PaymentRequestsBoard />
+          </Suspense>
         </div>
       </section>
     </main>

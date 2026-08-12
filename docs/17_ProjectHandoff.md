@@ -2393,3 +2393,32 @@ domain, or change any other Firebase/Vercel setting.
   `https://astera-czlg1up5n-astera-oms.vercel.app` completed and owns
   `https://astera-oms.vercel.app`. Fresh browser inspection confirms the duplicate
   card is gone and receipt fields remain. Public production smoke: 5/5 HTTP 200.
+
+### 2026-08-12 Storefront navigation／product／order refinement (local branch)
+
+- Branch/worktree: `codex/storefront-product-order` at
+  `C:\\Users\\ting1\\Documents\\代購網頁製作\\.worktrees\\codex-storefront-product-order`.
+- Implemented approved UI behavior: compact mobile Header and expanding vertical
+  member menu; Header cart summary drawer; public 2-column mobile／4-column desktop
+  Product grid; simplified Product detail with image gallery controls; `/cart` as
+  review then `/checkout` as the only recipient／consent confirmation step; and
+  status-first Order cards with direct Payment Report entry when applicable.
+- Server trust boundaries and financial behavior were not changed. The cart drawer
+  only reads public catalog/cart information and safely keeps navigation available
+  when its catalog read cannot initialize.
+- Build correction: `/payments` uses `useSearchParams()` for a preselected payment
+  request, so `src/app/payments/page.tsx` now supplies the required local Suspense
+  boundary. This removes the Next.js 16 production prerender failure.
+- Test runner correction: `playwright.config.ts` supports explicit
+  `PLAYWRIGHT_PORT`, `PLAYWRIGHT_TURBOPACK_ROOT`, and `PLAYWRIGHT_WORKERS` values
+  to isolate a Windows Git worktree from an unrelated active local server. Do not
+  use the root `localhost:3000` server as proof of this branch.
+- Verified locally: TypeScript pass; ESLint pass; Unit 57 files／457 tests; Rules
+  2 files／32 tests; Build 42 routes; secret scan pass; production dependency audit
+  0 vulnerabilities; focused navigation E2E 4/4; public smoke 14 passed／2 expected
+  skips; Emulator homepage E2E 10/10.
+- Known test-infrastructure limitation: the aggregate regular Playwright command
+  mixing all suites in this worktree produced subsequent 404s after earlier specs;
+  individual public and emulator suites pass with the isolated runner. The next
+  engineer should reproduce from a normal checkout or split project web servers
+  before treating the aggregate command as green.

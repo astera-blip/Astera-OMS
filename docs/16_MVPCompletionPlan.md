@@ -2215,3 +2215,28 @@ Preview deployment update:
   `https://astera-oms.vercel.app`. A fresh `/checkout` browser inspection confirms
   the self-link card is absent and the receipt form remains visible; public smoke
   remains 5/5 HTTP 200.
+
+### 2026-08-12 Storefront product, order, and navigation refinement
+
+- [x] Create the isolated `codex/storefront-product-order` worktree and implement
+  the approved mobile Header (fixed ASTERA／cart／menu; vertical menu below Header),
+  a dismissible Header cart drawer, responsive public Product cards, Product image
+  gallery controls, separated cart／checkout presentation, and clear Order action
+  cards.
+- [x] Preserve all existing Firebase, `productsPublic`, Cart API, Checkout, pricing,
+  Rules, and Order business logic. No Collection or Rule change was made.
+- [x] Add regression coverage for responsive navigation／cart drawer, guest checkout
+  presentation, and order-action payment-request selection.
+- [x] Fix two release-relevant regressions found during verification: the cart drawer
+  now safely degrades when public Firebase configuration is unavailable, and the
+  `/payments` query-driven preselection is wrapped in the required Next.js Suspense
+  boundary for production static builds.
+- [x] Verification: TypeScript; ESLint; Unit 57 files／457 tests; Firestore＋Storage
+  Rules 2 files／32 tests; Build 42 routes; focused public navigation E2E 4/4;
+  public smoke 14 passed／2 expected Emulator-only skips; and Emulator homepage E2E
+  10/10 (390px／768px／1365px plus signed-in cart continuation).
+- [ ] Full mixed regular Playwright run remains a test-infrastructure follow-up:
+  invoking every regular and Emulator-only spec together on a Windows Git worktree
+  can return 404s after an earlier run, although each relevant public suite passes
+  in isolation. Re-run this from a normal checkout or finish a dedicated runner
+  isolation change before claiming the aggregate `npm run test:e2e` result is green.

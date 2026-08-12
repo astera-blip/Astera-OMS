@@ -11,7 +11,13 @@ test("public storefront navigation renders without seed fallback", async ({ page
 
   await page.getByRole("link", { name: "立即看商品" }).click();
   await expect(page).toHaveURL(/\/#featured-products$/);
-  await page.getByRole("navigation", { name: "公開導覽" }).getByRole("link", { name: "商品", exact: true }).click();
+  const mobileMenuButton = page.getByRole("button", { name: "開啟選單" });
+  if (await mobileMenuButton.count()) {
+    await mobileMenuButton.click();
+    await page.getByRole("navigation", { name: "會員導覽" }).getByRole("link", { name: "商品", exact: true }).click();
+  } else {
+    await page.getByRole("navigation", { name: "公開導覽" }).getByRole("link", { name: "商品", exact: true }).click();
+  }
   await expect(page).toHaveURL(/\/products/);
   await expect(page.getByRole("heading", { name: "商品列表" })).toBeVisible();
   await expect(page.getByRole("link", { name: "回首頁" })).toBeVisible();
@@ -98,9 +104,10 @@ test("member dashboard exposes a visual skeleton without fake operational data",
 test("cart page keeps unauthenticated checkout blocked", async ({ page }) => {
   await page.goto("/cart");
 
-  await expect(page.getByRole("heading", { name: "建立訂單" })).toBeVisible();
-  await expect(page.getByText(/請先登入|購物車目前沒有商品/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "請先加入商品" })).toBeDisabled();
+  await expect(page.getByText("結帳步驟", { exact: true })).toBeVisible();
+  await expect(page.getByText(/請先登入後再前往結帳|購物車目前沒有商品/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "前往結帳" })).toHaveAttribute("aria-disabled", "true");
+  await page.goto("/checkout");
   await expect(page.locator("#recipientName")).toHaveAttribute("name", "recipientName");
   await expect(page.locator("#recipientName")).toHaveAttribute("autocomplete", "name");
   await expect(page.locator("#recipientPhone")).toHaveAttribute("name", "recipientPhone");
