@@ -15,7 +15,7 @@ export function HomeExperience() {
 
   if (status === "loading") {
     return (
-      <main id="main-content" tabIndex={-1} className="flex-1 bg-astera-page px-4 py-8 text-astera-ink sm:px-8">
+      <main className="flex-1 bg-astera-page px-4 py-8 text-astera-ink sm:px-8">
         <div aria-live="polite" aria-busy="true" className="mx-auto grid max-w-7xl gap-6">
           <div className="h-48 animate-pulse rounded-2xl border border-astera-border bg-astera-surface" />
           <div className="h-36 animate-pulse rounded-2xl border border-astera-border bg-astera-surface" />
@@ -27,7 +27,7 @@ export function HomeExperience() {
 
   if (!user) {
     return (
-      <main id="main-content" tabIndex={-1} className="flex-1 overflow-x-clip bg-astera-page px-4 py-6 text-astera-ink sm:px-8 sm:py-8">
+      <main className="flex-1 overflow-x-clip bg-astera-page px-4 py-6 text-astera-ink sm:px-8 sm:py-8">
         <div className="mx-auto grid max-w-7xl gap-6">
           <section data-testid="guest-login-card" className="grid gap-6 rounded-2xl border border-astera-border bg-astera-surface px-5 py-[22px] sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-12">
             <div>
@@ -76,7 +76,7 @@ export function HomeExperience() {
   }
 
   return (
-    <main id="main-content" tabIndex={-1} className="flex-1 overflow-x-clip bg-astera-page px-4 py-8 text-astera-ink sm:px-8 sm:py-10">
+    <main className="flex-1 overflow-x-clip bg-astera-page px-4 py-8 text-astera-ink sm:px-8 sm:py-10">
       <div className="mx-auto grid max-w-7xl gap-10">
         <MemberHomeActions />
         <FeaturedProductsBoard mode="member" />
