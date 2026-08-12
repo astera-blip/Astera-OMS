@@ -201,3 +201,7 @@
 - Updated CartBoard to show a clear prerequisite message while the CTA is disabled.
 - Added Unit regression coverage. This is a client-only UX guard; the existing
   Checkout API validation remains authoritative and unchanged.
+- 2026-08-12: Deployed this guard to Vercel Production as
+  `https://astera-20qm8k0i8-astera-oms.vercel.app`, now aliased to
+  `https://astera-oms.vercel.app`. A signed-in one-item cart verified the disabled
+  CTA with incomplete recipient and consent requirements; no Order was submitted.

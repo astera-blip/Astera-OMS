@@ -2192,7 +2192,10 @@ Preview deployment update:
 - [x] Add regression coverage. Focused checkout Unit: 11/11; complete Unit:
   56 files／451 tests; TypeScript; ESLint; Next Build 42 routes; regular Playwright:
   20 passed／38 expected Emulator-only skips.
-- [ ] Deploy this client-only prevention change to Preview or Production only after
-  fresh deployment authorization, then manually verify the disabled CTA becomes
-  enabled after all four requirements are completed. No Order should be submitted
-  during that verification.
+- [x] Under fresh authorization, deploy the client-only prevention change to Vercel
+  Production as `https://astera-20qm8k0i8-astera-oms.vercel.app`; the alias
+  `https://astera-oms.vercel.app` now points to it. A signed-in Production cart
+  with one item, blank recipient fields, and unchecked consents showed the disabled
+  CTA and its prerequisite message. No Order was submitted.
+- [x] Production anonymous smoke: `/`, `/products`, `/terms`, `/privacy`, and
+  `/products/prod_002` returned HTTP 200.

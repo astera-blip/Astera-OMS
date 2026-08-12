@@ -2363,3 +2363,19 @@ domain, or change any other Firebase/Vercel setting.
   verify in Production with an existing cart that the CTA remains disabled until
   recipient name, valid phone, terms/privacy consent, and supplement consent are
   all completed. Do not press the enabled CTA or create an Order in that check.
+
+### 2026-08-12 Cart prevention Production verification
+
+- Under explicit deployment authorization, Vercel Production deployment
+  `https://astera-20qm8k0i8-astera-oms.vercel.app` completed and was aliased to
+  `https://astera-oms.vercel.app`.
+- Browser inspection after a production reload: the authenticated cart reloaded its
+  existing one-item Cloud cart; blank recipient fields and both unchecked consents
+  displayed `建立訂單` as disabled and showed the prerequisite message. No form was
+  completed and no Order was created.
+- Production anonymous smoke is green for `/`, `/products`, `/terms`, `/privacy`,
+  and `/products/prod_002` (HTTP 200 each).
+- Deployment warning retained for release follow-up: Vercel built using Node
+  `24.15.0` while `package.json` requests `>=24.18.0 <25`; it emitted an engine
+  warning but the deployment build completed. Update the Vercel Node version before
+  the next production release.
