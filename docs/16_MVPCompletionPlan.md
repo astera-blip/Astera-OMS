@@ -2199,3 +2199,19 @@ Preview deployment update:
   CTA and its prerequisite message. No Order was submitted.
 - [x] Production anonymous smoke: `/`, `/products`, `/terms`, `/privacy`, and
   `/products/prod_002` returned HTTP 200.
+
+### 2026-08-12 Checkout self-link cleanup
+
+- [x] Reproduce the self-referential UI on `/checkout`: `CartBoard` was shared by
+  `/cart` and `/checkout`, so the checkout page itself rendered a `前往結帳` link.
+- [x] Add the `showCheckoutStep` presentation prop. It defaults to `true` for
+  `/cart`; `/checkout` sets it to `false`, leaving its existing recipient, consent,
+  and order creation controls intact.
+- [x] Fresh verification: targeted checkout route Unit 2/2, complete Unit 56
+  files／451 tests, TypeScript, ESLint, Build 42 routes, public Playwright
+  14 passed／2 expected skips.
+- [x] Under explicit authorization, deploy Vercel Production
+  `https://astera-czlg1up5n-astera-oms.vercel.app` and assign
+  `https://astera-oms.vercel.app`. A fresh `/checkout` browser inspection confirms
+  the self-link card is absent and the receipt form remains visible; public smoke
+  remains 5/5 HTTP 200.

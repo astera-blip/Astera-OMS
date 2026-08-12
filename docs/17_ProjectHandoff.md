@@ -2379,3 +2379,17 @@ domain, or change any other Firebase/Vercel setting.
   `24.15.0` while `package.json` requests `>=24.18.0 <25`; it emitted an engine
   warning but the deployment build completed. Update the Vercel Node version before
   the next production release.
+
+### 2026-08-12 Checkout self-link Production correction
+
+- Reported UI: `/checkout` presented `結帳步驟` and `前往結帳` despite already being
+  the checkout route.
+- Root cause: both routes render `CartBoard`; its checkout-navigation card was
+  unconditional.
+- Local commit `d5d29a9` adds a default-on `showCheckoutStep` prop and passes
+  `false` only from `src/app/checkout/page.tsx`. `/cart` behavior and all business
+  logic are unchanged.
+- Under explicit authorization, Production deployment
+  `https://astera-czlg1up5n-astera-oms.vercel.app` completed and owns
+  `https://astera-oms.vercel.app`. Fresh browser inspection confirms the duplicate
+  card is gone and receipt fields remain. Public production smoke: 5/5 HTTP 200.

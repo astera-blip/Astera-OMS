@@ -205,3 +205,10 @@
   `https://astera-20qm8k0i8-astera-oms.vercel.app`, now aliased to
   `https://astera-oms.vercel.app`. A signed-in one-item cart verified the disabled
   CTA with incomplete recipient and consent requirements; no Order was submitted.
+
+## 2026-08-12 Checkout navigation cleanup
+
+- Removed the redundant `前往結帳` card from `/checkout`, while retaining it on
+  `/cart` as the entry to that page.
+- Deployed to Production as `https://astera-czlg1up5n-astera-oms.vercel.app` and
+  verified the formal alias plus public smoke routes.
