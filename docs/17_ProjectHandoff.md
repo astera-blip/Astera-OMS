@@ -2421,3 +2421,10 @@ domain, or change any other Firebase/Vercel setting.
   no stale listener remained: 24 passed／38 expected Emulator-only skips. The prior
   404 sequence came from reusing a timed-out development server, not an application
   route defect. Emulator homepage acceptance remains 10/10.
+- GitHub push completed for `codex/storefront-product-order` through `44138b4`.
+  Vercel Preview `dpl_7BsLuhmHK8zFZteMHKHPY3dk4FK3` reached Ready at
+  `https://astera-5x6239vce-astera-oms.vercel.app`; stable branch alias:
+  `https://astera-oms-git-codex-storefront-product-order-astera-oms.vercel.app`.
+  Deployment Protection redirects anonymous traffic to Vercel SSO. Authenticated
+  Vercel checks returned 200 for the homepage, product list, terms, privacy, and
+  `prod_002` detail. No Production deployment or alias change was performed.

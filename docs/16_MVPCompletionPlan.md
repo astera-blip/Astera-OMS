@@ -2239,3 +2239,10 @@ Preview deployment update:
   confirming no stale listener remained: 24 passed／38 expected Emulator-only skips.
   The earlier 404 sequence was caused by a timed-out development server being reused,
   not by application routing.
+- [x] Push `codex/storefront-product-order` to GitHub through `44138b4`. Vercel
+  automatically built Preview `dpl_7BsLuhmHK8zFZteMHKHPY3dk4FK3` and reported
+  `Ready`. The stable branch alias is protected by Vercel SSO, so anonymous requests
+  correctly redirect to Vercel login; authenticated read-only checks returned HTTP
+  200 for `/`, `/products`, `/terms`, `/privacy`, and `/products/prod_002`.
+- [ ] Production remains unchanged. Merge／Production deployment requires a separate
+  explicit decision after manual Preview acceptance.
