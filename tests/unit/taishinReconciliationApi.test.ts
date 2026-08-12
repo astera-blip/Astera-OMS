@@ -26,6 +26,6 @@ describe("Taishin reconciliation API contract", () => {
     const board = readFileSync("src/components/workspace/TaishinReconciliationBoard.tsx", "utf8");
     expect(board).toContain("/api/workspace/reconciliation/taishin");
     expect(board).toContain('accept=".xlsx');
-    expect(board).toContain("匯入並比對");
+    expect(board).toContain("解析並批次比對");
   });
 });
