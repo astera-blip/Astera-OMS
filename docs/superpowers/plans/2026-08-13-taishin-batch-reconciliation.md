@@ -48,7 +48,7 @@ Run: `npm run test:unit -- tests/unit/taishinReconciliation.test.ts`
 
 - [ ] **Step 3: Implement canonical parsing and SHA-256 fingerprinting**
 
-Use `node:crypto`, normalize date/method/amount/last-five fields, discard balance and original remark after extraction, and include a deterministic row occurrence suffix only when identical rows occur in the same upload.
+Use `node:crypto`, normalize date/method/amount/last-five fields, and discard balance and original remark after extraction. Identical normalized rows intentionally produce the same fingerprint so the matcher classifies them as duplicate instead of guessing that they are independent transactions.
 
 - [ ] **Step 4: Run the focused test and confirm GREEN**
 
@@ -252,4 +252,3 @@ npm audit --omit=dev --audit-level=high
 git add -- tests/e2e/member-payment-cancellation-flow.spec.ts docs/10_TestPlan.md docs/11_Changelog.md docs/16_MVPCompletionPlan.md docs/17_ProjectHandoff.md
 git commit -m "test: verify Taishin batch reconciliation"
 ```
-

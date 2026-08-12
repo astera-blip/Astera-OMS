@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import ExcelJS from "exceljs";
 
 export type TaishinTransaction = {
@@ -5,10 +6,8 @@ export type TaishinTransaction = {
   accountingDate: string;
   method: string;
   amountTwd: number;
-  balanceTwd: number | null;
-  remark: string;
   accountLast5: string;
-  matchKey: string;
+  transactionFingerprint: string;
 };
 
 export type TaishinParseResult =
@@ -16,6 +15,24 @@ export type TaishinParseResult =
   | { ok: false; error: "taishin_columns_invalid" | "taishin_rows_invalid" };
 
 const requiredHeaders = ["交易日", "帳務日", "摘要", "金額", "餘額", "備註"] as const;
+
+type TaishinTransactionIdentity = Omit<TaishinTransaction, "transactionFingerprint">;
+
+function normalizeIdentityText(value: string): string {
+  return value.trim().replace(/\s+/gu, " ");
+}
+
+export function buildTaishinTransactionFingerprint(
+  input: TaishinTransactionIdentity,
+): string {
+  return createHash("sha256").update(JSON.stringify({
+    transactionAt: normalizeIdentityText(input.transactionAt),
+    accountingDate: normalizeIdentityText(input.accountingDate),
+    method: normalizeIdentityText(input.method),
+    amountTwd: Math.trunc(input.amountTwd),
+    accountLast5: input.accountLast5,
+  }), "utf8").digest("hex");
+}
 
 export function extractTaishinLast5(remark: unknown): string {
   if (typeof remark !== "string") {
@@ -71,26 +88,26 @@ export function parseTaishinRows(rows: ReadonlyArray<ReadonlyArray<unknown>>): T
     if (row.every((value) => normalizeCell(value) === "")) {
       continue;
     }
-    const [transactionIndex, accountingIndex, methodIndex, amountIndex, balanceIndex, remarkIndex] = columnIndexes;
+    const [transactionIndex, accountingIndex, methodIndex, amountIndex, , remarkIndex] = columnIndexes;
     const transactionAt = normalizeCell(row[transactionIndex]);
     const accountingDate = normalizeCell(row[accountingIndex]);
     const method = normalizeCell(row[methodIndex]);
     const amountTwd = normalizeAmount(row[amountIndex]);
-    const balanceTwd = normalizeAmount(row[balanceIndex]);
     const remark = normalizeCell(row[remarkIndex]);
     if (!transactionAt || amountTwd == null) {
       return { ok: false, error: "taishin_rows_invalid" };
     }
     const accountLast5 = extractTaishinLast5(remark);
-    transactions.push({
+    const transaction = {
       transactionAt,
       accountingDate,
       method,
       amountTwd,
-      balanceTwd,
-      remark,
       accountLast5,
-      matchKey: `${amountTwd}${accountLast5}`,
+    };
+    transactions.push({
+      ...transaction,
+      transactionFingerprint: buildTaishinTransactionFingerprint(transaction),
     });
   }
 
