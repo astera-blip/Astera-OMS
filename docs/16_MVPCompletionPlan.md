@@ -2235,8 +2235,7 @@ Preview deployment update:
   Rules 2 files／32 tests; Build 42 routes; focused public navigation E2E 4/4;
   public smoke 14 passed／2 expected Emulator-only skips; and Emulator homepage E2E
   10/10 (390px／768px／1365px plus signed-in cart continuation).
-- [ ] Full mixed regular Playwright run remains a test-infrastructure follow-up:
-  invoking every regular and Emulator-only spec together on a Windows Git worktree
-  can return 404s after an earlier run, although each relevant public suite passes
-  in isolation. Re-run this from a normal checkout or finish a dedicated runner
-  isolation change before claiming the aggregate `npm run test:e2e` result is green.
+- [x] Re-run the complete regular Playwright suite on a fresh isolated server after
+  confirming no stale listener remained: 24 passed／38 expected Emulator-only skips.
+  The earlier 404 sequence was caused by a timed-out development server being reused,
+  not by application routing.

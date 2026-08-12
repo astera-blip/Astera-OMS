@@ -2417,8 +2417,7 @@ domain, or change any other Firebase/Vercel setting.
   2 files／32 tests; Build 42 routes; secret scan pass; production dependency audit
   0 vulnerabilities; focused navigation E2E 4/4; public smoke 14 passed／2 expected
   skips; Emulator homepage E2E 10/10.
-- Known test-infrastructure limitation: the aggregate regular Playwright command
-  mixing all suites in this worktree produced subsequent 404s after earlier specs;
-  individual public and emulator suites pass with the isolated runner. The next
-  engineer should reproduce from a normal checkout or split project web servers
-  before treating the aggregate command as green.
+- Complete regular Playwright was repeated on a fresh isolated port after verifying
+  no stale listener remained: 24 passed／38 expected Emulator-only skips. The prior
+  404 sequence came from reusing a timed-out development server, not an application
+  route defect. Emulator homepage acceptance remains 10/10.
