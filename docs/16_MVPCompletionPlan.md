@@ -2271,3 +2271,17 @@ Preview deployment update:
   cart-intent continuation, Header states, desktop, and Pixel 7.
 - [ ] Push and Vercel Preview deployment are the next release step. Production is
   unchanged and still requires separate explicit authorization.
+
+### 2026-08-13 Preview Google sign-in domain correction
+
+- [x] Reproduce the reported `auth/unauthorized-domain` only on the branch-specific
+  host `astera-oms-git-codex-storefront-product-order-astera-oms.vercel.app`.
+- [x] Confirm Preview `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` remains the previously
+  approved stable host `astera-oms-astera-blip-astera-oms.vercel.app`, while that
+  stable alias still pointed to an older Preview deployment.
+- [x] Reassign only the existing authorized stable Preview alias to Ready deployment
+  `dpl_9yYWbZreNNupDzSUJPHSDPcVauxe`. No Firebase domain, OAuth Client, environment
+  variable, Production alias, database, or application code was changed.
+- [x] Browser verification on the stable alias loaded the new guest／member homepage
+  and restored the existing Firebase session, including custom-claim Owner navigation.
+  Use the stable authorized Preview URL for all interactive Google-login testing.

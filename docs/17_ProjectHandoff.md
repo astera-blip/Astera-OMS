@@ -2459,3 +2459,22 @@ domain, or change any other Firebase/Vercel setting.
 - Exact next step: commit and push the branch, wait for the Vercel Preview to reach
   Ready, then inspect the authenticated Preview `/` at desktop and mobile widths.
   Do not deploy Production without a new explicit authorization.
+
+### 2026-08-13 Preview authentication hostname correction
+
+- Symptom: Google login from the branch alias returned the existing Chinese
+  `auth/unauthorized-domain` message.
+- Root cause: Firebase Authentication had previously authorized the fixed Preview
+  hostname `astera-oms-astera-blip-astera-oms.vercel.app`, and Preview builds use
+  that same hostname as `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`; the newly introduced
+  branch alias was not an Authorized Domain. The fixed hostname still targeted an
+  older Preview, which also caused manual reviewers to see stale UI.
+- Fix: Vercel alias reassignment only. The fixed authorized Preview hostname now
+  points to Ready deployment `dpl_9yYWbZreNNupDzSUJPHSDPcVauxe` containing commits
+  `c9dfc49` and `e852382`. No new Firebase Authorized Domain was added.
+- Verification: Vercel inspect resolves the fixed hostname to that Ready deployment;
+  a real browser load displayed the new homepage and recognized the existing signed-in
+  Owner session, including custom-claim-gated Workspace access.
+- Required test URL: `https://astera-oms-astera-blip-astera-oms.vercel.app`. Do not
+  use branch-specific or one-off deployment hosts for interactive Google login unless
+  they are separately and explicitly approved in Firebase Authentication.
