@@ -2262,7 +2262,8 @@ domain, or change any other Firebase/Vercel setting.
   regular public Playwright 16 passed／10 expected Emulator-only skips; focused Emulator
   Playwright 10 passed; Rules 2 files／32 tests. No Collection, Rules, Checkout, Order,
   or pricing logic changed. Implementation commit: `54a8b03`.
-- Deployment state: local branch only; Preview and Production were not deployed.
+- Deployment state at the time of this historical entry: local branch only. The
+  later 2026-08-12 Production deployment is recorded immediately below.
 
 ## 2026-08-12 Production storefront deployment
 
@@ -2277,6 +2278,30 @@ domain, or change any other Firebase/Vercel setting.
   files／32 tests; TypeScript; ESLint; Next Build 42 routes; public Playwright
   16 passed／10 expected Emulator-only skips. Anonymous production smoke returned
   200 for `/`, `/products`, `/terms`, `/privacy`, and `/products/prod_002`.
+- Production subsequently received the missing public Firebase auth configuration:
+  `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=astera-oms-prod.firebaseapp.com`. Deployment
+  `dpl_79zMNBTmdKrsNq58pcx6tK3fMJeH` reached Ready at
+  `https://astera-1nmgtq5nv-astera-oms.vercel.app` and now owns the production
+  alias. A fresh anonymous smoke returned 200 for the same five public routes.
+- This fixes Firebase client initialization, but does not itself prove an interactive
+  Google OAuth session. The next manual test must use the production alias and a
+  real member account; do not enter passwords or OAuth codes into chat.
 - Exact next step: manually test the production alias as a visitor, then repeat
   the Member and Owner flows with explicitly labelled test data. Do not treat
   custom-domain, Resend, or authenticated-flow acceptance as complete yet.
+
+### 2026-08-12 Follow-up release-gate inventory
+
+- Production projection audit is clean: 2 internal products and 2 public products,
+  with no count, SKU, price, or private-field issue. Production secret scan found
+  no obvious repository secret; `npm audit --omit=dev --audit-level=high` returned
+  zero vulnerabilities.
+- `asteratw.com`, `www.asteratw.com`, and `updates.asteratw.com` all remain
+  unresolved. Vercel Production has `RESEND_FROM_EMAIL` and
+  `RESEND_REPLY_TO_EMAIL`, but no `RESEND_API_KEY`; actual mail delivery is
+  blocked until DNS and the API key are configured.
+- The precise user-driven continuation is: open `https://astera-oms.vercel.app`,
+  complete Google login, verify profile/cart/bank account/payment report as a
+  Member, then separately sign in as Owner to verify workspace read access. Do
+  not perform Payment confirmation, reversal, cancellation review, or refund
+  unless a clearly-labelled test target and fresh action-time approval are given.

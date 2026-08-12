@@ -2116,7 +2116,8 @@ Preview deployment update:
   Next Build 42 routes, regular public Playwright 16 passed／10 expected skips,
   Emulator homepage Playwright 10/10, and Rules 2 files／32 tests. Implementation
   commit: `54a8b03`.
-- [ ] Preview and Production deployment remain separate operations and were not performed.
+- [x] Preview and Production deployment were completed later; the active Production
+  record is maintained in the 2026-08-12 deployment update below.
 
 ### 2026-08-12 Production deployment update
 
@@ -2131,5 +2132,27 @@ Preview deployment update:
   public Playwright 16 passed／10 expected Emulator-only skips.
 - [x] Production anonymous smoke against the alias: `/`, `/products`, `/terms`,
   `/privacy`, and `/products/prod_002` all returned HTTP 200.
+- [x] Add the missing Production-only `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` as
+  `astera-oms-prod.firebaseapp.com`, then redeploy as
+  `dpl_79zMNBTmdKrsNq58pcx6tK3fMJeH`
+  (`https://astera-1nmgtq5nv-astera-oms.vercel.app`), now the active alias.
+  The Firebase default Auth domain is used deliberately: it requires no new DNS,
+  Authorized Domain, OAuth redirect URI, or secret.
 - [ ] Production authenticated Member／Owner acceptance, real email delivery,
   custom domain DNS, and Resend remain separate release gates.
+
+### 2026-08-12 Remaining external release gates (read-only recheck)
+
+- [x] Confirm the active Production alias is Ready and public smoke remains 5/5.
+- [x] Confirm production product projection audit: `productsInternal=2`,
+  `productsPublic=2`, and zero pricing／SKU／private-field issues.
+- [x] Confirm secret scan and production dependency audit: no obvious repository
+  secrets and zero high-or-greater production dependency vulnerabilities.
+- [ ] Register and configure `asteratw.com`, `www.asteratw.com`, and
+  `updates.asteratw.com`; all three DNS lookups remain unresolved.
+- [ ] Verify `updates.asteratw.com` SPF／DKIM in Resend and add the missing
+  Production-only `RESEND_API_KEY`. Sender and Reply-To names exist, but no API
+  key is configured, so notification delivery cannot yet be proven.
+- [ ] Conduct real Google sign-in and the protected Member／Owner acceptance flow
+  from the Production alias. This needs a person to complete OAuth and explicit
+  action-time authority before any test Payment, reversal, cancellation, or refund.
