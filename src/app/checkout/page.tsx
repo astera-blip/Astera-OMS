@@ -15,7 +15,7 @@ export default function CheckoutPage() {
         </div>
 
         <div className="mt-6">
-          <CartBoard />
+          <CartBoard showCheckoutStep={false} />
         </div>
       </section>
     </main>

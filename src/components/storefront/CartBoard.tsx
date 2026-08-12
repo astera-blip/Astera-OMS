@@ -23,7 +23,7 @@ import {
 } from "@/lib/cart/anonymousCart";
 import { saleTypeCustomerLabels } from "@/lib/catalog/featuredProducts";
 
-export function CartBoard() {
+export function CartBoard({ showCheckoutStep = true }: { showCheckoutStep?: boolean }) {
   const { user } = useAuth();
   const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
   const [catalog, setCatalog] = useState<PublicCatalogItem[]>([]);
@@ -270,28 +270,30 @@ export function CartBoard() {
       </div>
 
       <aside className="grid gap-4">
-        <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
-          <p className="text-sm font-semibold text-astera-service">結帳步驟</p>
-          <p className="mt-2 text-sm leading-6 text-astera-secondary">
-            購物車確認完成後，前往獨立結帳頁填寫收件資料與條款同意。
-          </p>
-          <Link
-            href="/checkout"
-            className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold ${
-              isCartEmpty || !user
-                ? "cursor-not-allowed bg-astera-border text-astera-secondary"
-                : "bg-astera-brand text-white hover:bg-astera-ink"
-            }`}
-            aria-disabled={isCartEmpty || !user}
-            onClick={(event) => {
-              if (isCartEmpty || !user) {
-                event.preventDefault();
-              }
-            }}
-          >
-            {isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "前往結帳"}
-          </Link>
-        </div>
+        {showCheckoutStep ? (
+          <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
+            <p className="text-sm font-semibold text-astera-service">結帳步驟</p>
+            <p className="mt-2 text-sm leading-6 text-astera-secondary">
+              購物車確認完成後，前往獨立結帳頁填寫收件資料與條款同意。
+            </p>
+            <Link
+              href="/checkout"
+              className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold ${
+                isCartEmpty || !user
+                  ? "cursor-not-allowed bg-astera-border text-astera-secondary"
+                  : "bg-astera-brand text-white hover:bg-astera-ink"
+              }`}
+              aria-disabled={isCartEmpty || !user}
+              onClick={(event) => {
+                if (isCartEmpty || !user) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "前往結帳"}
+            </Link>
+          </div>
+        ) : null}
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-500">收件資訊</p>
           <h3 className="mt-2 text-2xl font-semibold">收件資料</h3>
