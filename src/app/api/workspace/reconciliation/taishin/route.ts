@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
+import type { LocalPayment } from "@/lib/payment/manualBankTransfer";
+import { matchTaishinTransactions } from "@/lib/reconciliation/paymentMatching";
 import { parseTaishinWorkbook } from "@/lib/reconciliation/taishin";
 
 const maxFileBytes = 10 * 1024 * 1024;
@@ -28,42 +31,40 @@ export async function POST(request: Request) {
       throw new Error(parsed.error);
     }
 
-    const paymentAmount = normalizeAmount(formData.get("paymentAmountTwd"));
-    const transferAccountLast5 = normalizeLast5(formData.get("transferAccountLast5"));
-    const matches = paymentAmount == null || !transferAccountLast5
-      ? []
-      : parsed.transactions.filter(
-        (transaction) => transaction.amountTwd === paymentAmount
-          && transaction.accountLast5 === transferAccountLast5,
-      );
+    const db = getAdminFirestore();
+    const [paymentsSnapshot, claimsSnapshot] = await Promise.all([
+      db.collection("payments").where("status", "==", "pendingReview").get(),
+      db.collection("auditLogs")
+        .where("action", "==", "payment.reconciliation.claimed")
+        .get(),
+    ]);
+    const payments = paymentsSnapshot.docs.map((snapshot) => ({
+      id: snapshot.id,
+      ...snapshot.data(),
+    })) as LocalPayment[];
+    const claimedFingerprints = new Set(
+      claimsSnapshot.docs.flatMap((snapshot) => {
+        const data = snapshot.data() as {
+          reconciliation?: { transactionFingerprint?: unknown };
+        };
+        return typeof data.reconciliation?.transactionFingerprint === "string"
+          ? [data.reconciliation.transactionFingerprint]
+          : [];
+      }),
+    );
+    const reconciliation = matchTaishinTransactions({
+      transactions: parsed.transactions,
+      payments,
+      claimedFingerprints,
+    });
 
     return NextResponse.json({
-      importedBy: claims.uid,
-      sourceRowCount: parsed.sourceRowCount,
-      transactions: parsed.transactions,
-      matches,
-      matchStatus: paymentAmount == null || !transferAccountLast5
-        ? "awaiting_payment_data"
-        : matches.length > 0 ? "matched" : "not_found",
+      summary: reconciliation.summary,
+      results: reconciliation.results,
     });
   } catch (error) {
     return reconciliationResponse(error);
   }
-}
-
-function normalizeAmount(value: FormDataEntryValue | null): number | null {
-  if (typeof value !== "string" || !value.trim()) {
-    return null;
-  }
-  const amount = Number(value.replaceAll(",", "").trim());
-  return Number.isFinite(amount) ? Math.trunc(amount) : null;
-}
-
-function normalizeLast5(value: FormDataEntryValue | null): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.replace(/\D/g, "").slice(-5).padStart(5, "0");
 }
 
 function reconciliationResponse(error: unknown) {
