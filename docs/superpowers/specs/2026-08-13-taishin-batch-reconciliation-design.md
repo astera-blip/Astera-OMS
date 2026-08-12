@@ -64,8 +64,8 @@ Owner 將 `.xlsx` 送至受保護 API。Server 必須：
 1. 驗證 Firebase ID token 與 Owner custom claim。
 2. 驗證 `.xlsx` 副檔名、MIME type、10 MB 上限、必要欄位與資料列。
 3. 解析台新交易並產生不含餘額、完整備註或完整帳號的安全化資料。
-4. 使用 Admin SDK 重新讀取所有 `pendingReview` Payment。
-5. 建立比對結果，回傳分類、Payment ID、訂單編號、金額、遮罩帳號、匯款人與交易日期等復核資訊。
+4. 使用 Admin SDK 重新讀取所有 `pendingReview` Payment。同一次會員付款回報若分配至多張訂單，以 `paymentGroupId` 聚合為一個對帳單位，並用該群組全部 Payment 金額加總與單筆銀行交易比對。
+5. 建立比對結果，回傳分類、Payment group 與 Payment ID、訂單編號、金額、遮罩帳號、匯款人與交易日期等復核資訊。
 
 原始 Excel 及完整備註不寫入 Firestore、Storage、log 或 API response。
 
