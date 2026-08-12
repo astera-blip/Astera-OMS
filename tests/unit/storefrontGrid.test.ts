@@ -40,8 +40,25 @@ describe("storefront grid contract", () => {
     expect(header).not.toContain("ASTERA OMS");
     expect(header).toContain("/products");
     expect(header).toContain("/brand");
-    expect(header).toContain("/cart");
+    expect(header).toContain("HeaderCartDrawer");
     expect(header).toContain("AccountActions");
+  });
+
+  it("uses the approved mobile navigation and a read-only header cart drawer", () => {
+    const header = readFileSync("src/components/storefront/StorefrontHeader.tsx", "utf8");
+    const drawer = readFileSync("src/components/storefront/HeaderCartDrawer.tsx", "utf8");
+    const accountActions = readFileSync("src/components/auth/AccountActions.tsx", "utf8");
+
+    expect(header).toContain("HeaderCartDrawer");
+    expect(header).toContain('aria-expanded={isMobileMenuOpen}');
+    expect(header).toContain("Escape");
+    expect(header).toContain('id="storefront-mobile-menu"');
+    expect(drawer).toContain('role="dialog"');
+    expect(drawer).toContain('href="/cart"');
+    expect(drawer).toContain('href="/checkout"');
+    expect(accountActions).toContain('variant?: "desktop" | "mobile"');
+    expect(accountActions).toContain('role === "owner"');
+    expect(accountActions).toContain('href="/workspace"');
   });
 
   it("shows campaign decisions and resilient catalog states on the homepage", () => {
