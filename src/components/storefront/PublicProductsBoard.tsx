@@ -4,11 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProductCoverImage } from "@/components/storefront/ProductCoverImage";
-import {
-  buildCartSummary,
-  type CartLineItem,
-  validateCartAddition,
-} from "@/lib/order/checkout";
+import { type CartLineItem, validateCartAddition } from "@/lib/order/checkout";
 import {
   findCatalogItem,
   getDefaultCampaign,
@@ -17,10 +13,7 @@ import {
   type PublicCatalogItem,
 } from "@/lib/catalog/publicCatalog";
 import { mergeClientAndCloudCart } from "@/lib/cart/clientCart";
-import {
-  campaignStatusCustomerLabels,
-  saleTypeCustomerLabels,
-} from "@/lib/catalog/featuredProducts";
+import { saleTypeCustomerLabels } from "@/lib/catalog/featuredProducts";
 import { formatCampaignDateTime } from "@/lib/product/campaignDates";
 import {
   clearAnonymousCart,
@@ -116,7 +109,6 @@ export function PublicProductsBoard() {
     });
   }, [loadCatalog]);
 
-  const summary = useMemo(() => buildCartSummary(cart, catalog), [cart, catalog]);
   const filteredCatalog = useMemo(
     () =>
       catalog.filter((item) => {
@@ -200,8 +192,7 @@ export function PublicProductsBoard() {
   }
 
   return (
-    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="grid gap-4">
+    <section className="grid gap-4">
         <div className="rounded-xl border border-astera-border bg-astera-surface p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -231,6 +222,7 @@ export function PublicProductsBoard() {
               </button>
             ))}
           </div>
+          <p aria-live="polite" className="mt-3 text-sm text-astera-secondary">{message}</p>
         </div>
 
         {catalogState === "loading" ? (
@@ -253,7 +245,7 @@ export function PublicProductsBoard() {
             目前沒有開放販售的商品，請稍後再回來看看。
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           {featuredCatalog.map((item) => {
             const variant = getDefaultVariant(item);
             const campaign = getDefaultCampaign(item);
@@ -265,7 +257,7 @@ export function PublicProductsBoard() {
             return (
               <article
                 key={item.product.id}
-                className="rounded-[10px] border border-astera-border bg-astera-surface p-4 transition-colors hover:border-astera-brand"
+                className="flex min-w-0 flex-col rounded-[10px] border border-astera-border bg-astera-surface p-3 transition-colors hover:border-astera-brand"
               >
                 <Link href={`/products/${item.product.id}`} className="mb-4 block">
                   <ProductCoverImage
@@ -273,66 +265,21 @@ export function PublicProductsBoard() {
                     productName={item.product.name}
                   />
                 </Link>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold">{item.product.name}</h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-astera-secondary">
-                      {item.product.publicDescription}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/products/${item.product.id}`}
-                      className="inline-flex min-h-11 items-center rounded-lg border border-astera-border px-4 py-2 text-sm font-medium text-astera-ink transition-colors hover:border-astera-brand hover:bg-astera-brand-soft"
-                    >
-                      看詳情
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(item.product.id)}
-                      className="min-h-11 rounded-lg bg-astera-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-astera-ink"
-                    >
-                      {user ? "加入購物車" : "登入後加入購物車"}
-                    </button>
-                  </div>
-                </div>
-                {classifications.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {classifications.map(([key, value]) => (
-                      <span
-                        key={key}
-                        className="rounded-full bg-astera-catalog px-3 py-1 text-xs font-medium text-astera-ink"
-                      >
-                        {key} · {value?.label}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="mt-4 grid gap-3 text-sm text-astera-ink md:grid-cols-3">
-                  <p>規格：{variant?.name ?? "未設定"}</p>
-                  <p>售價：NT$ {effectivePrice.toLocaleString()}</p>
-                  <p>活動：{campaign?.title ?? "未設定"}</p>
-                </div>
-                <div className="mt-3 text-xs text-astera-secondary">
-                  {campaign ? (
-                    <>
-                      {saleTypeCustomerLabels[campaign.saleType]} · {campaignStatusCustomerLabels[campaign.status]}
-                      {campaign.requiresSupplement ? " · 需要二補" : " · 不需要二補"}
-                    </>
-                  ) : (
-                    "沒有可購買的活動"
-                  )}
+                <div className="flex-1">
+                  {classifications.length > 0 ? <p className="text-xs font-medium text-astera-service">{classifications.slice(0, 2).map(([, value]) => value?.label).filter(Boolean).join("／")}</p> : null}
+                  <h2 className="mt-1 line-clamp-2 text-base font-semibold text-astera-ink">{item.product.name}</h2>
+                  <p className="mt-2 text-sm font-semibold text-astera-ink">NT$ {effectivePrice.toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-astera-secondary">{campaign ? saleTypeCustomerLabels[campaign.saleType] : "目前未開放"}{campaign?.title ? ` · ${campaign.title}` : ""}</p>
                 </div>
                 {campaign?.endsAt ? (
-                  <p className="mt-2 text-xs font-medium text-astera-service">
+                  <p className="mt-3 text-xs font-medium text-astera-service">
                     結單：{formatCampaignDateTime(campaign.endsAt)}
                   </p>
                 ) : null}
-                {campaign?.publicNotice ? (
-                  <p className="mt-2 text-sm leading-6 text-astera-secondary">
-                    {campaign.publicNotice}
-                  </p>
-                ) : null}
+                {campaign?.requiresSupplement ? <span className="mt-2 w-fit rounded-full bg-astera-campaign px-2 py-1 text-xs font-medium text-astera-ink">可能二補</span> : null}
+                <button type="button" onClick={() => addToCart(item.product.id)} className="mt-3 min-h-11 w-full rounded-lg bg-astera-brand px-3 text-sm font-semibold text-white transition-colors hover:bg-astera-ink">
+                  {user ? "加入購物車" : "登入後加入"}
+                </button>
               </article>
             );
           })}
@@ -343,35 +290,6 @@ export function PublicProductsBoard() {
             這個分類目前沒有商品。
           </div>
         ) : null}
-      </div>
-
-      <aside className="grid gap-4">
-        <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
-          <p className="text-sm font-semibold text-astera-service">購物車摘要</p>
-          <h3 className="mt-2 text-2xl font-semibold">購物車</h3>
-          <p className="mt-3 text-sm leading-6 text-astera-secondary">{message}</p>
-          <div className="mt-4 grid gap-2 text-sm">
-            <p>項目數：{summary.itemCount}</p>
-            <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
-            <p>
-              販售類型：
-              {summary.saleType ? saleTypeCustomerLabels[summary.saleType] : "尚未決定"}
-            </p>
-          </div>
-          <Link
-            href="/cart"
-            className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-astera-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-astera-ink"
-          >
-            前往購物車
-          </Link>
-        </div>
-        <div className="rounded-xl border border-astera-service bg-[#D7E4E4] p-5 text-astera-ink">
-          <p className="text-sm font-medium text-astera-service">購買規則</p>
-          <p className="mt-3 text-sm leading-6 text-astera-ink">
-            可將不同活動商品加入購物車；結帳時系統會依販售活動自動拆分訂單，並保留下單時的商品、規格與售價。
-          </p>
-        </div>
-      </aside>
     </section>
   );
 }

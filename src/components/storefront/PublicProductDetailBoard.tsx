@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ProductCoverImage } from "@/components/storefront/ProductCoverImage";
-import { buildCartSummary, type CartLineItem, validateCartAddition } from "@/lib/order/checkout";
+import { type CartLineItem, validateCartAddition } from "@/lib/order/checkout";
 import {
   getDefaultCampaign,
   getDefaultVariant,
@@ -29,6 +29,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [cart, setCart] = useState<CartLineItem[]>(() => loadAnonymousCart());
   const [message, setMessage] = useState("等待商品資料載入。");
 
@@ -49,6 +50,7 @@ export function PublicProductDetailBoard({ productId }: Props) {
       }
 
       setCatalogItem(item);
+      setActiveImageIndex(0);
       setSelectedVariantId((current) => current || getDefaultVariant(item)?.id || "");
       setSelectedCampaignId((current) => current || getDefaultCampaign(item)?.id || "");
       setStatus("ready");
@@ -81,7 +83,6 @@ export function PublicProductDetailBoard({ productId }: Props) {
     void syncCart().catch(() => setMessage("購物車同步失敗，請確認網路後再試一次。"));
   }, [cart, user]);
 
-  const summary = useMemo(() => buildCartSummary(cart, catalogItem ? [catalogItem] : []), [cart, catalogItem]);
   const variants = catalogItem ? getPurchasableVariants(catalogItem) : [];
   const campaigns = catalogItem ? getPurchasableCampaigns(catalogItem) : [];
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? null;
@@ -140,32 +141,31 @@ export function PublicProductDetailBoard({ productId }: Props) {
   const availableCampaign = selectedCampaign ?? getDefaultCampaign(catalogItem);
   const effectivePrice = selectedVariant ? getEffectiveCatalogPriceTwd(selectedVariant, availableCampaign) : 0;
   const activeCampaigns = campaigns.filter((campaign) => campaign.status === "open");
+  const images = catalogItem.product.images?.length ? catalogItem.product.images : [undefined];
+  const activeImage = images[activeImageIndex] ?? images[0];
 
   return (
-    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <article className="rounded-xl border border-astera-border bg-astera-surface p-6">
-        <div className="mb-6 grid gap-3 sm:grid-cols-2">
-          {(catalogItem.product.images?.length ? catalogItem.product.images : [undefined]).map(
-            (image, index) => (
-              <ProductCoverImage
-                key={image?.id ?? "fallback"}
-                image={image}
-                productName={catalogItem.product.name}
-                priority={index === 0}
-              />
-            ),
-          )}
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-astera-brand">商品詳情</p>
-            <h1 className="mt-2 font-serif text-3xl tracking-tight">{catalogItem.product.name}</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-astera-secondary">{catalogItem.product.publicDescription}</p>
+    <section className="grid gap-5">
+      <article className="rounded-xl border border-astera-border bg-astera-surface p-4 sm:p-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,.85fr)] lg:items-start">
+          <div className="relative">
+            <ProductCoverImage image={activeImage} productName={catalogItem.product.name} priority />
+            {images.length > 1 ? (
+              <>
+                <button type="button" aria-label="上一張商品圖片" onClick={() => setActiveImageIndex((current) => (current - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-astera-surface/90 text-lg text-astera-ink shadow-sm">‹</button>
+                <button type="button" aria-label="下一張商品圖片" onClick={() => setActiveImageIndex((current) => (current + 1) % images.length)} className="absolute right-3 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-astera-surface/90 text-lg text-astera-ink shadow-sm">›</button>
+                <p className="mt-2 text-center text-xs text-astera-secondary">商品圖片 {activeImageIndex + 1} / {images.length}</p>
+              </>
+            ) : null}
           </div>
-          <Link href="/products" className="inline-flex min-h-11 items-center rounded-lg border border-astera-border px-4 py-2 text-sm font-medium text-astera-ink">
-            回列表
-          </Link>
-        </div>
+          <div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                {catalogItem.product.classifications ? <p className="text-sm font-semibold text-astera-service">{Object.entries(catalogItem.product.classifications).filter(([, value]) => !!value).map(([, value]) => value?.label).filter(Boolean).slice(0, 2).join("／")}</p> : null}
+                <h1 className="mt-2 font-serif text-3xl tracking-tight">{catalogItem.product.name}</h1>
+              </div>
+              <Link href="/products" className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-astera-border px-4 py-2 text-sm font-medium text-astera-ink">回列表</Link>
+            </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm">
@@ -198,29 +198,13 @@ export function PublicProductDetailBoard({ productId }: Props) {
           </label>
         </div>
 
-        {catalogItem.product.classifications ? (
-          <div className="mt-6 flex flex-wrap gap-2">
-            {Object.entries(catalogItem.product.classifications)
-              .filter(([, value]) => !!value)
-              .map(([key, value]) => (
-                <span
-                  key={key}
-                  className="rounded-full bg-astera-catalog px-3 py-1 text-xs font-medium text-astera-ink"
-                >
-                  {key} · {value?.label}
-                </span>
-              ))}
-          </div>
-        ) : null}
-
         <div className="mt-6 grid gap-3 rounded-lg bg-astera-page p-4 text-sm text-astera-ink md:grid-cols-2">
           <p>售價：NT$ {effectivePrice.toLocaleString()}</p>
           <p>
             販售類型：
             {availableCampaign ? saleTypeCustomerLabels[availableCampaign.saleType] : "暫無可購買活動"}
           </p>
-          <p>二補提示：{availableCampaign?.requiresSupplement ? "需要" : "不需要"}</p>
-          <p>狀態：{availableCampaign?.status ?? "未設定"}</p>
+          {availableCampaign?.requiresSupplement ? <p className="font-medium text-astera-brand">可能二補</p> : null}
           {availableCampaign?.startsAt ? <p>開始：{formatCampaignDateTime(availableCampaign.startsAt)}</p> : null}
           {availableCampaign?.endsAt ? <p>結單：{formatCampaignDateTime(availableCampaign.endsAt)}</p> : null}
         </div>
@@ -281,26 +265,15 @@ export function PublicProductDetailBoard({ productId }: Props) {
         >
           {user ? "加入購物車" : "使用 Google 登入後加入"}
         </button>
-      </article>
-
-      <aside className="grid gap-4">
-        <div className="rounded-xl border border-astera-border bg-astera-surface p-5">
-          <p className="text-sm font-semibold text-astera-service">購物車摘要</p>
-          <h2 className="mt-2 text-2xl font-semibold">購物車</h2>
-          <p className="mt-3 text-sm leading-6 text-astera-secondary">{message}</p>
-          <div className="mt-4 grid gap-2 text-sm">
-            <p>項目數：{summary.itemCount}</p>
-            <p>合計：NT$ {summary.totalTwd.toLocaleString()}</p>
-            <p>
-              販售類型：
-              {summary.saleType ? saleTypeCustomerLabels[summary.saleType] : "尚未決定"}
-            </p>
           </div>
-          <Link href="/cart" className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-astera-brand px-4 py-2 text-sm font-medium text-white">
-            前往購物車
-          </Link>
         </div>
-      </aside>
+
+        <div className="mt-8 border-t border-astera-border pt-6">
+          <p className="font-medium text-astera-ink">商品說明</p>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-astera-secondary">{catalogItem.product.publicDescription}</p>
+        </div>
+      </article>
+      {message ? <p aria-live="polite" className="text-sm text-astera-secondary">{message}</p> : null}
     </section>
   );
 }

@@ -73,4 +73,19 @@ describe("storefront grid contract", () => {
     expect(board).toContain('role="alert"');
     expect(board).toContain("重新載入");
   });
+
+  it("keeps public product cards image-first and exposes an accessible detail gallery", () => {
+    const list = readFileSync("src/components/storefront/PublicProductsBoard.tsx", "utf8");
+    const detail = readFileSync("src/components/storefront/PublicProductDetailBoard.tsx", "utf8");
+
+    expect(list).toContain("grid-cols-2");
+    expect(list).toContain("lg:grid-cols-4");
+    expect(list).toContain("formatCampaignDateTime");
+    expect(list).toContain("可能二補");
+    expect(list).not.toContain("publicDescription}</p>");
+    expect(detail).toContain("activeImageIndex");
+    expect(detail).toContain('aria-label="上一張商品圖片"');
+    expect(detail).toContain('aria-label="下一張商品圖片"');
+    expect(detail).toContain("商品圖片 {activeImageIndex + 1} / {images.length}");
+  });
 });
