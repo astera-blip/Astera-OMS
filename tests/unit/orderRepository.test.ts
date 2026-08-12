@@ -66,6 +66,31 @@ describe("listMemberOrders", () => {
     expect(bundles[0]?.order.createdAt).toBe("2026-07-30T00:00:00.000Z");
     expect(bundles[0]?.items[0]?.createdAt).toBe("2026-07-30T00:00:00.000Z");
   });
+
+  it("sorts unpaid orders ahead of paid and cancelled orders, newest first within each status", async () => {
+    firestore.getDocs.mockReset();
+    firestore.getDocs
+      .mockResolvedValueOnce({
+        docs: [
+          { data: () => ({ id: "paid", memberUid: "member-a", status: "paid", totalTwd: 520, recipientName: "A", recipientPhone: "0900000000", shippingMethod: "seven_eleven", createdAt: "2026-08-13T04:00:00.000Z", createdBy: "member-a" }) },
+          { data: () => ({ id: "cancelled", memberUid: "member-a", status: "cancelled", totalTwd: 520, recipientName: "A", recipientPhone: "0900000000", shippingMethod: "seven_eleven", createdAt: "2026-08-13T05:00:00.000Z", createdBy: "member-a" }) },
+          { data: () => ({ id: "unpaid-old", memberUid: "member-a", status: "awaitingPayment", totalTwd: 520, recipientName: "A", recipientPhone: "0900000000", shippingMethod: "seven_eleven", createdAt: "2026-08-13T01:00:00.000Z", createdBy: "member-a" }) },
+          { data: () => ({ id: "partial", memberUid: "member-a", status: "partiallyPaid", totalTwd: 520, recipientName: "A", recipientPhone: "0900000000", shippingMethod: "seven_eleven", createdAt: "2026-08-13T02:00:00.000Z", createdBy: "member-a" }) },
+          { data: () => ({ id: "unpaid-new", memberUid: "member-a", status: "awaitingPayment", totalTwd: 520, recipientName: "A", recipientPhone: "0900000000", shippingMethod: "seven_eleven", createdAt: "2026-08-13T03:00:00.000Z", createdBy: "member-a" }) },
+        ],
+      })
+      .mockResolvedValueOnce({ docs: [] });
+
+    const bundles = await listMemberOrders({} as never, "member-a");
+
+    expect(bundles.map((bundle) => bundle.order.id)).toEqual([
+      "unpaid-new",
+      "unpaid-old",
+      "partial",
+      "paid",
+      "cancelled",
+    ]);
+  });
 });
 
 describe("listMemberCancellationRequests", () => {

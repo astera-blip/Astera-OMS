@@ -38,6 +38,7 @@ const validFingerprint = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 
 function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaymentAccount> = {}) {
   const storedPayments = new Map<string, Record<string, unknown>>();
+  let paymentRequestStatus = "open";
   let transactionQueue = Promise.resolve<unknown>(undefined);
   const set = vi.fn((ref: { collection: string; id: string }, value: Record<string, unknown>) => {
     if (ref.collection === "payments") {
@@ -45,14 +46,20 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
     }
   });
   const transaction = {
-    get: vi.fn(async (ref: { collection: string; id: string }) => {
+    get: vi.fn(async (ref: { collection: string; id?: string; kind?: string; filters?: Array<[string, unknown]> }) => {
+      if (ref.kind === "query") {
+        const docs = [...storedPayments.entries()]
+          .filter(([, value]) => ref.filters?.every(([field, expected]) => value[field] === expected))
+          .map(([id, value]) => ({ id, exists: true, data: () => value }));
+        return { empty: docs.length === 0, docs };
+      }
       if (ref.collection === "paymentRequests") {
         return {
           exists: true,
           id: ref.id,
           data: () => ({
             memberUid: "member-a",
-            status: "open",
+            status: paymentRequestStatus,
             amountTwd: 520,
             allocatedAmountTwd: 0,
           }),
@@ -91,7 +98,7 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
         };
       }
       if (ref.collection === "payments") {
-        const value = storedPayments.get(ref.id);
+        const value = storedPayments.get(ref.id ?? "");
         return {
           exists: Boolean(value),
           id: ref.id,
@@ -101,14 +108,29 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
       throw new Error(`unexpected_collection:${ref.collection}`);
     }),
     set,
+    update: vi.fn(),
   };
   const db = {
-    collection: vi.fn((collection: string) => ({
-      doc: vi.fn((id?: string) => ({
+    collection: vi.fn((collection: string) => {
+      const filters: Array<[string, unknown]> = [];
+      const query = {
+        collection,
+        kind: "query",
+        filters,
+        where: vi.fn((field: string, _operator: string, value: unknown) => {
+          filters.push([field, value]);
+          return query;
+        }),
+        limit: vi.fn(() => query),
+      };
+      return {
+        ...query,
+        doc: vi.fn((id?: string) => ({
         collection,
         id: id ?? "unexpected-random-payment-id",
-      })),
-    })),
+        })),
+      };
+    }),
     runTransaction: vi.fn((callback: (value: typeof transaction) => unknown) => {
       const result = transactionQueue.then(() => callback(transaction));
       transactionQueue = result.then(() => undefined, () => undefined);
@@ -116,7 +138,15 @@ function createPaymentReportFirestore(memberAccountOverrides: Partial<StoredPaym
     }),
   };
 
-  return { db, set, storedPayments };
+  return {
+    db,
+    set,
+    update: transaction.update,
+    storedPayments,
+    setPaymentRequestStatus(status: string) {
+      paymentRequestStatus = status;
+    },
+  };
 }
 
 function paymentReportRequest(extra: Record<string, unknown> = {}) {
@@ -206,6 +236,47 @@ describe("payment report member account snapshot", () => {
     expect(reporting.set).toHaveBeenCalledTimes(writeCount);
   });
 
+  it("returns the original replay even after Owner confirmation closes the request", async () => {
+    const reporting = createPaymentReportFirestore();
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const firstResponse = await POST(paymentReportRequest());
+    const firstPayload = await firstResponse.json();
+    reporting.setPaymentRequestStatus("paid");
+    const replayResponse = await POST(paymentReportRequest());
+
+    expect(firstResponse.status).toBe(200);
+    expect(replayResponse.status).toBe(200);
+    await expect(replayResponse.json()).resolves.toMatchObject({
+      alreadyExists: true,
+      paymentGroupId: firstPayload.paymentGroupId,
+      payment: { id: firstPayload.payment.id },
+    });
+  });
+
+  it("replays a multi-request report when the amount only created the first allocation", async () => {
+    const reporting = createPaymentReportFirestore();
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+    const partialMultiRequest = {
+      paymentRequestId: undefined,
+      paymentRequestIds: ["payment-request-1", "payment-request-2"],
+      receivedAmountTwd: 520,
+    };
+
+    const firstResponse = await POST(paymentReportRequest(partialMultiRequest));
+    const firstPayload = await firstResponse.json();
+    const replayResponse = await POST(paymentReportRequest(partialMultiRequest));
+
+    expect(firstResponse.status).toBe(200);
+    expect(firstPayload.payments).toHaveLength(1);
+    expect(replayResponse.status).toBe(200);
+    await expect(replayResponse.json()).resolves.toMatchObject({
+      alreadyExists: true,
+      paymentGroupId: firstPayload.paymentGroupId,
+      payments: [{ id: firstPayload.payments[0].id }],
+    });
+  });
+
   it("serializes concurrent identical reports to one deterministic payment", async () => {
     const reporting = createPaymentReportFirestore();
     firestore.getAdminFirestore.mockReturnValue(reporting.db);
@@ -235,7 +306,7 @@ describe("payment report member account snapshot", () => {
     await expect(conflict.json()).resolves.toEqual({ error: "idempotency_conflict" });
   });
 
-  it("allows a new idempotency key for a legitimate later report", async () => {
+  it("rejects another report while the selected request already has a pending review", async () => {
     const reporting = createPaymentReportFirestore();
     firestore.getAdminFirestore.mockReturnValue(reporting.db);
 
@@ -243,12 +314,22 @@ describe("payment report member account snapshot", () => {
     const second = await POST(paymentReportRequest({
       idempotencyKey: "pay_87654321-4321-4321-9234-cba987654321",
     }));
-    const firstPayload = await first.json();
-    const secondPayload = await second.json();
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(409);
+    await expect(second.json()).resolves.toEqual({ error: "payment_report_pending_review" });
+  });
 
-    expect(second.status).toBe(200);
-    expect(secondPayload.alreadyExists).toBe(false);
-    expect(secondPayload.paymentGroupId).not.toBe(firstPayload.paymentGroupId);
+  it("writes a stable payment-request contention marker with a new report", async () => {
+    const reporting = createPaymentReportFirestore();
+    firestore.getAdminFirestore.mockReturnValue(reporting.db);
+
+    const response = await POST(paymentReportRequest());
+
+    expect(response.status).toBe(200);
+    expect(reporting.update).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: "paymentRequests", id: "payment-request-1" }),
+      expect.objectContaining({ latestReportBy: "member-a" }),
+    );
   });
 
   it("requires a valid idempotency key", async () => {

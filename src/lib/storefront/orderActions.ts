@@ -31,11 +31,16 @@ export function getOrderAction(
 export function resolvePreselectedRequestIds(
   requests: ReadonlyArray<Pick<LocalPaymentRequest, "id" | "status">>,
   requestedId: string | null,
+  pendingReviewRequestIds: ReadonlySet<string> = new Set(),
 ): string[] {
   if (!requestedId) {
     return [];
   }
 
   const request = requests.find((entry) => entry.id === requestedId);
-  return request && (request.status === "open" || request.status === "partiallyPaid") ? [request.id] : [];
+  return request
+    && !pendingReviewRequestIds.has(request.id)
+    && (request.status === "open" || request.status === "partiallyPaid")
+    ? [request.id]
+    : [];
 }

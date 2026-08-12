@@ -31,4 +31,12 @@ describe("member order action", () => {
     expect(resolvePreselectedRequestIds([request], "foreign_request")).toEqual([]);
     expect(resolvePreselectedRequestIds([{ ...request, status: "paid" }], "request_1")).toEqual([]);
   });
+
+  it("does not preselect a request that already has a payment awaiting review", () => {
+    expect(resolvePreselectedRequestIds(
+      [request],
+      "request_1",
+      new Set(["request_1"]),
+    )).toEqual([]);
+  });
 });

@@ -22,6 +22,8 @@ describe("member payment report board", () => {
     expect(source).toContain("useSearchParams");
     expect(source).toContain("resolvePreselectedRequestIds");
     expect(source).toContain('searchParams.get("paymentRequestId")');
+    expect(source).toContain("pendingReviewRequestIds.has(request.id)");
+    expect(source).toContain("已回報／待確認");
   });
 
   it("provides the confirmed Chinese status vocabulary", () => {

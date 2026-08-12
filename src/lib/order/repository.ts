@@ -74,6 +74,17 @@ export async function listMemberOrders(
       order,
       items: items.filter((item) => item.orderId === order.id),
     };
+  }).sort((left, right) => {
+    const priority = {
+      awaitingPayment: 0,
+      partiallyPaid: 1,
+      paid: 2,
+      cancelled: 3,
+    } satisfies Record<OrderRecord["status"], number>;
+    const priorityDifference = priority[left.order.status] - priority[right.order.status];
+    return priorityDifference !== 0
+      ? priorityDifference
+      : right.order.createdAt.localeCompare(left.order.createdAt);
   });
 }
 

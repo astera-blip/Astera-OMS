@@ -197,7 +197,7 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   }));
   expect(JSON.stringify(memberPaymentsPayload)).not.toContain(memberAccountFingerprint);
 
-  const rejectedCandidateResponse = await request.post("/api/payments", {
+  const blockedDuplicateResponse = await request.post("/api/payments", {
     headers: authorized(memberToken),
     data: {
       paymentRequestId: paidOrder!.paymentRequestId,
@@ -206,10 +206,49 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
       receivingPaymentAccountId: "e2e-account",
       memberPaymentAccountId: "member-e2e-account",
       idempotencyKey: "e2e_payment_rejected_duplicate_20260727",
-      memberNote: "E2E duplicate report to reject",
+      memberNote: "E2E duplicate report must be blocked",
     },
   });
-  expect(rejectedCandidateResponse.ok()).toBe(true);
+  expect(blockedDuplicateResponse.status()).toBe(409);
+  await expect(blockedDuplicateResponse.json()).resolves.toEqual({
+    error: "payment_report_pending_review",
+  });
+
+  const rejectionCandidateData = {
+    paymentRequestId: unpaidOrder!.paymentRequestId,
+    receivedAt: "2026-07-27",
+    receivedAmountTwd: unpaidOrder!.totalTwd,
+    receivingPaymentAccountId: "e2e-account",
+    memberPaymentAccountId: "member-e2e-account",
+    memberNote: "E2E report to reject",
+  };
+  const concurrentResponses = await Promise.all([
+    request.post("/api/payments", {
+      headers: authorized(memberToken),
+      data: {
+        ...rejectionCandidateData,
+        idempotencyKey: "e2e_payment_rejection_candidate_a_20260727",
+      },
+    }),
+    request.post("/api/payments", {
+      headers: authorized(memberToken),
+      data: {
+        ...rejectionCandidateData,
+        idempotencyKey: "e2e_payment_rejection_candidate_b_20260727",
+      },
+    }),
+  ]);
+  expect(concurrentResponses.map((response) => response.status()).sort()).toEqual([200, 409]);
+  const successfulConcurrentIndex = concurrentResponses.findIndex((response) => response.ok());
+  const rejectedCandidateResponse = concurrentResponses[successfulConcurrentIndex];
+  const concurrentBlockedResponse = concurrentResponses.find((response) => response.status() === 409);
+  if (!rejectedCandidateResponse) {
+    throw new Error("Expected one concurrent payment report to succeed.");
+  }
+  expect(concurrentBlockedResponse).toBeTruthy();
+  await expect(concurrentBlockedResponse!.json()).resolves.toEqual({
+    error: "payment_report_pending_review",
+  });
   const rejectedCandidate = await rejectedCandidateResponse.json() as { payment: { id: string } };
   const rejectResponse = await request.post(
     `/api/workspace/payments/${rejectedCandidate.payment.id}/reject`,
@@ -229,6 +268,21 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
   expect((await db.collection("auditLogs").doc(`audit_reject_${rejectedCandidate.payment.id}`).get()).data())
     .toMatchObject({ action: "payment.rejected", targetId: rejectedCandidate.payment.id });
 
+  const rejectedReplayResponse = await request.post("/api/payments", {
+    headers: authorized(memberToken),
+    data: {
+      ...rejectionCandidateData,
+      idempotencyKey: successfulConcurrentIndex === 0
+        ? "e2e_payment_rejection_candidate_a_20260727"
+        : "e2e_payment_rejection_candidate_b_20260727",
+    },
+  });
+  expect(rejectedReplayResponse.ok()).toBe(true);
+  await expect(rejectedReplayResponse.json()).resolves.toMatchObject({
+    alreadyExists: true,
+    payment: { id: rejectedCandidate.payment.id, status: "rejected" },
+  });
+
   const confirmResponse = await request.post(`/api/workspace/payments/${paymentPayload.payment.id}/confirm`, {
     headers: authorized(ownerToken),
     data: { reason: "E2E 對帳確認" },
@@ -238,6 +292,29 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
     paymentId: paymentPayload.payment.id,
     paymentRequestStatus: "paid",
     orderStatus: "paid",
+  });
+
+  const confirmedReplayResponse = await request.post("/api/payments", {
+    headers: authorized(memberToken),
+    data: {
+      paymentRequestId: paidOrder!.paymentRequestId,
+      receivedAt: "2026-07-27",
+      receivedAmountTwd: 700,
+      receivingPaymentAccountId: "e2e-account",
+      memberPaymentAccountId: "member-e2e-account",
+      idempotencyKey: "e2e_payment_overpayment_20260727",
+      bankCode: "999",
+      accountNumberLast5: "00000",
+      accountFingerprint: "client-controlled-fingerprint",
+      fingerprintKeyVersion: 99,
+      payerName: "前端偽造姓名",
+      memberNote: "E2E overpayment",
+    },
+  });
+  expect(confirmedReplayResponse.ok()).toBe(true);
+  await expect(confirmedReplayResponse.json()).resolves.toMatchObject({
+    alreadyExists: true,
+    payment: { id: paymentPayload.payment.id, status: "confirmed" },
   });
 
   const paidRequestAfterConfirm = await db.collection("paymentRequests").doc(paidOrder!.paymentRequestId).get();
@@ -262,6 +339,29 @@ test("member checkout splits by campaign and payment/cancellation APIs preserve 
     fingerprintAlgorithm: "HMAC-SHA-256",
     fingerprintKeyVersion: 7,
     payerName: "測試會員甲",
+  });
+
+  const reversedReplayResponse = await request.post("/api/payments", {
+    headers: authorized(memberToken),
+    data: {
+      paymentRequestId: paidOrder!.paymentRequestId,
+      receivedAt: "2026-07-27",
+      receivedAmountTwd: 700,
+      receivingPaymentAccountId: "e2e-account",
+      memberPaymentAccountId: "member-e2e-account",
+      idempotencyKey: "e2e_payment_overpayment_20260727",
+      bankCode: "999",
+      accountNumberLast5: "00000",
+      accountFingerprint: "client-controlled-fingerprint",
+      fingerprintKeyVersion: 99,
+      payerName: "前端偽造姓名",
+      memberNote: "E2E overpayment",
+    },
+  });
+  expect(reversedReplayResponse.ok()).toBe(true);
+  await expect(reversedReplayResponse.json()).resolves.toMatchObject({
+    alreadyExists: true,
+    payment: { id: paymentPayload.payment.id, status: "reversed" },
   });
 
   const unpaidItems = await listOrderItems(unpaidOrder!.orderId);
@@ -473,10 +573,11 @@ test("member payment UI prevents rapid duplicate submits and keeps status after 
 
   const db = getAdminDb();
   const paymentRequestId = `pr_ui_idempotency_${Date.now()}`;
+  const orderId = `order_ui_idempotency_${Date.now()}`;
   await db.collection("paymentRequests").doc(paymentRequestId).set({
     id: paymentRequestId,
     memberUid: "member-e2e",
-    orderId: `order_ui_idempotency_${Date.now()}`,
+    orderId,
     amountTwd: 520,
     allocatedAmountTwd: 0,
     status: "open",
@@ -499,6 +600,15 @@ test("member payment UI prevents rapid duplicate submits and keeps status after 
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "匯款回報" })).toBeVisible();
+  const requestCheckboxes = page.locator('input[name="paymentRequestIds"]');
+  for (let index = 0; index < await requestCheckboxes.count(); index += 1) {
+    const checkbox = requestCheckboxes.nth(index);
+    if (await checkbox.isChecked()) {
+      await checkbox.uncheck();
+    }
+  }
+  const targetRequest = page.getByRole("checkbox", { name: new RegExp(orderId) });
+  await targetRequest.check();
   await page.getByLabel("匯款日期").fill("2026-08-11");
 
   const submit = page.getByRole("button", { name: "送出付款回報" });
@@ -510,11 +620,13 @@ test("member payment UI prevents rapid duplicate submits and keeps status after 
   await expect(page.getByText(/已送出 1 筆付款回報/)).toBeVisible();
   expect(postCount).toBe(1);
   await expect(page.getByRole("heading", { name: "我的付款回報" })).toBeVisible();
-  await expect(page.getByText("已回報／待確認")).toBeVisible();
+  await expect(page.getByText("已回報／待確認", { exact: true }).first()).toBeVisible();
+  await expect(targetRequest).toBeDisabled();
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "我的付款回報" })).toBeVisible();
-  await expect(page.getByText("已回報／待確認")).toBeVisible();
+  await expect(page.getByText("已回報／待確認", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: new RegExp(orderId) })).toBeDisabled();
 });
 
 function getAdminDb() {

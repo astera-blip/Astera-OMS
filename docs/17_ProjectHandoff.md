@@ -2478,3 +2478,49 @@ domain, or change any other Firebase/Vercel setting.
 - Required test URL: `https://astera-oms-astera-blip-astera-oms.vercel.app`. Do not
   use branch-specific or one-off deployment hosts for interactive Google login unless
   they are separately and explicitly approved in Firebase Authentication.
+
+### 2026-08-13 Payment report lock and unpaid-order sorting
+
+- Reported behavior: after sending a payment report, the same open PaymentRequest
+  remained selectable; paid／cancelled orders could also appear ahead of unpaid
+  orders on `/orders`.
+- Root cause: Owner confirmation intentionally owns all PaymentRequest／Order status
+  transitions, so creating a `pendingReview` Payment does not close the request.
+  `PaymentRequestsBoard` and `POST /api/payments` previously looked only at the
+  PaymentRequest status and ignored that pending Payment. `listMemberOrders` also
+  returned Firestore document order without an explicit customer-priority sort.
+- Server correction: after preserving deterministic idempotent replay,
+  `POST /api/payments` performs a transaction query for pending reports linked to
+  each selected PaymentRequest and returns 409 `payment_report_pending_review` if
+  one exists. Each accepted report also writes `latestReportAt`／`latestReportBy` to
+  its existing PaymentRequest inside the same transaction, forcing concurrent
+  different-key submissions to contend on a stable document. Exact replay lookup
+  now runs before mutable PaymentRequest status validation, so a network replay still
+  returns the original record after Owner confirmation／rejection／reversal. No
+  Collection, Rules, price, allocation, confirmation, or reversal model changed.
+- Client correction: `/payments` derives pending request IDs from the sanitized
+  member Payment summaries, disables and labels those rows `已回報／待確認`, and
+  excludes them from automatic selection. `/orders` now receives member bundles in
+  unpaid-first order: awaiting payment, partial payment, paid, cancelled; newest
+  first within a state.
+- Exact replay accepts the transaction-atomically written subset of deterministic
+  Payment refs when a multi-request transfer amount is exhausted before every selected
+  request receives an allocation. Every existing record must still match member,
+  payment group, and payload digest; mismatched reuse remains a 409 conflict.
+- Regression evidence: Unit 57 files／464 tests; TypeScript and ESLint pass;
+  Turbopack Build passes with `NEXT_TURBOPACK_ROOT` set to the shared repository root
+  required by the Windows worktree junction; focused Emulator payment／cancellation
+  Playwright 2/2 passes. The initial full Emulator run was 53 pass／10 expected skip
+  with one locator-only failure after the status correctly appeared in three places;
+  the locator and test-data selection were corrected and the focused rerun is green.
+  The final focused run also proves concurrent different-key reports resolve to one
+  success／one 409 and exact replay remains successful after rejected, confirmed,
+  and reversed states.
+- Non-Emulator Playwright produced 20 pass／42 expected skip and two unrelated public
+  product read failures because this isolated worktree contains `.env.example` but
+  no production `.env.local`. The same public product checks passed against the
+  Firestore Emulator. Do not treat that external-config gap as a payment regression.
+- Next exact step: commit and push `codex/storefront-product-order`, wait for Vercel
+  Preview, reassign the already-authorized stable Preview alias if required, and
+  manually confirm the affected request is disabled after reload. Do not deploy
+  Production without explicit authorization.

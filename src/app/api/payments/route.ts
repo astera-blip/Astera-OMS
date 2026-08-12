@@ -151,6 +151,40 @@ export async function POST(request: Request) {
     const db = getAdminFirestore();
     const payment = await db.runTransaction(async (transaction) => {
       const requestRefs = identity.paymentRequestIds.map((id) => db.collection("paymentRequests").doc(id));
+      const paymentRefs = identity.paymentIds.map((id) => db.collection("payments").doc(id));
+      const existingPaymentSnapshots = [];
+      for (const paymentRef of paymentRefs) {
+        existingPaymentSnapshots.push(await transaction.get(paymentRef));
+      }
+      const existingCount = existingPaymentSnapshots.filter((snapshot) => snapshot.exists).length;
+      if (existingCount > 0) {
+        const matchingReplay = existingPaymentSnapshots
+          .filter((snapshot) => snapshot.exists)
+          .every((snapshot) => {
+            const existing = snapshot.data() as {
+              memberUid?: string;
+              paymentGroupId?: string;
+              idempotencyPayloadDigest?: string;
+            };
+            return existing.memberUid === claims.uid
+              && existing.paymentGroupId === identity.paymentGroupId
+              && existing.idempotencyPayloadDigest === identity.payloadDigest;
+          });
+        if (!matchingReplay) {
+          throw new Error("idempotency_conflict");
+        }
+        return {
+          payments: existingPaymentSnapshots
+            .filter((snapshot) => snapshot.exists)
+            .map((snapshot) => ({
+              id: snapshot.id,
+              ...(snapshot.data() as Record<string, unknown>),
+            })),
+          paymentGroupId: identity.paymentGroupId,
+          alreadyExists: true,
+        };
+      }
+
       const requestSnapshots = [];
       for (const requestRef of requestRefs) {
         const requestSnapshot = await transaction.get(requestRef);
@@ -186,35 +220,15 @@ export async function POST(request: Request) {
       const allocatedTotal = allocations.reduce((total, allocation) => total + allocation.receivedAmountTwd, 0);
       const unallocatedAmountTwd = Math.max(receivedAmountTwd - allocatedTotal, 0);
 
-      const paymentRefs = identity.paymentIds.map((id) => db.collection("payments").doc(id));
-      const existingPaymentSnapshots = [];
-      for (const paymentRef of paymentRefs) {
-        existingPaymentSnapshots.push(await transaction.get(paymentRef));
-      }
-      const existingCount = existingPaymentSnapshots.filter((snapshot) => snapshot.exists).length;
-      if (existingCount > 0) {
-        const matchingReplay = existingCount === paymentRefs.length
-          && existingPaymentSnapshots.every((snapshot) => {
-            const existing = snapshot.data() as {
-              memberUid?: string;
-              paymentGroupId?: string;
-              idempotencyPayloadDigest?: string;
-            };
-            return existing.memberUid === claims.uid
-              && existing.paymentGroupId === identity.paymentGroupId
-              && existing.idempotencyPayloadDigest === identity.payloadDigest;
-          });
-        if (!matchingReplay) {
-          throw new Error("idempotency_conflict");
+      for (const paymentRequestId of identity.paymentRequestIds) {
+        const pendingReviewQuery = db.collection("payments")
+          .where("paymentRequestId", "==", paymentRequestId)
+          .where("status", "==", "pendingReview")
+          .limit(1);
+        const pendingReviewSnapshot = await transaction.get(pendingReviewQuery);
+        if (!pendingReviewSnapshot.empty) {
+          throw new Error("payment_report_pending_review");
         }
-        return {
-          payments: existingPaymentSnapshots.map((snapshot) => ({
-            id: snapshot.id,
-            ...(snapshot.data() as Record<string, unknown>),
-          })),
-          paymentGroupId: identity.paymentGroupId,
-          alreadyExists: true,
-        };
       }
 
       const receivingAccountRef = db.collection("paymentAccounts").doc(receivingPaymentAccountId);
@@ -286,6 +300,13 @@ export async function POST(request: Request) {
         return { ...paymentRecord, createdAt: new Date().toISOString() };
       });
 
+      for (const requestRef of requestRefs) {
+        transaction.update(requestRef, {
+          latestReportAt: FieldValue.serverTimestamp(),
+          latestReportBy: claims.uid,
+        });
+      }
+
       return { payments, paymentGroupId: identity.paymentGroupId, alreadyExists: false };
     });
 
@@ -308,6 +329,8 @@ export async function POST(request: Request) {
               ? 400
               : message === "idempotency_conflict"
                 ? 409
+                : message === "payment_report_pending_review"
+                  ? 409
                 : message === "invalid_idempotency_key"
                   ? 400
               : message === "payment_account_not_found"

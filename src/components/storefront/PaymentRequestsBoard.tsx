@@ -74,15 +74,29 @@ export function PaymentRequestsBoard() {
       const nextMemberAccounts = Array.isArray(memberAccountsPayload.accounts)
         ? memberAccountsPayload.accounts.filter(isMemberPaymentAccountUsableForPayment)
         : [];
+      const nextPayments = Array.isArray(paymentsPayload.payments) ? paymentsPayload.payments : [];
+      const pendingReviewRequestIds = new Set(
+        nextPayments
+          .filter((payment) => payment.status === "pendingReview")
+          .map((payment) => payment.paymentRequestId),
+      );
       setRequests(nextRequests);
-      setPayments(Array.isArray(paymentsPayload.payments) ? paymentsPayload.payments : []);
+      setPayments(nextPayments);
       setPaymentAccounts(nextAccounts);
       setSelectedPaymentAccountId(nextAccounts[0]?.id ?? "");
       setMemberPaymentAccounts(nextMemberAccounts);
       setSelectedMemberPaymentAccountId(nextMemberAccounts[0]?.id ?? "");
       const requestedId = searchParams.get("paymentRequestId");
-      const preselectedIds = resolvePreselectedRequestIds(nextRequests, requestedId);
-      const firstRequest = nextRequests.find((request) => request.status !== "paid" && request.status !== "cancelled");
+      const preselectedIds = resolvePreselectedRequestIds(
+        nextRequests,
+        requestedId,
+        pendingReviewRequestIds,
+      );
+      const firstRequest = nextRequests.find((request) => (
+        request.status !== "paid"
+        && request.status !== "cancelled"
+        && !pendingReviewRequestIds.has(request.id)
+      ));
       const nextSelectedIds = preselectedIds.length > 0 ? preselectedIds : firstRequest ? [firstRequest.id] : [];
       setSelectedRequestIds(nextSelectedIds);
       const nextTotal = nextRequests
@@ -104,6 +118,11 @@ export function PaymentRequestsBoard() {
 
   const selectedMemberPaymentAccount = memberPaymentAccounts.find(
     (account) => account.id === selectedMemberPaymentAccountId,
+  );
+  const pendingReviewRequestIds = new Set(
+    payments
+      .filter((payment) => payment.status === "pendingReview")
+      .map((payment) => payment.paymentRequestId),
   );
 
   if (!user) {
@@ -196,7 +215,8 @@ export function PaymentRequestsBoard() {
       });
 
       if (!response.ok) {
-        throw new Error("report_failed");
+        const responsePayload = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(responsePayload.error ?? "report_failed");
       }
 
       idempotencyDraftRef.current = null;
@@ -205,8 +225,12 @@ export function PaymentRequestsBoard() {
       setAmount("");
       setMemberNote("");
       await loadRequests();
-    } catch {
-      setMessage("付款回報送出失敗，請稍後再試。");
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message === "payment_report_pending_review"
+          ? "所選訂單已有付款回報等待確認，請勿重複送出。"
+          : "付款回報送出失敗，請稍後再試。",
+      );
     } finally {
       submissionLockRef.current = false;
       setIsSubmitting(false);
@@ -225,7 +249,8 @@ export function PaymentRequestsBoard() {
                 <p className="text-astera-secondary">目前沒有待付款資料。</p>
               ) : null}
               {requests.map((request) => {
-                const disabled = request.status === "paid" || request.status === "cancelled";
+                const isPendingReview = pendingReviewRequestIds.has(request.id);
+                const disabled = request.status === "paid" || request.status === "cancelled" || isPendingReview;
                 const checked = selectedRequestIds.includes(request.id);
                 return (
                   <label key={request.id} className="flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 hover:bg-astera-page">
@@ -246,7 +271,11 @@ export function PaymentRequestsBoard() {
                         setAmount(nextTotal > 0 ? String(nextTotal) : "");
                       }}
                     />
-                    <span>{request.orderId}／NT$ {request.amountTwd.toLocaleString()} · {paymentRequestStatusLabel(request.status)}</span>
+                    <span>
+                      {request.orderId}／NT$ {request.amountTwd.toLocaleString()} · {isPendingReview
+                        ? "已回報／待確認"
+                        : paymentRequestStatusLabel(request.status)}
+                    </span>
                   </label>
                 );
               })}
@@ -380,7 +409,9 @@ export function PaymentRequestsBoard() {
               <div>
                 <h2 className="text-xl font-semibold">{request.id}</h2>
                 <p className="mt-1 text-sm text-astera-secondary">
-                  訂單：{request.orderId} · 狀態：{paymentRequestStatusLabel(request.status)}
+                  訂單：{request.orderId} · 狀態：{pendingReviewRequestIds.has(request.id)
+                    ? "已回報／待確認"
+                    : paymentRequestStatusLabel(request.status)}
                 </p>
               </div>
               <span className="rounded-full bg-astera-service/10 px-3 py-1 text-xs font-medium text-astera-service">

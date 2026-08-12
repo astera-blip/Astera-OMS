@@ -2285,3 +2285,34 @@ Preview deployment update:
 - [x] Browser verification on the stable alias loaded the new guest／member homepage
   and restored the existing Firebase session, including custom-claim Owner navigation.
   Use the stable authorized Preview URL for all interactive Google-login testing.
+
+### 2026-08-13 Pending payment-report lock and member order priority
+
+- [x] Trace the repeated-report defect to the distinction between an open
+  `paymentRequest` and a newly created `payment.status = pendingReview`. The request
+  must remain open until Owner confirmation, but a pending report now temporarily
+  blocks any different report for the same request.
+- [x] Preserve exact idempotent replay while rejecting a new idempotency payload with
+  HTTP 409 `payment_report_pending_review`. Rejected and reversed reports do not keep
+  the request locked; confirmed partial payments remain reportable for their balance.
+- [x] Update `/payments` to mark the linked request `已回報／待確認`, disable its
+  checkbox, exclude it from automatic／query-string preselection, and show a specific
+  duplicate-report message if stale UI still reaches the Server guard.
+- [x] Sort member orders by `awaitingPayment` → `partiallyPaid` → `paid` →
+  `cancelled`, newest first inside each state. Owner ordering and financial records
+  are unchanged.
+- [x] TDD and verification: four initial assertions first failed for the missing API,
+  UI, preselection, and sorting behavior. Independent review then added two red tests
+  for post-confirmation replay and stable transaction contention. Final review added
+  a multi-request／partial-allocation replay case. Unit 57 files／464 tests, TypeScript,
+  ESLint, Turbopack Build 42 routes, and focused Auth／Firestore／Storage Emulator
+  payment flow 2/2 passed. The focused flow also proves concurrent different-key
+  reports produce exactly one 200 and one 409, and exact replays remain idempotent
+  after rejected／confirmed／reversed transitions. The first full Emulator run passed 53 tests and exposed
+  only an ambiguous text locator; the corrected focused run passed both end-to-end
+  payment tests. A non-Emulator public Playwright run passed 20 tests／42 expected
+  skips but its two product-data checks could not initialize Firebase because this
+  isolated worktree intentionally has no `.env.local`; the Emulator public-product
+  checks passed in the full run.
+- [ ] Push the branch and wait for the fixed authenticated Preview alias to reach a
+  Ready deployment. Production remains unchanged and needs separate authorization.
