@@ -184,3 +184,7 @@
   (`dpl_8FPCjc99CzRMXrfFo6GEhTLpsmek`), now available at
   `https://astera-oms.vercel.app`. Added a test-only import stabilization for the
   payer-name route; no Collection, Rules, Checkout, pricing, or Order logic changed.
+- 2026-08-12: Added the missing Production Firebase client `authDomain` using the
+  existing Firebase default host and redeployed as
+  `dpl_79zMNBTmdKrsNq58pcx6tK3fMJeH`; this prevents client initialization from
+  failing solely because the public auth configuration is absent.
