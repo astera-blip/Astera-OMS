@@ -2342,3 +2342,24 @@ domain, or change any other Firebase/Vercel setting.
   then reload and open `/account/profile`. Report whether the header displays the
   signed-in user. Only after session persistence passes should the guest-cart
   continuation, profile write, or other business-flow testing resume.
+
+### 2026-08-12 Signed-in cart prevention defect
+
+- Manual Production read-only inspection confirmed Google login now persists and a
+  signed-in cart with one item loads normally.
+- The inspection also found that `建立訂單` was enabled before recipient details and
+  the two mandatory consent checkboxes were completed. No Order was created.
+- Root cause: the client CTA condition only considered loading, cart emptiness, and
+  sign-in state. The existing server API correctly validates shipping details and
+  consents, but the UI did not use that validation to gate the button.
+- Local fix awaiting deployment: `src/lib/order/checkout.ts` adds the tested
+  `isCheckoutSubmissionReady` helper; `src/components/storefront/CartBoard.tsx`
+  uses it to disable the CTA and explain the missing requirements. The change does
+  not alter Collections, Firestore Rules, prices, Checkout server behavior, or
+  Order creation semantics.
+- Fresh evidence: focused Unit 11/11; full Unit 56 files／451 tests; TypeScript;
+  ESLint; Build 42 routes; Playwright 20 passed／38 expected Emulator-only skips.
+- Exact next step: obtain deployment authority, deploy this client-side fix, then
+  verify in Production with an existing cart that the CTA remains disabled until
+  recipient name, valid phone, terms/privacy consent, and supplement consent are
+  all completed. Do not press the enabled CTA or create an Order in that check.

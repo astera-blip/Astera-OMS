@@ -2175,6 +2175,24 @@ Preview deployment update:
 - [x] Verify the active alias proxy returns HTTP 200 for `/__/auth/iframe` and
   `/__/auth/handler`; an unsigned browser test reaches Google account selection
   with the same-origin redirect URI and no `redirect_uri_mismatch`.
-- [ ] After the configuration is applied, manually complete Google login on the
-  Production alias, reload once, and navigate to `/account/profile` to prove the
-  Firebase user session persists before testing any write operation.
+- [x] A user manually completed Google login on the Production alias and confirmed
+  that the session now persists. The same-origin Auth repair is accepted for the
+  signed-in cart continuation.
+
+### 2026-08-12 Production cart validation follow-up
+
+- [x] Reproduce the signed-in Production cart issue without creating an Order:
+  with one cart item present, blank recipient details, and both required consents
+  unchecked, `建立訂單` was enabled. Server-side validation still rejected incomplete
+  requests, but the client did not provide the expected prevention.
+- [x] Add `isCheckoutSubmissionReady`, which reuses the existing shipping validator
+  and requires both legal and supplement consents. `CartBoard` now disables the
+  Order CTA until the member is signed in, catalog data is available, recipient
+  details are valid, and both consents are checked.
+- [x] Add regression coverage. Focused checkout Unit: 11/11; complete Unit:
+  56 files／451 tests; TypeScript; ESLint; Next Build 42 routes; regular Playwright:
+  20 passed／38 expected Emulator-only skips.
+- [ ] Deploy this client-only prevention change to Preview or Production only after
+  fresh deployment authorization, then manually verify the disabled CTA becomes
+  enabled after all four requirements are completed. No Order should be submitted
+  during that verification.

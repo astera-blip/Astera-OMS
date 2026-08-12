@@ -193,3 +193,11 @@
   `dpl_A8uq9wwsdtzZLRWR85VzBh9wgE6a`. This addresses redirect-session loss in
   browsers that block third-party storage; cart, Checkout, Rules, and data models
   were not changed.
+
+## 2026-08-12 Cart submission prevention
+
+- Added `isCheckoutSubmissionReady` to require valid 7-Eleven recipient details
+  plus both mandatory consents before the signed-in cart can enable `建立訂單`.
+- Updated CartBoard to show a clear prerequisite message while the CTA is disabled.
+- Added Unit regression coverage. This is a client-only UX guard; the existing
+  Checkout API validation remains authoritative and unchanged.

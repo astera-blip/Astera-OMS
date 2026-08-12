@@ -11,6 +11,7 @@ import {
 } from "@/lib/legal/documents";
 import {
   buildCartSummary,
+  isCheckoutSubmissionReady,
   type CartLineItem,
   validateShippingDetails,
 } from "@/lib/order/checkout";
@@ -112,7 +113,14 @@ export function CartBoard() {
     (document) => document.documentType === "terms" || document.documentType === "privacy",
   );
   const isCartEmpty = cart.length === 0;
-  const isOrderDisabled = placingOrder || isCartEmpty || !user;
+  const checkoutSubmissionReady = isCheckoutSubmissionReady({
+    recipientName,
+    recipientPhone,
+    shippingMethod,
+    acceptedLegalTerms,
+    acceptedSupplementRule,
+  });
+  const isOrderDisabled = placingOrder || isCartEmpty || !user || catalog.length === 0 || !checkoutSubmissionReady;
 
   function updateQuantity(index: number, quantity: number) {
     setCart((current) =>
@@ -394,6 +402,11 @@ export function CartBoard() {
           >
             {placingOrder ? "建立中…" : isCartEmpty ? "請先加入商品" : !user ? "請先登入" : "建立訂單"}
           </button>
+          {!isOrderDisabled || placingOrder || isCartEmpty || !user || catalog.length === 0 ? null : (
+            <p className="mt-3 text-sm leading-6 text-astera-secondary">
+              請填寫收件人姓名、有效手機號碼，並同意下單條款、隱私權政策與二補規則。
+            </p>
+          )}
           <p aria-live="polite" className="mt-3 text-sm leading-6 text-slate-600">{message}</p>
         </div>
       </aside>

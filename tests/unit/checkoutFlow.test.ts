@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCartSummary,
+  isCheckoutSubmissionReady,
   createOrderNumber,
   createOrderFromCart,
   groupCartItemsByCampaign,
@@ -315,5 +316,38 @@ describe("buildCartSummary", () => {
       totalTwd: 1760,
       saleType: "preorder",
     });
+  });
+});
+
+describe("isCheckoutSubmissionReady", () => {
+  const completeShipping = {
+    recipientName: "測試收件人",
+    recipientPhone: "0912345678",
+    shippingMethod: "seven_eleven" as const,
+  };
+
+  it("requires valid shipping details and both consents before enabling order creation", () => {
+    expect(isCheckoutSubmissionReady({
+      ...completeShipping,
+      acceptedLegalTerms: false,
+      acceptedSupplementRule: false,
+    })).toBe(false);
+    expect(isCheckoutSubmissionReady({
+      ...completeShipping,
+      acceptedLegalTerms: true,
+      acceptedSupplementRule: false,
+    })).toBe(false);
+    expect(isCheckoutSubmissionReady({
+      recipientName: "",
+      recipientPhone: "0912345678",
+      shippingMethod: "seven_eleven",
+      acceptedLegalTerms: true,
+      acceptedSupplementRule: true,
+    })).toBe(false);
+    expect(isCheckoutSubmissionReady({
+      ...completeShipping,
+      acceptedLegalTerms: true,
+      acceptedSupplementRule: true,
+    })).toBe(true);
   });
 });

@@ -309,6 +309,18 @@ export function validateShippingDetails(input: {
   };
 }
 
+export function isCheckoutSubmissionReady(input: {
+  recipientName: string;
+  recipientPhone: string;
+  shippingMethod: ShippingMethod;
+  acceptedLegalTerms: boolean;
+  acceptedSupplementRule: boolean;
+}) {
+  return input.acceptedLegalTerms
+    && input.acceptedSupplementRule
+    && validateShippingDetails(input).ok;
+}
+
 function getSaleTypeForItem(
   item: CartLineItem,
   catalog: readonly CatalogProduct[],

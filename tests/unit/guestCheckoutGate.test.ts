@@ -15,9 +15,10 @@ describe("guest checkout gate", () => {
     expect(source).toContain("member_profile_incomplete");
   });
 
-  it("disables the cart order CTA for signed-out visitors", () => {
+  it("disables the cart order CTA until sign-in and checkout requirements are complete", () => {
     const source = readFileSync("src/components/storefront/CartBoard.tsx", "utf8");
-    expect(source).toContain("const isOrderDisabled = placingOrder || isCartEmpty || !user;");
+    expect(source).toContain("!user || catalog.length === 0 || !checkoutSubmissionReady");
+    expect(source).toContain("disabled={isOrderDisabled}");
     expect(source).toContain("請先登入");
   });
 });
