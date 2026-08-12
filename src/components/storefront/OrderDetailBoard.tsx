@@ -14,6 +14,7 @@ import {
   paymentRequestStatusLabel,
   shippingMethodLabel,
 } from "@/lib/storefront/customerLabels";
+import { getOrderAction } from "@/lib/storefront/orderActions";
 
 type Props = {
   orderId: string;
@@ -267,6 +268,8 @@ export function OrderDetailBoard({ orderId }: Props) {
     );
   }
 
+  const orderAction = getOrderAction(order.order, paymentRequest);
+
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -284,6 +287,16 @@ export function OrderDetailBoard({ orderId }: Props) {
             共 {order.items.length} 項商品
           </span>
         </div>
+
+        <section className="mt-6 rounded-xl border border-astera-service/30 bg-astera-service/5 p-4" aria-label="訂單目前狀態">
+          <p className="text-sm font-semibold text-astera-service">{orderAction.title}</p>
+          <p className="mt-1 text-sm leading-6 text-astera-secondary">{orderAction.description}</p>
+          {orderAction.href ? (
+            <Link href={orderAction.href} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-astera-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-astera-ink">
+              前往付款回報
+            </Link>
+          ) : null}
+        </section>
 
         <div className="mt-6 grid gap-3 rounded-3xl bg-slate-50 p-4 text-sm text-slate-700 md:grid-cols-2">
           <p>收件人：{order.order.recipientName}</p>
