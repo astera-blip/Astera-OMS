@@ -21,4 +21,14 @@ describe("guest checkout gate", () => {
     expect(source).toContain("disabled={isOrderDisabled}");
     expect(source).toContain("請先登入");
   });
+
+  it("keeps cart review separate from the final checkout form", () => {
+    const source = readFileSync("src/components/storefront/CartBoard.tsx", "utf8");
+
+    expect(source).toContain('showCheckoutStep ? "前往結帳" : "確認訂單"');
+    expect(source).toContain('href="/checkout"');
+    expect(source).toContain('const shippingMethod = "seven_eleven" as const;');
+    expect(source).toContain("isOrderDisabled");
+    expect(source).toContain('aria-live="polite"');
+  });
 });
