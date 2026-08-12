@@ -154,19 +154,19 @@ describe("shared UI accessibility contract", () => {
   });
 
   it("uses buyer-facing public metadata and an ASTERA-only storefront brand", () => {
-    const home = read("src/app/page.tsx");
+    const home = read("src/components/storefront/HomeExperience.tsx");
     const header = read("src/components/storefront/StorefrontHeader.tsx");
     const accountActions = read("src/components/auth/AccountActions.tsx");
     const layout = read("src/app/layout.tsx");
 
-    expect(home).toContain("ASTERA SELECT");
+    expect(home).toContain("THAILAND ARTIST GOODS");
     expect(home).toContain("泰國 GL／藝人周邊代購");
     expect(home).not.toContain("/ Aatera");
     expect(home).not.toContain("ASTERA OMS");
     expect(header).toContain("AccountActions");
     expect(header).toContain("ASTERA");
     expect(header).not.toContain("ASTERA OMS");
-    expect(accountActions).toContain("使用 Google 登入");
+    expect(accountActions).toContain("會員登入");
     expect(accountActions).toContain('aria-live="polite"');
     expect(accountActions).toContain("min-h-11");
     expect(layout).toContain('title: "Astera｜泰國 GL／藝人周邊代購"');

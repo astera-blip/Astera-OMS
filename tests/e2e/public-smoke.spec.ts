@@ -6,11 +6,9 @@ test("public storefront navigation renders without seed fallback", async ({ page
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "泰國 GL／藝人周邊代購" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "立即看商品" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "正在販售" })).toBeVisible();
   await expect(page.getByRole("contentinfo")).toContainText("客服資訊");
 
-  await page.getByRole("link", { name: "立即看商品" }).click();
-  await expect(page).toHaveURL(/\/#featured-products$/);
   const mobileMenuButton = page.getByRole("button", { name: "開啟選單" });
   if (await mobileMenuButton.count()) {
     await mobileMenuButton.click();
@@ -30,7 +28,7 @@ test("homepage recommendations use customer copy and responsive product links", 
   test.skip(!useEmulatedAuth, "Requires Firestore emulator product seed.");
   await page.goto("/");
 
-  const recommendations = page.getByRole("heading", { name: "推薦商品" }).locator("xpath=../../..");
+  const recommendations = page.getByTestId("selling-groups");
   await expect(recommendations.getByRole("link", { name: /E2E 流程商品|商品圖片預覽/ }).first())
     .toBeVisible();
   await expect(recommendations).not.toContainText("unknown");

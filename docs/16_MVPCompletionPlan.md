@@ -2246,3 +2246,28 @@ Preview deployment update:
   200 for `/`, `/products`, `/terms`, `/privacy`, and `/products/prod_002`.
 - [ ] Production remains unchanged. Merge／Production deployment requires a separate
   explicit decision after manual Preview acceptance.
+
+### 2026-08-12 Approved guest／member homepage correction
+
+- [x] Identify why the Preview did not match the approved homepage: the branch had
+  navigation／product refinements but `src/app/page.tsx` still rendered the earlier
+  ASTERA SELECT hero, four-step guide, supplement, and FAQ hierarchy.
+- [x] Replace the real `/` homepage with the approved auth-aware experience. Guests
+  now see the member-login card, three-step purchasing card, and side-by-side
+  closing-soon／latest product groups. Signed-in members see actionable payment
+  items first, then latest and closing-soon products. No alternate mock route was
+  created.
+- [x] Preserve Firebase Auth, Profile guard, `productsPublic`, Cart API, pending
+  guest cart intent, Server price／Campaign validation, Checkout, Collections, and
+  Rules. Guest Header cart is hidden by design; signed-in members retain the cart
+  drawer, orders, profile, and custom-claim Owner workspace link.
+- [x] TDD evidence: the new latest／closing-soon ranking tests first failed because
+  both functions were absent, then the complete Unit suite passed at 57 files／459
+  tests. TypeScript, ESLint, Rules 2 files／32 tests, Build 42 routes, secret scan,
+  and production dependency audit (0 vulnerabilities) passed.
+- [x] Browser evidence: regular Playwright 22 passed／42 expected Emulator-only
+  skips; complete Auth／Firestore／Storage Emulator Playwright 54 passed／10 expected
+  skips. The suite covers 390px, 768px, 1365px, signed-in member ordering, guest
+  cart-intent continuation, Header states, desktop, and Pixel 7.
+- [ ] Push and Vercel Preview deployment are the next release step. Production is
+  unchanged and still requires separate explicit authorization.

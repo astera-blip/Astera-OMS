@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AccountActions } from "@/components/auth/AccountActions";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { HeaderCartDrawer } from "@/components/storefront/HeaderCartDrawer";
 
 export function StorefrontHeader() {
+  const { status } = useAuth();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
@@ -36,11 +38,11 @@ export function StorefrontHeader() {
             <Link href="/brand#campaigns" onClick={() => setIsMobileMenuOpen(false)} className="inline-flex min-h-11 items-center rounded-lg px-3 transition-colors hover:bg-astera-brand-soft">品牌</Link>
             <Link href="/brand#faq" onClick={() => setIsMobileMenuOpen(false)} className="inline-flex min-h-11 items-center rounded-lg px-3 transition-colors hover:bg-astera-brand-soft">常見問題</Link>
           </nav>
-          <button type="button" onClick={() => setIsCartDrawerOpen(true)} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-astera-ink transition-colors hover:bg-astera-brand-soft">購物車</button>
+          {status === "signedIn" ? <button type="button" onClick={() => setIsCartDrawerOpen(true)} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-astera-ink transition-colors hover:bg-astera-brand-soft">購物車</button> : null}
           <AccountActions />
         </div>
         <div className="flex items-center gap-1 md:hidden">
-          <button type="button" onClick={() => setIsCartDrawerOpen(true)} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-astera-ink transition-colors hover:bg-astera-brand-soft">購物車</button>
+          {status === "signedIn" ? <button type="button" onClick={() => setIsCartDrawerOpen(true)} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-astera-ink transition-colors hover:bg-astera-brand-soft">購物車</button> : null}
           <button
             type="button"
             aria-label="開啟選單"

@@ -42,6 +42,36 @@ export function rankFeaturedProducts(items: readonly PublicCatalogItem[]) {
     .slice(0, 10);
 }
 
+export function rankLatestProducts(items: readonly PublicCatalogItem[]) {
+  return sellablePublicProducts(items)
+    .sort((left, right) => {
+      const updatedDifference = dateValue(right.product.updatedAt, 0)
+        - dateValue(left.product.updatedAt, 0);
+      return updatedDifference || left.product.name.localeCompare(right.product.name);
+    })
+    .slice(0, 4);
+}
+
+export function rankClosingSoonProducts(
+  items: readonly PublicCatalogItem[],
+  now = new Date(),
+) {
+  return sellablePublicProducts(items)
+    .filter((item) => {
+      const campaign = featuredCampaign(item);
+      const endsAt = dateValue(campaign?.endsAt, Number.NaN);
+      return campaign?.status === "open"
+        && Number.isFinite(endsAt)
+        && endsAt > now.getTime();
+    })
+    .sort((left, right) => {
+      const endsDifference = dateValue(featuredCampaign(left)?.endsAt, Number.POSITIVE_INFINITY)
+        - dateValue(featuredCampaign(right)?.endsAt, Number.POSITIVE_INFINITY);
+      return endsDifference || left.product.name.localeCompare(right.product.name);
+    })
+    .slice(0, 4);
+}
+
 export function featuredCampaign(item: PublicCatalogItem) {
   return item.campaigns.find((campaign) => campaign.status === "open")
     ?? item.campaigns.find((campaign) => campaign.status === "upcoming")
@@ -107,4 +137,10 @@ function taipeiDateParts(date: Date) {
 function dateValue(value: string | undefined, fallback: number) {
   const timestamp = value ? new Date(value).getTime() : Number.NaN;
   return Number.isFinite(timestamp) ? timestamp : fallback;
+}
+
+function sellablePublicProducts(items: readonly PublicCatalogItem[]) {
+  return items.filter((item) =>
+    item.product.publishState === "published"
+    && item.campaigns.some((campaign) => campaign.status !== "archived"));
 }

@@ -22,13 +22,13 @@ export function AccountActions({
 
   if (status === "signedOut") {
     return (
-      <div className={isMobile ? "grid gap-2 pt-2" : "flex flex-col items-end gap-1"}>
+      <div className={isMobile ? "grid gap-1" : "flex flex-col items-end gap-1"}>
         <button
           type="button"
           onClick={() => void signInWithGoogle()}
-          className={isMobile ? "inline-flex min-h-11 items-center justify-center rounded-lg bg-astera-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-astera-ink" : "inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-astera-ink transition-colors hover:bg-astera-brand-soft"}
+          className={itemClassName}
         >
-          使用 Google 登入
+          會員登入
         </button>
         {error ? <p aria-live="polite" role="alert" className="max-w-xs text-xs text-red-700">{error}</p> : null}
       </div>

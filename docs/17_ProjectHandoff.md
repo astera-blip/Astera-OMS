@@ -2428,3 +2428,34 @@ domain, or change any other Firebase/Vercel setting.
   Deployment Protection redirects anonymous traffic to Vercel SSO. Authenticated
   Vercel checks returned 200 for the homepage, product list, terms, privacy, and
   `prod_002` detail. No Production deployment or alias change was performed.
+
+### 2026-08-12 Real homepage state correction
+
+- Root cause of the reported Preview mismatch: the approved document
+  `docs/superpowers/specs/2026-08-12-home-states-design.md` existed, but the actual
+  branch still used the older `src/app/page.tsx`. This was a delivery-scope error,
+  not a Vercel cache problem.
+- `src/app/page.tsx` now renders `HomeExperience`. The new client boundary uses the
+  existing `AuthProvider` to select the guest or member hierarchy without creating
+  a second homepage.
+- Guest order: login card → three purchasing steps → `正在販售` with independent
+  `即將結單` and `最新商品` cards → existing Footer. The old hero service summary,
+  supplement card, FAQ card, and forced bottom whitespace are absent.
+- Member order: `需要你處理` → `最新商品` → `即將結單`. Member actions are real
+  own-member open／partially-paid PaymentRequests only, maximum three, ordered by
+  due time; no action data is fabricated. The empty state remains visible.
+- Homepage products continue to read only `productsPublic`. Latest products rank by
+  public update time; closing-soon products require an open future Campaign and
+  rank by deadline. Images remain fixed 4:5 with the existing fallback. Guest
+  product clicks preserve the existing Google-login cart intent and revalidate it
+  after profile completion.
+- Header behavior now matches the approved state contract: guest navigation uses
+  plain `會員登入` and no cart; signed-in users retain cart, orders, account, and
+  custom-claim Owner workspace access. No Email-based role check was introduced.
+- Final local evidence: TypeScript pass; ESLint pass; Unit 57 files／459 tests;
+  Firestore＋Storage Rules 2 files／32 tests; Build 42 routes; regular Playwright
+  22 passed／42 expected skips; full Emulator Playwright 54 passed／10 expected
+  skips; secret scan pass; production audit 0 vulnerabilities.
+- Exact next step: commit and push the branch, wait for the Vercel Preview to reach
+  Ready, then inspect the authenticated Preview `/` at desktop and mobile widths.
+  Do not deploy Production without a new explicit authorization.
