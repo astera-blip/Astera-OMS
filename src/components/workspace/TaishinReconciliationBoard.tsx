@@ -106,7 +106,7 @@ export function TaishinReconciliationBoard() {
           <div className="overflow-x-auto rounded-lg border border-astera-border">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-astera-page text-astera-secondary"><tr><th className="px-3 py-2">交易時間</th><th className="px-3 py-2">摘要</th><th className="px-3 py-2">金額</th><th className="px-3 py-2">末五碼</th></tr></thead>
-              <tbody>{(result.transactions ?? []).slice(0, 100).map((transaction, index) => <tr key={`${transaction.matchKey}-${index}`} className="border-t border-astera-border"><td className="px-3 py-2">{transaction.transactionAt}</td><td className="px-3 py-2">{transaction.method}</td><td className="px-3 py-2 tabular-nums">NT$ {transaction.amountTwd.toLocaleString()}</td><td className="px-3 py-2 font-mono">{transaction.accountLast5 || "—"}</td></tr>)}</tbody>
+              <tbody>{(result.transactions ?? []).slice(0, 100).map((transaction, index) => <tr key={`${transaction.transactionFingerprint}-${index}`} className="border-t border-astera-border"><td className="px-3 py-2">{transaction.transactionAt}</td><td className="px-3 py-2">{transaction.method}</td><td className="px-3 py-2 tabular-nums">NT$ {transaction.amountTwd.toLocaleString()}</td><td className="px-3 py-2 font-mono">{transaction.accountLast5 || "—"}</td></tr>)}</tbody>
             </table>
           </div>
         </div>

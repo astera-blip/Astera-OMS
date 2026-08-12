@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import {
+  buildTaishinTransactionFingerprint,
   extractTaishinLast5,
   parseTaishinWorkbook,
   parseTaishinRows,
@@ -12,7 +13,7 @@ describe("Taishin reconciliation parser", () => {
     expect(extractTaishinLast5("沒有帳號")).toBe("");
   });
 
-  it("parses the uploaded Taishin header row and produces a match key", () => {
+  it("parses the uploaded Taishin header row without exposing balance or remark", () => {
     const result = parseTaishinRows([
       ["台新銀行 - 交易明細"],
       ["交易日", "帳務日", "摘要", "金額", "餘額", "備註"],
@@ -25,9 +26,31 @@ describe("Taishin reconciliation parser", () => {
       expect(result.transactions[0]).toMatchObject({
         amountTwd: 1420,
         accountLast5: "03022",
-        matchKey: "142003022",
       });
+      expect(result.transactions[0]?.transactionFingerprint).toMatch(/^[a-f0-9]{64}$/);
+      expect(result.transactions[0]).not.toHaveProperty("balanceTwd");
+      expect(result.transactions[0]).not.toHaveProperty("remark");
+      expect(result.transactions[0]).not.toHaveProperty("matchKey");
     }
+  });
+
+  it("creates the same fingerprint from the same normalized transaction identity", () => {
+    const first = buildTaishinTransactionFingerprint({
+      transactionAt: " 2026/05/26 16:58:48 ",
+      accountingDate: "2026/05/26",
+      method: " CD　轉入 ",
+      amountTwd: 1420,
+      accountLast5: "03022",
+    });
+    const second = buildTaishinTransactionFingerprint({
+      transactionAt: "2026/05/26 16:58:48",
+      accountingDate: "2026/05/26",
+      method: "CD 轉入",
+      amountTwd: 1420,
+      accountLast5: "03022",
+    });
+
+    expect(first).toBe(second);
   });
 
   it("rejects files that are missing the required bank columns", () => {
@@ -47,7 +70,7 @@ describe("Taishin reconciliation parser", () => {
     const result = await parseTaishinWorkbook(buffer);
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.transactions[0]?.matchKey).toBe("142003022");
+      expect(result.transactions[0]?.transactionFingerprint).toMatch(/^[a-f0-9]{64}$/);
     }
   });
 });
