@@ -414,3 +414,14 @@ session; otherwise use a separately approved, test-first diagnostic change.
 - Fresh verification: Unit 62 files／483 tests; Rules 2 files／32 tests; Build 43 pages;
   complete Emulator Playwright 55 passed／11 expected skips／0 failed. Preview acceptance
   remains upload-and-preview only until the Owner separately authorizes recognition.
+
+### Real-workbook aggregate and distinct-unit summary
+
+- Preview acceptance result: 276 bank transactions, seven pending Payment groups,
+  zero unique matches and zero selected rows. No recognition action was performed.
+- Summary regression verifies bank-side manual items and payment-side manual groups
+  are counted separately. A one-to-one match contributes to neither manual count;
+  one unmatched bank transaction plus one unmatched Payment group produces 1 and 1,
+  never a combined value of 2 under a single mixed-unit label.
+- Focused reconciliation Playwright verifies the two new labels are rendered and the
+  old combined `需人工處理` label is absent while safe selection behavior is retained.

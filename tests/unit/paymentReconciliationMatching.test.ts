@@ -75,7 +75,48 @@ describe("payment reconciliation matching", () => {
         paymentIds: ["payment-1"],
       }),
     ]);
-    expect(result.summary).toMatchObject({ uniqueMatchCount: 1, selectableCount: 1 });
+    expect(result.summary).toMatchObject({
+      uniqueMatchCount: 1,
+      selectableCount: 1,
+      manualBankTransactionCount: 0,
+      manualPaymentGroupCount: 0,
+    });
+  });
+
+  it("reports bank transactions and payment groups requiring review as separate units", () => {
+    const result = matchTaishinTransactions({
+      transactions: [
+        transaction(),
+        transaction({
+          amountTwd: 880,
+          accountLast5: "99999",
+          transactionFingerprint: "b".repeat(64),
+        }),
+      ],
+      payments: [
+        payment(),
+        payment({
+          id: "payment-2",
+          paymentGroupId: "group-2",
+          paymentRequestId: "request-2",
+          receivedAmountTwd: 1040,
+          memberPaymentAccount: {
+            bankCode: "001",
+            accountNumberLast5: "77777",
+            payerName: "另一位匯款人",
+          },
+        }),
+      ],
+      claimedFingerprints: new Set(),
+    });
+
+    expect(result.summary).toMatchObject({
+      sourceRowCount: 2,
+      pendingPaymentGroupCount: 2,
+      uniqueMatchCount: 1,
+      manualBankTransactionCount: 1,
+      manualPaymentGroupCount: 1,
+    });
   });
 
   it("does not select ambiguous candidates on either side", () => {

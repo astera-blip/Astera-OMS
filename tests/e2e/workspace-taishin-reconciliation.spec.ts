@@ -36,6 +36,9 @@ test("owner safely selects and recognizes Taishin Excel matches", async ({ page 
   });
   await board.getByRole("button", { name: "解析並批次比對" }).click();
   await expect(board.getByText("已比對 3 筆銀行交易，可安全勾選 2 筆。")).toBeVisible();
+  await expect(board.getByText("銀行待人工")).toBeVisible();
+  await expect(board.getByText("付款待人工")).toBeVisible();
+  await expect(board.getByText("需人工處理", { exact: true })).toHaveCount(0);
   await expect(board.getByText("未找到", { exact: true }).first()).toBeVisible();
 
   await board.getByRole("button", { name: "全選可認列項目" }).click();
