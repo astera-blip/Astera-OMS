@@ -71,11 +71,14 @@ API 必須拒絕：
 - Partner 可唯讀查看商品、Campaign、內容與成本相關 Audit Log；不可查看付款、退款、會員私密資料、角色異動等紀錄。
 - Partner 對訂單資料僅看業務必要資訊；姓名、電話與地址完全遮罩。付款回報僅見訂單編號、金額、日期與狀態，帳戶資訊與匯款人遮罩。
 
-### Helper 搶購與成本（未來獨立功能）
+### 搶購、成本、Helper 分紅與 Owner／Partner 分潤（未來獨立功能）
 
-- Owner、Partner、Helper 都可參與搶購並登錄自己的成本；Helper 是唯一未來可參與分潤的角色，Owner 與 Partner 不參與分潤。
-- Helper 成本草稿可由 Partner 或 Owner 核准；Partner 不得核准自己的成本，Owner 可核准所有人的成本。
-- 採購時的角色及分潤資格為歷史快照，日後角色變更不回寫歷史。
+- Owner、Partner、Helper 都可參與搶購並登錄自己的成功數量與實際成本。
+- 「Helper 分紅」只給 Helper，依核准後的實際 TWD 成本、商品分紅比例及成功數量計算；Owner、Partner 參與搶購時不取得 Helper 分紅。
+- 「Owner／Partner 分潤」是商品收入扣除成本、Helper 分紅、國際運費、關稅與雜費後的淨額分配，與 Helper 分紅是不同概念。
+- Helper 自己提交的成本可由 Partner 或 Owner 核准；Partner 不得核准自己填寫或屬於自己的成本。Owner 可直接確認任何成本，但必須二次確認並建立不可修改的 Audit Log。
+- 採購時的角色、成本、數量、Helper 分紅比例及分潤參與者均保存歷史快照，日後角色或商品設定變更不回寫歷史。
+- 完整規格以 `2026-08-13-roles-rush-bonus-settlement-design.md` 為準。
 
 ## 7. 驗收與測試
 
