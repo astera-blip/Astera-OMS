@@ -2580,7 +2580,11 @@ domain, or change any other Firebase/Vercel setting.
   62 files／483 tests; Firestore＋Storage Rules 2 files／32 tests; Turbopack Build
   43 pages; complete Auth／Firestore／Storage Emulator Playwright 55 passed／
   11 expected skips／0 failed.
-- Exact next step: commit and push the parser／test／documentation correction, wait for
-  Vercel Preview Ready, move only the stable Preview alias, then repeat upload and
-  preview. Do not select or confirm real reconciliation rows without separate explicit
-  authorization. Production remains unchanged.
+- Delivery completed: commit `0320da5` was pushed; Vercel Preview
+  `dpl_HWKWTvBxM5GwBap5npmimk4nBinF` reached Ready, and the existing stable Preview
+  alias now targets `astera-cl2z1ynlz-astera-oms.vercel.app`. Production remains unchanged.
+- Final real-workbook retry reached the browser safety boundary. The file was selected,
+  but browser automation was not permitted to press the upload／parse button for the
+  financial workbook. Exact next step: the signed-in Owner manually presses only
+  `解析並批次比對`, then records the four aggregate counts shown on screen. Do not press
+  `全選可安全認列項目` or `批次確認認列`; real recognition remains separately authorized.

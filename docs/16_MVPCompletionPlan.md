@@ -2342,6 +2342,10 @@ Preview deployment update:
 - [x] 修正後完整驗證：Unit 62 files／483 tests；Firestore＋Storage Rules
   2 files／32 tests；Build 43 pages；完整 Emulator Playwright 55 passed／
   11 expected skips／0 failed。
-- [ ] 待將解析器修正 commit／push，等待新 Vercel Preview Ready，重新指派 stable
-  alias，然後再次只上傳真實 Excel 確認彙總預覽。不得點擊全選或批次確認認列。
+- [x] 解析器修正已以 commit `0320da5` push；Vercel Preview
+  `dpl_HWKWTvBxM5GwBap5npmimk4nBinF` 已 Ready，既有 stable Preview alias 已
+  指向 deployment `astera-cl2z1ynlz-astera-oms.vercel.app`。Production 未變更。
+- [ ] 最後真實 Excel 重測停在瀏覽器安全確認：檔案已選擇，但自動化不得代按會
+  上傳銀行檔案的「解析並批次比對」。Owner 下一步只需手動按該按鈕，回報畫面
+  顯示的四個彙總數字；不得按「全選可認列項目」或「批次確認認列」。
   Production 部署與任何真實交易認列都需個別明確授權。
