@@ -58,6 +58,39 @@ describe("Taishin reconciliation parser", () => {
     expect(result).toEqual({ ok: false, error: "taishin_columns_invalid" });
   });
 
+  it("ignores a merged one-value trailing export note after valid transactions", () => {
+    const result = parseTaishinRows([
+      ["台新銀行 - 交易明細"],
+      ["交易日", "帳務日", "摘要", "金額", "餘額", "備註"],
+      ["2026/05/26 16:58:48", "2026/05/26", "CD轉入", 1420, 355633, "ATM 822-0000212540103022"],
+      [
+        "本列為匯出檔尾端說明",
+        "本列為匯出檔尾端說明",
+        "本列為匯出檔尾端說明",
+        "本列為匯出檔尾端說明",
+        "本列為匯出檔尾端說明",
+        "本列為匯出檔尾端說明",
+      ],
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.sourceRowCount).toBe(1);
+      expect(result.transactions).toHaveLength(1);
+    }
+  });
+
+  it("still rejects a malformed transaction row before a later valid row", () => {
+    const result = parseTaishinRows([
+      ["台新銀行 - 交易明細"],
+      ["交易日", "帳務日", "摘要", "金額", "餘額", "備註"],
+      ["2026/05/26 16:58:48", "2026/05/26", "CD轉入", "", 355633, "ATM 822-0000212540103022"],
+      ["2026/05/27 10:20:00", "2026/05/27", "CD轉入", 520, 356153, "ATM 822-0000212540103001"],
+    ]);
+
+    expect(result).toEqual({ ok: false, error: "taishin_rows_invalid" });
+  });
+
   it("parses an XLSX buffer with the same two-row header layout as the uploaded file", async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Sheet1");

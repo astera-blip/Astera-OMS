@@ -400,3 +400,17 @@ session; otherwise use a separately approved, test-first diagnostic change.
 - Preview acceptance may upload the real workbook for parse／match preview only.
   Batch recognition of real transactions remains an explicit Owner action and is
   outside automated or unattended acceptance.
+
+### Real Taishin merged-footer regression
+
+- A workbook may end with a merged A:F export note. ExcelJS exposes the merged master
+  text as the same value in every cell of that row; this row must be ignored only when
+  it follows all transactions and is neither a valid transaction date nor an amount.
+- A malformed row before a later valid transaction must still reject the entire file.
+  This prevents the footer exception from weakening transaction validation.
+- The real workbook acceptance records aggregate structure only: 276 transactions and
+  one trailing merged export note. It must never persist the workbook, transaction
+  rows, balances, account fragments, or original remarks.
+- Fresh verification: Unit 62 files／483 tests; Rules 2 files／32 tests; Build 43 pages;
+  complete Emulator Playwright 55 passed／11 expected skips／0 failed. Preview acceptance
+  remains upload-and-preview only until the Owner separately authorizes recognition.

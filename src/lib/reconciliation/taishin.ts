@@ -70,6 +70,21 @@ function normalizeCell(value: unknown): string {
   return value == null ? "" : String(value).trim();
 }
 
+function isTrailingExportNote(
+  row: ReadonlyArray<unknown>,
+  transactionIndex: number,
+  amountIndex: number,
+): boolean {
+  const distinctNonEmptyValues = new Set(
+    row.map((value) => normalizeCell(value)).filter(Boolean),
+  );
+  const transactionValue = normalizeCell(row[transactionIndex]);
+  return distinctNonEmptyValues.size === 1
+    && transactionValue !== ""
+    && !/^\d{4}[/-]\d{1,2}[/-]\d{1,2}/u.test(transactionValue)
+    && normalizeAmount(row[amountIndex]) == null;
+}
+
 export function parseTaishinRows(rows: ReadonlyArray<ReadonlyArray<unknown>>): TaishinParseResult {
   const headerRow = rows[1] ?? rows[0] ?? [];
   const normalizedHeaders = headerRow.map((value) => normalizeCell(value).replaceAll(/\s/g, ""));
@@ -82,13 +97,20 @@ export function parseTaishinRows(rows: ReadonlyArray<ReadonlyArray<unknown>>): T
   }
 
   const dataRows = rows.slice(rows[1] === headerRow ? 2 : 1);
+  const [transactionIndex, accountingIndex, methodIndex, amountIndex, , remarkIndex] = columnIndexes;
+  while (dataRows.length > 0 && isTrailingExportNote(
+    dataRows[dataRows.length - 1] ?? [],
+    transactionIndex,
+    amountIndex,
+  )) {
+    dataRows.pop();
+  }
   const transactions: TaishinTransaction[] = [];
 
   for (const row of dataRows) {
     if (row.every((value) => normalizeCell(value) === "")) {
       continue;
     }
-    const [transactionIndex, accountingIndex, methodIndex, amountIndex, , remarkIndex] = columnIndexes;
     const transactionAt = normalizeCell(row[transactionIndex]);
     const accountingDate = normalizeCell(row[accountingIndex]);
     const method = normalizeCell(row[methodIndex]);
