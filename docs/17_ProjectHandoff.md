@@ -2529,3 +2529,18 @@ domain, or change any other Firebase/Vercel setting.
   report, open `/payments`, and confirm the linked request is disabled and labelled
   `已回報／待確認`; then open `/orders` and confirm unpaid orders precede paid and
   cancelled orders. Production deployment requires separate authorization.
+
+## 2026-08-13 Taishin batch reconciliation handoff
+
+- Parser output contains only date/time, method, amount, last five digits and a
+  normalized SHA-256 fingerprint; balance and original remarks are discarded.
+- Pending Payments group by `paymentGroupId` and are classified unique, ambiguous,
+  unmatched, insufficient or duplicate. Only unique matches are selectable.
+- Recognition re-parses Excel, re-reads Admin SDK authority, rejects forged selections,
+  and claims each bank transaction in an immutable Audit Log.
+- Owner UI supports safe select-all, deselection, second confirmation and per-item results.
+- Evidence: full Unit 62 files / 481 tests, Rules 2 files / 32 tests, TypeScript, ESLint,
+  Turbopack Build 43 pages, secret scan and production audit pass. Full Emulator
+  Playwright passed 54 with 10 expected project/device skips on isolated port 3101.
+- Next: add a dedicated synthetic Excel selection Playwright scenario, then Preview
+  Owner upload acceptance. Never commit the real Taishin workbook.

@@ -2317,3 +2317,15 @@ Preview deployment update:
 - [x] Push commit `c9fac21`; Vercel Preview `dpl_Goc9f15HDyBiH3gEzrH7Ng85ZHSu`
   reached Ready and the existing Firebase-authorized stable Preview alias was moved
   to it. Production remains unchanged and needs separate authorization.
+
+## 2026-08-13 台新 Excel 批次對帳
+
+- [x] Owner-only API 自動讀取全部 `pendingReview` Payment，以 `paymentGroupId`
+  聚合同一匯款分配的多張訂單。
+- [x] 完成唯一吻合、多筆可能、未找到、資料不足、疑似重複分類；
+  全選只勾選唯一安全吻合，Owner 可取消勾選。
+- [x] 認列時重新解析 Excel 與讀取 Firestore，沿用既有付款確認、
+  Allocation、Order、Audit Log 與通知邏輯。
+- [x] 原始 Excel、餘額與原始備註不保存；不可變 Audit Log claim 阻止交易重複認列。
+- [ ] 待 Emulator Playwright 批次互動與 Preview Owner 真人上傳驗收；Production
+  部署需單獨授權。
