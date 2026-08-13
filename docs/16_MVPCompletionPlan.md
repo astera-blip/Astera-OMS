@@ -2352,5 +2352,9 @@ Preview deployment update:
   `付款待人工 7`，不更動匹配、付款、訂單或確認邏輯。
 - [x] 摘要修正驗證：TypeScript、ESLint、Unit 62 files／484 tests、Build
   43 pages、focused Emulator Playwright 1/1、secret scan 全部通過。
-- [ ] 待提交／push 摘要修正並將 stable Preview alias 指向新的 Ready deployment。
-  Production 部署與任何真實交易認列都需個別明確授權。
+- [x] 摘要修正 commit `60f1e9a` 已 push；Vercel Preview
+  `dpl_9iJvZEdkBeeUGjQcC4QXaybbRpUA` Ready，stable Preview alias 已指向
+  `astera-5qyv38zd8-astera-oms.vercel.app`。Production 未變更。
+- [ ] 真實 Excel 目前沒有唯一安全吻合，因此不執行批次認列。若要驗證認列，應
+  另外建立金額與末五碼都明確對應的測試專用銀行資料與付款回報，不可拿真實未匹配
+  交易強制認列。Production 部署仍需個別明確授權。

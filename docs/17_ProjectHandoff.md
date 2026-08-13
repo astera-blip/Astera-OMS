@@ -2605,6 +2605,10 @@ domain, or change any other Firebase/Vercel setting.
   passed after the minimal implementation. Fresh verification: TypeScript; ESLint;
   Unit 62 files／484 tests; Build 43 pages; focused Auth／Firestore／Storage Emulator
   reconciliation Playwright 1/1; secret scan.
-- Exact next step: commit and push this UI-summary correction, wait for a Ready Vercel
-  Preview and move only the stable Preview alias. Production and real recognition
-  remain separately authorized.
+- Delivery: commit `60f1e9a` was pushed; Vercel Preview
+  `dpl_9iJvZEdkBeeUGjQcC4QXaybbRpUA` reached Ready, and the stable Preview alias now
+  targets `astera-5qyv38zd8-astera-oms.vercel.app`. Production remains unchanged.
+- Real recognition is intentionally not the next step because the live aggregate has
+  zero unique safe matches. A future recognition acceptance must use explicitly
+  constructed test-only bank and Payment data with matching amount and last five,
+  never a forced selection of these unmatched real transactions.
