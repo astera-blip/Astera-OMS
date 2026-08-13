@@ -2544,5 +2544,16 @@ domain, or change any other Firebase/Vercel setting.
   Playwright passed 54 with 10 expected project/device skips on isolated port 3101.
 - Dedicated synthetic Excel Playwright passed 1/1: two safe matches plus one unmatched,
   select all, deselect one, confirm one group, then detect the claim as duplicate.
-- Next: push and deploy Preview, then perform Owner upload-only acceptance with the real
-  Taishin workbook. Never commit or persist it. Production remains separate.
+- Commit `f080e97` is pushed. Vercel Git integration built Ready deployment
+  `dpl_47ja9PUDxsrMsX3DVW3kDioPNJrC` at
+  `https://astera-eol6abdun-astera-oms.vercel.app`; the unique and branch domains are
+  protected by Vercel and return HTTP 302 to an unauthenticated smoke client, while the
+  signed-in Vercel browser session loads the public product page correctly.
+- The Firebase-authorized stable Preview alias still targets the prior deployment. A
+  Vercel CLI GitHub login was started only to reassign that existing alias, but the
+  authorization flow was cancelled and no alias／environment／Production setting changed.
+- Next exact step: complete `npx vercel@50.12.0 login`, then run
+  `npx vercel@50.12.0 alias set astera-eol6abdun-astera-oms.vercel.app astera-oms-astera-blip-astera-oms.vercel.app --scope astera-oms`.
+  Reload `/workspace/payments` as Owner and upload the real Taishin workbook for preview
+  only. Never commit or persist it, and do not press batch recognition without a separate
+  explicit authorization. Production remains separate.

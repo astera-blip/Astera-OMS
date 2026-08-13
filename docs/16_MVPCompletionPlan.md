@@ -2329,4 +2329,11 @@ Preview deployment update:
 - [x] 原始 Excel、餘額與原始備註不保存；不可變 Audit Log claim 阻止交易重複認列。
 - [x] 合成 Excel Emulator Playwright 已驗證兩筆安全吻合、一筆未吻合、
   全選後取消一筆、單筆認列，以及重新匯入後的重複阻擋。
-- [ ] 待 Preview Owner 真人上傳驗收；Production 部署需單獨授權。
+- [x] Git-integrated Preview commit `f080e97` 已於 Vercel Ready；deployment
+  `dpl_47ja9PUDxsrMsX3DVW3kDioPNJrC`，唯讀瀏覽器可載入公開商品。
+- [ ] 待將既有 Firebase 授權的 stable Preview alias
+  `astera-oms-astera-blip-astera-oms.vercel.app` 指向上述 deployment，才能沿用
+  Owner 登入進行真實 Excel 的 upload-only 驗收。Vercel CLI 尚未登入，GitHub
+  login 流程於等待授權時被取消；不可改用未授權的 deployment hostname。
+- [ ] 待 Preview Owner 真人上傳驗收；只解析與顯示比對預覽，不執行真實批次認列。
+  Production 部署需單獨授權。
