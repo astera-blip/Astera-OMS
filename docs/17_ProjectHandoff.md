@@ -2588,3 +2588,23 @@ domain, or change any other Firebase/Vercel setting.
   financial workbook. Exact next step: the signed-in Owner manually presses only
   `解析並批次比對`, then records the four aggregate counts shown on screen. Do not press
   `全選可安全認列項目` or `批次確認認列`; real recognition remains separately authorized.
+
+### 2026-08-13 Real workbook aggregate acceptance and summary-unit correction
+
+- The signed-in Owner manually pressed `解析並批次比對`. Preview parsed 276 bank
+  transactions and compared seven pending Payment groups. It found zero unique matches
+  and zero safely selectable rows. Nothing was selected or recognized, and no Payment,
+  Order, allocation, Audit Log, or reconciliation claim changed.
+- The initial `需人工處理 283` card was not 283 Payments. It added 276 bank-side
+  unmatched items to seven payment-side unmatched groups, which mixed two units and
+  was operationally misleading.
+- `ReconciliationSummary` now exposes `manualBankTransactionCount` and
+  `manualPaymentGroupCount`. The Owner UI displays `銀行待人工` and `付款待人工`
+  separately; matching and financial behavior are unchanged.
+- TDD evidence: new summary tests first failed because both fields were absent, then
+  passed after the minimal implementation. Fresh verification: TypeScript; ESLint;
+  Unit 62 files／484 tests; Build 43 pages; focused Auth／Firestore／Storage Emulator
+  reconciliation Playwright 1/1; secret scan.
+- Exact next step: commit and push this UI-summary correction, wait for a Ready Vercel
+  Preview and move only the stable Preview alias. Production and real recognition
+  remain separately authorized.

@@ -150,11 +150,12 @@ export function TaishinReconciliationBoard() {
       {message ? <p className="mt-3 text-sm text-astera-secondary" aria-live="polite">{message}</p> : null}
 
       {preview?.summary ? (
-        <div className="mt-5 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
           <Summary label="銀行交易" value={preview.summary.sourceRowCount} />
           <Summary label="待審付款群組" value={preview.summary.pendingPaymentGroupCount} />
           <Summary label="唯一吻合" value={preview.summary.uniqueMatchCount} />
-          <Summary label="需人工處理" value={preview.summary.ambiguousCount + preview.summary.unmatchedCount + preview.summary.insufficientDataCount + preview.summary.duplicateCount} />
+          <Summary label="銀行待人工" value={preview.summary.manualBankTransactionCount} />
+          <Summary label="付款待人工" value={preview.summary.manualPaymentGroupCount} />
         </div>
       ) : null}
 

@@ -2345,7 +2345,12 @@ Preview deployment update:
 - [x] 解析器修正已以 commit `0320da5` push；Vercel Preview
   `dpl_HWKWTvBxM5GwBap5npmimk4nBinF` 已 Ready，既有 stable Preview alias 已
   指向 deployment `astera-cl2z1ynlz-astera-oms.vercel.app`。Production 未變更。
-- [ ] 最後真實 Excel 重測停在瀏覽器安全確認：檔案已選擇，但自動化不得代按會
-  上傳銀行檔案的「解析並批次比對」。Owner 下一步只需手動按該按鈕，回報畫面
-  顯示的四個彙總數字；不得按「全選可認列項目」或「批次確認認列」。
+- [x] Owner 手動完成真實 Excel upload-only Preview：成功解析 276 筆銀行交易，
+  讀取 7 組待審付款，唯一吻合 0、可安全勾選 0；未勾選、未認列、未變更付款資料。
+- [x] 發現舊摘要把 276 筆未唯一配對銀行交易與 7 組未唯一配對付款群組相加成
+  `需人工處理 283`，混合了不同單位。修正為分開顯示 `銀行待人工 276` 與
+  `付款待人工 7`，不更動匹配、付款、訂單或確認邏輯。
+- [x] 摘要修正驗證：TypeScript、ESLint、Unit 62 files／484 tests、Build
+  43 pages、focused Emulator Playwright 1/1、secret scan 全部通過。
+- [ ] 待提交／push 摘要修正並將 stable Preview alias 指向新的 Ready deployment。
   Production 部署與任何真實交易認列都需個別明確授權。

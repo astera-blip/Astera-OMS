@@ -43,6 +43,8 @@ export type ReconciliationSummary = {
   sourceRowCount: number;
   pendingPaymentGroupCount: number;
   uniqueMatchCount: number;
+  manualBankTransactionCount: number;
+  manualPaymentGroupCount: number;
   ambiguousCount: number;
   unmatchedCount: number;
   insufficientDataCount: number;
@@ -247,10 +249,13 @@ function summarize(
   pendingPaymentGroupCount: number,
   results: ReadonlyArray<ReconciliationMatchResult>,
 ): ReconciliationSummary {
+  const uniqueMatchCount = countCategory(results, "unique_match");
   return {
     sourceRowCount,
     pendingPaymentGroupCount,
-    uniqueMatchCount: countCategory(results, "unique_match"),
+    uniqueMatchCount,
+    manualBankTransactionCount: Math.max(0, sourceRowCount - uniqueMatchCount),
+    manualPaymentGroupCount: Math.max(0, pendingPaymentGroupCount - uniqueMatchCount),
     ambiguousCount: countCategory(results, "ambiguous"),
     unmatchedCount: countCategory(results, "unmatched"),
     insufficientDataCount: countCategory(results, "insufficient_data"),

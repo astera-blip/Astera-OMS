@@ -240,3 +240,13 @@
 - Recorded only structural acceptance totals (276 transactions and one trailing note).
   No real workbook, transaction content, balance, account fragment, or original remark
   was added to the repository, and no real batch recognition was executed.
+
+### Reconciliation summary clarity
+
+- Replaced the mixed-unit `需人工處理` total with separate `銀行待人工` and
+  `付款待人工` cards. The former counts bank transactions without a unique safe
+  match; the latter counts pending Payment groups without a unique safe match.
+- Real Preview acceptance parsed 276 bank rows and seven pending Payment groups with
+  zero unique matches. No real transaction was selected or recognized.
+- This is an Owner UI／summary-contract change only; matching criteria, Payment
+  confirmation, Order state, Audit Logs, Collections, and Rules are unchanged.
