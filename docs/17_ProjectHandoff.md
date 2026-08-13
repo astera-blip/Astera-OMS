@@ -2542,5 +2542,7 @@ domain, or change any other Firebase/Vercel setting.
 - Evidence: full Unit 62 files / 481 tests, Rules 2 files / 32 tests, TypeScript, ESLint,
   Turbopack Build 43 pages, secret scan and production audit pass. Full Emulator
   Playwright passed 54 with 10 expected project/device skips on isolated port 3101.
-- Next: add a dedicated synthetic Excel selection Playwright scenario, then Preview
-  Owner upload acceptance. Never commit the real Taishin workbook.
+- Dedicated synthetic Excel Playwright passed 1/1: two safe matches plus one unmatched,
+  select all, deselect one, confirm one group, then detect the claim as duplicate.
+- Next: push and deploy Preview, then perform Owner upload-only acceptance with the real
+  Taishin workbook. Never commit or persist it. Production remains separate.

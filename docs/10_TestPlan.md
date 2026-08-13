@@ -380,3 +380,23 @@ session; otherwise use a separately approved, test-first diagnostic change.
   Auth／Firestore／Storage Emulator public-home Playwright 10 passed.
 - Fresh totals: Unit 55 files／444 tests; Rules 2 files／32 tests; regular Playwright
   18 passed／30 expected skips; Emulator Playwright 38 passed／10 expected skips.
+
+## 2026-08-13 Taishin batch reconciliation acceptance
+
+- Unit coverage verifies Taishin `.xlsx` parsing, transaction fingerprinting,
+  pending-Payment grouping, unique／ambiguous／unmatched／insufficient／duplicate
+  classification, Owner authorization, preview responses, forged selection
+  rejection, and transactional batch confirmation.
+- `tests/e2e/workspace-taishin-reconciliation.spec.ts` creates an in-memory
+  synthetic workbook at runtime. It verifies two safe matches plus one unmatched
+  row, `全選可安全認列`, manual deselection, confirmation of only the retained
+  selection, Firestore state changes, and duplicate detection after reimport.
+- The dedicated Emulator Playwright run passed 1/1. No real bank workbook,
+  transaction row, account fragment, or original remark is committed or retained.
+- Fresh release evidence for this batch: Unit 62 files／481 tests, Firestore＋Storage
+  Rules 2 files／32 tests, Emulator Playwright 54 passed／10 expected skips,
+  TypeScript, ESLint, Build (43 pages), secret scan, and production dependency
+  audit all passed; audit reported 0 vulnerabilities.
+- Preview acceptance may upload the real workbook for parse／match preview only.
+  Batch recognition of real transactions remains an explicit Owner action and is
+  outside automated or unattended acceptance.

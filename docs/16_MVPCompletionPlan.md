@@ -2327,5 +2327,6 @@ Preview deployment update:
 - [x] 認列時重新解析 Excel 與讀取 Firestore，沿用既有付款確認、
   Allocation、Order、Audit Log 與通知邏輯。
 - [x] 原始 Excel、餘額與原始備註不保存；不可變 Audit Log claim 阻止交易重複認列。
-- [ ] 待 Emulator Playwright 批次互動與 Preview Owner 真人上傳驗收；Production
-  部署需單獨授權。
+- [x] 合成 Excel Emulator Playwright 已驗證兩筆安全吻合、一筆未吻合、
+  全選後取消一筆、單筆認列，以及重新匯入後的重複阻擋。
+- [ ] 待 Preview Owner 真人上傳驗收；Production 部署需單獨授權。

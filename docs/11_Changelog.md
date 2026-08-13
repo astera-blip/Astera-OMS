@@ -212,3 +212,21 @@
   `/cart` as the entry to that page.
 - Deployed to Production as `https://astera-czlg1up5n-astera-oms.vercel.app` and
   verified the formal alias plus public smoke routes.
+
+## 2026-08-13 Taishin batch reconciliation
+
+- Replaced the earlier preview-only reconciliation surface with an Owner-only
+  Taishin Excel batch workflow that reparses the uploaded workbook on every request
+  and never persists the source file.
+- Added deterministic transaction fingerprints and server-side comparison against
+  all `pendingReview` Payment groups, with explicit unique, ambiguous, unmatched,
+  insufficient-data, and duplicate classifications.
+- Added `全選可安全認列`, manual deselection, a second confirmation gate, partial
+  success reporting, and immutable reconciliation claims that prevent the same bank
+  transaction from being recognized twice.
+- Reused the authoritative Payment confirmation transaction so batch recognition
+  updates Payment, allocations, PaymentRequest, Order, OrderItem, Audit Log, and
+  notification state with the same rules as single confirmation.
+- Added Unit, API, component, and synthetic Excel Emulator Playwright coverage.
+  No Collection architecture, Checkout flow, pricing source, or Firebase Rules
+  contract was redesigned.
