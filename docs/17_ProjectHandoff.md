@@ -2557,3 +2557,30 @@ domain, or change any other Firebase/Vercel setting.
   Reload `/workspace/payments` as Owner and upload the real Taishin workbook for preview
   only. Never commit or persist it, and do not press batch recognition without a separate
   explicit authorization. Production remains separate.
+
+### 2026-08-13 Real Taishin export parser correction
+
+- The existing Firebase-authorized stable Preview alias was moved to Ready deployment
+  `astera-jiw3exqnp-astera-oms.vercel.app` after Vercel CLI device login completed.
+  Production was not deployed or re-aliased.
+- An Owner uploaded the real Taishin workbook for parse／match preview only. The API
+  returned `檔案內有無法辨識的交易資料。`; batch recognition remained disabled and
+  no real Payment, allocation, Order, Audit Log, or reconciliation claim was written.
+- Structural-only diagnosis found 276 transaction rows followed by one merged export
+  note. ExcelJS repeats the merged note's master value across all six cells, so the
+  previous strict parser incorrectly treated that trailing row as a transaction.
+- `src/lib/reconciliation/taishin.ts` now discards only trailing rows whose nonempty
+  cell values are identical and whose transaction-date and amount cells are both
+  non-transactional. A malformed row within the transaction range still rejects the
+  entire workbook.
+- Regression coverage was added for the merged trailing note and strict interior-row
+  rejection. The real workbook was never copied into the repository; no transaction
+  text, account fragment, balance, or original remark was recorded in source or docs.
+- Fresh local evidence after the correction: TypeScript pass; ESLint pass; Unit
+  62 files／483 tests; Firestore＋Storage Rules 2 files／32 tests; Turbopack Build
+  43 pages; complete Auth／Firestore／Storage Emulator Playwright 55 passed／
+  11 expected skips／0 failed.
+- Exact next step: commit and push the parser／test／documentation correction, wait for
+  Vercel Preview Ready, move only the stable Preview alias, then repeat upload and
+  preview. Do not select or confirm real reconciliation rows without separate explicit
+  authorization. Production remains unchanged.

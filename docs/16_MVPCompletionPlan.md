@@ -2331,9 +2331,17 @@ Preview deployment update:
   全選後取消一筆、單筆認列，以及重新匯入後的重複阻擋。
 - [x] Git-integrated Preview commit `f080e97` 已於 Vercel Ready；deployment
   `dpl_47ja9PUDxsrMsX3DVW3kDioPNJrC`，唯讀瀏覽器可載入公開商品。
-- [ ] 待將既有 Firebase 授權的 stable Preview alias
-  `astera-oms-astera-blip-astera-oms.vercel.app` 指向上述 deployment，才能沿用
-  Owner 登入進行真實 Excel 的 upload-only 驗收。Vercel CLI 尚未登入，GitHub
-  login 流程於等待授權時被取消；不可改用未授權的 deployment hostname。
-- [ ] 待 Preview Owner 真人上傳驗收；只解析與顯示比對預覽，不執行真實批次認列。
-  Production 部署需單獨授權。
+- [x] 完成 Vercel CLI device login，並將既有 Firebase 授權的 stable Preview
+  alias `astera-oms-astera-blip-astera-oms.vercel.app` 指向 Ready deployment
+  `astera-jiw3exqnp-astera-oms.vercel.app`。Production alias 未變更。
+- [x] Owner 在 stable Preview 上傳真實台新匯出檔做 upload-only 驗收。首次預覽
+  安全拒絕檔尾合併備註；診斷只記錄結構彙總，確認檔案含 276 筆交易及 1 列
+  合併的匯出備註，未記錄交易內容、帳號片段或原始備註。
+- [x] 解析器只忽略位於所有交易之後、所有非空儲存格內容相同、且既不是交易日期
+  也不是金額的合併匯出備註；交易表中間的畸形資料仍整份拒絕。回歸測試涵蓋兩者。
+- [x] 修正後完整驗證：Unit 62 files／483 tests；Firestore＋Storage Rules
+  2 files／32 tests；Build 43 pages；完整 Emulator Playwright 55 passed／
+  11 expected skips／0 failed。
+- [ ] 待將解析器修正 commit／push，等待新 Vercel Preview Ready，重新指派 stable
+  alias，然後再次只上傳真實 Excel 確認彙總預覽。不得點擊全選或批次確認認列。
+  Production 部署與任何真實交易認列都需個別明確授權。

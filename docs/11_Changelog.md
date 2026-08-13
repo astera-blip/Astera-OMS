@@ -230,3 +230,13 @@
 - Added Unit, API, component, and synthetic Excel Emulator Playwright coverage.
   No Collection architecture, Checkout flow, pricing source, or Firebase Rules
   contract was redesigned.
+
+### Real Taishin export compatibility
+
+- Fixed strict parsing of Taishin workbooks that end with a merged export note. The
+  exception is deliberately limited to identical-value trailing rows that are neither
+  transaction dates nor amounts; malformed transaction rows still fail closed.
+- Added regression tests for the merged-footer case and for an invalid interior row.
+- Recorded only structural acceptance totals (276 transactions and one trailing note).
+  No real workbook, transaction content, balance, account fragment, or original remark
+  was added to the repository, and no real batch recognition was executed.
