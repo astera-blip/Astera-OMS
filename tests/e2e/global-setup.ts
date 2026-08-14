@@ -54,6 +54,18 @@ export default async function globalSetup() {
       displayName: "Helper E2E",
       role: "helper",
     }),
+    seedUser(auth, {
+      uid: "partner-e2e",
+      email: "partner-e2e@example.test",
+      displayName: "Partner E2E",
+      role: "partner",
+    }),
+    seedUser(auth, {
+      uid: "role-target-e2e",
+      email: "role-target-e2e@example.test",
+      displayName: "Role Target E2E",
+      role: "member",
+    }),
   ]);
 
   await Promise.all([
@@ -96,6 +108,16 @@ export default async function globalSetup() {
       completedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+    }),
+    db.collection("members").doc("partner-e2e").set({
+      uid: "partner-e2e", email: "partner-e2e@example.test", displayName: "Partner E2E",
+      communityId: "partner-e2e", mobilePhone: "0944444444",
+      completedAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
+    }),
+    db.collection("members").doc("role-target-e2e").set({
+      uid: "role-target-e2e", email: "role-target-e2e@example.test", displayName: "Role Target E2E",
+      communityId: "role-target-e2e", mobilePhone: "0955555555",
+      completedAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
     }),
   ]);
 
@@ -216,7 +238,7 @@ export default async function globalSetup() {
 
 async function seedUser(
   auth: ReturnType<typeof getAuth>,
-  input: { uid: string; email: string; displayName: string; role: "owner" | "helper" | "member" },
+  input: { uid: string; email: string; displayName: string; role: "owner" | "partner" | "helper" | "member" },
 ) {
   try {
     await auth.updateUser(input.uid, {

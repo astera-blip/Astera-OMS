@@ -244,6 +244,33 @@ describe("Day 1 Firestore rules", () => {
     await assertFails(getDoc(doc(memberDb, "auditLogs/audit-bootstrap")));
   });
 
+  it("denies every Client SDK role from role notifications and role audit writes", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "roleChangeNotifications/notice-a"), {
+        memberUid: "member-a",
+        previousRole: "member",
+        nextRole: "helper",
+        acknowledgedAt: null,
+      });
+      await setDoc(doc(context.firestore(), "auditLogs/role-a"), {
+        action: "auth.role.updated",
+        targetId: "member-a",
+      });
+    });
+    const contexts = [
+      testEnv.unauthenticatedContext().firestore(),
+      testEnv.authenticatedContext("member-a", { role: "member" }).firestore(),
+      testEnv.authenticatedContext("helper-a", { role: "helper" }).firestore(),
+      testEnv.authenticatedContext("partner-a", { role: "partner" }).firestore(),
+      testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore(),
+    ];
+    for (const db of contexts) {
+      await assertFails(getDoc(doc(db, "roleChangeNotifications/notice-a")));
+      await assertFails(setDoc(doc(db, "roleChangeNotifications/notice-b"), { memberUid: "member-a" }));
+      await assertFails(setDoc(doc(db, "auditLogs/role-b"), { action: "auth.role.updated" }));
+    }
+  });
+
   it("denies the full Client SDK role by read/write matrix for protected refund collections", async () => {
     const collections = [
       "cancellationRequests",

@@ -14,8 +14,8 @@ if (args.confirmProject && args.confirmProject !== args.project) {
   fail("--confirm-project 必須與 --project 相同。");
 }
 
-if (!["owner", "helper", "member"].includes(args.role)) {
-  fail("--role 只支援 owner、helper、member。");
+if (!["owner", "partner", "helper", "member"].includes(args.role)) {
+  fail("--role 只支援 owner、partner、helper、member。");
 }
 
 const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;

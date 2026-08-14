@@ -1,4 +1,14 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "roleChangeNotifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberUid", "order": "ASCENDING" },
+        { "fieldPath": "acknowledgedAt", "order": "ASCENDING" },
+        { "fieldPath": "changedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

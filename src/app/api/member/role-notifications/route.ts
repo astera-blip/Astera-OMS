@@ -6,9 +6,9 @@ import { isAssignableRole, isRoleKey } from "@/lib/member/rolePolicy";
 
 function timestampToIso(value: unknown) {
   if (value && typeof value === "object" && "toDate" in value) {
-    const toDate = (value as { toDate?: unknown }).toDate;
-    if (typeof toDate === "function") {
-      return (toDate as () => Date)().toISOString();
+    const timestamp = value as { toDate?: () => Date };
+    if (typeof timestamp.toDate === "function") {
+      return timestamp.toDate().toISOString();
     }
   }
   return typeof value === "string" ? value : "";
@@ -20,11 +20,11 @@ export async function GET(request: Request) {
     const snapshot = await getAdminFirestore()
       .collection("roleChangeNotifications")
       .where("memberUid", "==", claims.uid)
-      .where("acknowledgedAt", "==", null)
-      .orderBy("changedAt", "desc")
-      .limit(1)
       .get();
-    const document = snapshot.docs[0];
+    const document = snapshot.docs
+      .filter((candidate) => candidate.data().acknowledgedAt == null)
+      .sort((left, right) => timestampToIso(right.data().changedAt)
+        .localeCompare(timestampToIso(left.data().changedAt)))[0];
     if (!document) {
       return NextResponse.json({ notification: null });
     }

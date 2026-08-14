@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Timestamp } from "firebase-admin/firestore";
 
 const auth = vi.hoisted(() => ({ requireFirebaseUser: vi.fn() }));
 const firestore = vi.hoisted(() => ({ getAdminFirestore: vi.fn() }));
@@ -17,7 +18,7 @@ function createDb(input?: { ownerUid?: string; acknowledged?: boolean }) {
       memberUid: input?.ownerUid ?? "member-a",
       previousRole: "member",
       nextRole: "partner",
-      changedAt: { toDate: () => new Date("2026-08-14T09:00:00.000Z") },
+      changedAt: Timestamp.fromDate(new Date("2026-08-14T09:00:00.000Z")),
       acknowledgedAt: input?.acknowledged ? {} : null,
     }),
   };

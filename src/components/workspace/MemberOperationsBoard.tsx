@@ -237,6 +237,7 @@ export function MemberOperationsBoard() {
                     <label className="grid gap-2 text-sm">
                       <span className="font-medium">指派角色</span>
                       <select
+                        aria-label={`${member.displayName || member.uid} 指派角色`}
                         defaultValue=""
                         onChange={(event) => {
                           const nextRole = event.target.value as AssignableRoleKey;

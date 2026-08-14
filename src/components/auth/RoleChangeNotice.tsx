@@ -19,7 +19,6 @@ export function RoleChangeNotice() {
   useEffect(() => {
     let active = true;
     if (status !== "signedIn" || !user) {
-      setNotification(null);
       return () => { active = false; };
     }
     void user.getIdToken().then((token) => fetch("/api/member/role-notifications", {

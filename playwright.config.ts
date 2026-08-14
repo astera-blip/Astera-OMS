@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const useFirebaseEmulators =
   process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true";
+const playwrightPort = process.env.PLAYWRIGHT_PORT ?? "3000";
+const localBaseUrl = `http://127.0.0.1:${playwrightPort}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -16,14 +18,14 @@ export default defineConfig({
   workers: useFirebaseEmulators ? 1 : undefined,
   reporter: [["list"]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? localBaseUrl,
     trace: "retain-on-failure",
   },
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "npm.cmd run dev",
-        url: "http://127.0.0.1:3000",
+        command: `npm.cmd run dev -- -p ${playwrightPort}`,
+        url: localBaseUrl,
         reuseExistingServer: !useFirebaseEmulators,
         timeout: 120_000,
         env: process.env.PLAYWRIGHT_USE_FIREBASE_EMULATORS === "true"

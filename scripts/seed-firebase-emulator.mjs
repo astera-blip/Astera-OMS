@@ -31,6 +31,9 @@ await Promise.all([
     displayName: "Member E2E",
     role: "member",
   }),
+  seedUser({ uid: "partner-e2e", email: "partner-e2e@example.test", displayName: "Partner E2E", role: "partner" }),
+  seedUser({ uid: "helper-e2e", email: "helper-e2e@example.test", displayName: "Helper E2E", role: "helper" }),
+  seedUser({ uid: "role-target-e2e", email: "role-target-e2e@example.test", displayName: "Role Target E2E", role: "member" }),
 ]);
 
 await Promise.all([
@@ -54,6 +57,14 @@ await Promise.all([
     createdAt: new Date(),
     updatedAt: new Date(),
   }),
+  ...[
+    ["partner-e2e", "partner-e2e@example.test", "Partner E2E", "0933333333"],
+    ["helper-e2e", "helper-e2e@example.test", "Helper E2E", "0944444444"],
+    ["role-target-e2e", "role-target-e2e@example.test", "Role Target E2E", "0955555555"],
+  ].map(([uid, email, displayName, mobilePhone]) => db.collection("members").doc(uid).set({
+    uid, email, displayName, communityId: uid, mobilePhone,
+    completedAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
+  })),
   db.collection("productsPublic").doc("prod_e2e_flow").set({
     id: "prod_e2e_flow",
     name: "E2E 流程商品",
