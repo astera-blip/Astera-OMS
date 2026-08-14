@@ -2231,9 +2231,12 @@ Preview deployment update:
   tests; Build 43 routes; secret scan; production audit 0 vulnerabilities;
   regular Playwright 20 passed／40 expected Emulator-only skips; targeted desktop
   member/role E2E 3 passed.
-- [ ] Full Emulator Playwright exceeded the 300-second command limit and was
-  terminated without a final result. Exact next command with a longer timeout:
-  `$env:PLAYWRIGHT_PORT='3202'; npm run test:e2e:emulated`.
+- [x] Full Auth／Firestore／Storage Emulator Playwright completed with a longer
+  timeout: 49 passed／11 intentional project skips／0 failed.
+- [x] The full-data Pixel 7 run exposed two stale role assertions and a real
+  `/workspace/payments` horizontal overflow caused by unbroken Payment IDs.
+  Commit `7b84ab6` aligns the mobile role contract with the Owner-only Workspace
+  gate and lets long payment/request identifiers wrap without hiding them.
 - [ ] No Preview／Production deployment or GitHub push was performed. After the
-  complete Emulator suite passes, review and integrate `codex/role-assignment`;
-  the next functional batch is Partner catalog drafts.
+  verified branch is reviewed, integrate `codex/role-assignment`; the next
+  functional batch is Partner catalog drafts.

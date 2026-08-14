@@ -2399,7 +2399,7 @@ domain, or change any other Firebase/Vercel setting.
 - Branch/worktree: `codex/role-assignment` in
   `C:\Users\ting1\Documents\代購網頁製作\.worktrees\codex-role-assignment`.
 - Commits: `28a86c1`, `cbc3465`, `12d1da5`, `f3d3736`, `22d2817`, `2f33117`,
-  and `be6c94c`.
+  `be6c94c`, `b8c70fa`, and `7b84ab6`.
 - Owner can assign a completed member as Partner, Helper, or Member from the
   existing member workspace. Owner accounts remain non-editable on the website.
   Changes preserve claims, revoke refresh tokens, write `auth.role.updated` audit
@@ -2411,8 +2411,16 @@ domain, or change any other Firebase/Vercel setting.
   tests; Build 43 routes; regular Playwright 20 passed／40 expected Emulator-only
   skips; targeted desktop member/role E2E 3/3; secret scan pass; production audit
   0 vulnerabilities after nanoid 3.3.18.
-- Remaining gate: full `npm run test:e2e:emulated` exceeded the 300-second tool
-  timeout, so it has no final pass/fail summary. Continue in this worktree with
-  `$env:PLAYWRIGHT_PORT='3202'; npm run test:e2e:emulated` using a timeout above
-  five minutes. If green, update the count and commit these docs. Do not deploy or
-  push without separate authorization.
+- Full `npm run test:e2e:emulated` now completes: 49 passed／11 intentional
+  project skips／0 failed. The initial rerun found obsolete Helper/Member mobile
+  expectations; the next complete run exposed a real Pixel 7 payment-page overflow
+  only after long deterministic payment IDs existed. Commit `7b84ab6` updates the
+  role assertions and makes Payment／PaymentRequest identifiers wrap inside their
+  cards. A focused full-data reproduction also passed 5 tests／5 expected skips.
+- Final local release gates after that fix: TypeScript pass; ESLint pass; Unit
+  60 files／481 tests; Rules 2 files／33 tests; Build 43 routes; secret scan pass;
+  production audit 0 vulnerabilities; full Emulator Playwright 49 passed／11
+  expected skips.
+- No Preview／Production deployment or GitHub push was performed. Next exact step
+  requires separate authorization: review and integrate `codex/role-assignment`,
+  then begin the Partner catalog-draft functional batch.
