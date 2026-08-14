@@ -387,8 +387,8 @@ export function PaymentOperationsBoard() {
   }
 
   return (
-    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="grid gap-4">
+    <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
             付款管理
@@ -413,16 +413,16 @@ export function PaymentOperationsBoard() {
               type="button"
               onClick={() => selectPayment(payment)}
               className={[
-                "rounded-3xl border p-5 text-left shadow-sm transition-colors",
+                "w-full min-w-0 rounded-3xl border p-5 text-left shadow-sm transition-colors",
                 selectedPaymentId === payment.id
                   ? "border-slate-950 bg-slate-950 text-white"
                   : "border-slate-200 bg-white text-slate-900 hover:border-slate-300",
               ].join(" ")}
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-semibold">{payment.id}</p>
-                  <p className="mt-1 text-sm opacity-80">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-all text-lg font-semibold">{payment.id}</p>
+                  <p className="mt-1 break-all text-sm opacity-80">
                     {payment.paymentRequestId} · {payment.memberUid}
                   </p>
                 </div>
@@ -447,7 +447,7 @@ export function PaymentOperationsBoard() {
         )}
       </div>
 
-      <aside className="grid gap-4">
+      <aside className="grid min-w-0 gap-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-lg font-semibold">確認付款</h3>
           <div className="mt-4 grid gap-4">
@@ -515,8 +515,8 @@ export function PaymentOperationsBoard() {
             <div className="mt-4 grid gap-3 text-sm">
               {overpaidRequests.map((request) => (
                 <div key={request.id} className="rounded-2xl bg-white p-3">
-                  <p className="font-semibold">{request.id}</p>
-                  <p className="mt-1 text-slate-600">
+                  <p className="break-all font-semibold">{request.id}</p>
+                  <p className="mt-1 break-all text-slate-600">
                     {request.memberUid} · 訂單 {request.orderId}
                   </p>
                   <p className="mt-1 text-amber-700">

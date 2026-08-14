@@ -43,7 +43,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
   ).toBe(false);
 });
 
-test("helper mobile workspace hides high-risk payment, member, and audit navigation", async ({
+test("helper mobile session cannot enter the workspace before its feature batch", async ({
   page,
 }, testInfo) => {
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
@@ -54,18 +54,12 @@ test("helper mobile workspace hides high-risk payment, member, and audit navigat
   await page.getByLabel("Password").fill("Password123!");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
-  const workspaceNavigation = page.getByRole("navigation");
-  await expect(workspaceNavigation.getByRole("link", { name: "商品 Products" }))
-    .toBeVisible();
-  await expect(workspaceNavigation.getByRole("link", { name: "訂單 Orders" }))
-    .toBeVisible();
-  await expect(workspaceNavigation.getByRole("link", { name: "會員 Members" }))
-    .toHaveCount(0);
-  await expect(workspaceNavigation.getByRole("link", { name: "付款 Payments" }))
-    .toHaveCount(0);
-  await expect(workspaceNavigation.getByRole("link", { name: "稽核紀錄 Audit Logs" }))
-    .toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
+  await expect(page.getByText(
+    "目前角色為 Helper（小幫手）；此角色的工作區功能將在對應批次開放。",
+  )).toBeVisible();
+  await expect(page.getByRole("link", { name: "商品 Products" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "訂單 Orders" })).toHaveCount(0);
 });
 
 test("member mobile session cannot enter the workspace", async ({ page }, testInfo) => {
@@ -78,5 +72,5 @@ test("member mobile session cannot enter the workspace", async ({ page }, testIn
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
-  await expect(page.getByText("請使用 owner 或 helper 帳號進入工作區。")).toBeVisible();
+  await expect(page.getByText("請使用 Owner 帳號進入工作區。")).toBeVisible();
 });
