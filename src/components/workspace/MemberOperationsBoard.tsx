@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import type { RoleKey } from "@/domain/identity";
 import type { DuplicatePhoneGroup } from "@/lib/member/duplicatePhones";
 import type { MemberPrivateNote } from "@/lib/member/operationsRepository";
+import {
+  ASSIGNABLE_ROLE_KEYS,
+  roleLabels,
+  type AssignableRoleKey,
+} from "@/lib/member/rolePolicy";
 
 type MemberSummary = {
   uid: string;
@@ -12,6 +18,14 @@ type MemberSummary = {
   communityId: string;
   mobilePhone: string;
   birthday?: string;
+  role: RoleKey;
+};
+
+type PendingRoleChange = {
+  uid: string;
+  displayName: string;
+  currentRole: RoleKey;
+  nextRole: AssignableRoleKey;
 };
 
 const riskLabels: Record<MemberPrivateNote["riskState"], string> = {
@@ -27,41 +41,59 @@ export function MemberOperationsBoard() {
   const [duplicatePhoneGroups, setDuplicatePhoneGroups] =
     useState<DuplicatePhoneGroup[]>([]);
   const [message, setMessage] = useState("會員營運資料尚未載入。");
+  const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange | null>(null);
+  const [isChangingRole, setIsChangingRole] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
+
+  async function fetchMemberOperations(currentUser: NonNullable<typeof user>) {
+    const token = await currentUser.getIdToken();
+    const response = await fetch("/api/workspace/members", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error("load_members_failed");
+    return (await response.json()) as {
+      members?: MemberSummary[];
+      privateNotes?: MemberPrivateNote[];
+      duplicatePhoneGroups?: DuplicatePhoneGroup[];
+    };
+  }
+
+  function applyMemberOperations(payload: {
+    members?: MemberSummary[];
+    privateNotes?: MemberPrivateNote[];
+    duplicatePhoneGroups?: DuplicatePhoneGroup[];
+  }) {
+    const memberRecords = payload.members ?? [];
+    const privateNotes = payload.privateNotes ?? [];
+    setMembers(memberRecords);
+    setDrafts(Object.fromEntries(memberRecords.map((member) => {
+      const note = privateNotes.find((entry) => entry.uid === member.uid);
+      return [member.uid, note ?? {
+        uid: member.uid,
+        riskState: "normal",
+        internalNote: "",
+      }];
+    })));
+    setDuplicatePhoneGroups(payload.duplicatePhoneGroups ?? []);
+    setMessage(`已載入 ${memberRecords.length} 位會員。`);
+  }
 
   useEffect(() => {
-    async function loadMemberOperations() {
-      if (role !== "owner" || !user) {
-        setMessage("僅 Owner 可查看會員營運資料。");
-        return;
+    if (role !== "owner" || !user) return;
+    const currentUser = user;
+    let active = true;
+    async function load() {
+      try {
+        const payload = await fetchMemberOperations(currentUser);
+        if (active) applyMemberOperations(payload);
+      } catch {
+        if (active) setMessage("無法載入會員營運資料，請確認網路後再試一次。");
       }
-      const token = await user.getIdToken();
-      const response = await fetch("/api/workspace/members", {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        throw new Error("load_members_failed");
-      }
-      const payload = (await response.json()) as {
-        members?: MemberSummary[];
-        privateNotes?: MemberPrivateNote[];
-        duplicatePhoneGroups?: DuplicatePhoneGroup[];
-      };
-      const memberRecords = payload.members ?? [];
-      const privateNotes = payload.privateNotes ?? [];
-      setMembers(memberRecords);
-      setDrafts(Object.fromEntries(memberRecords.map((member) => {
-        const note = privateNotes.find((entry) => entry.uid === member.uid);
-        return [member.uid, note ?? {
-          uid: member.uid,
-          riskState: "normal",
-          internalNote: "",
-        }];
-      })));
-      setDuplicatePhoneGroups(payload.duplicatePhoneGroups ?? []);
-      setMessage(`已載入 ${memberRecords.length} 位會員。`);
     }
-    void loadMemberOperations().catch(() =>
-      setMessage("無法載入會員營運資料，請確認網路後再試一次。"));
+    void load();
+    return () => { active = false; };
+    // The authenticated user and role are the authoritative reload boundary.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, user]);
 
   const duplicateUids = useMemo(
@@ -95,6 +127,32 @@ export function MemberOperationsBoard() {
     setMessage(`已更新 ${uid}；本次變更已寫入 Audit Log。`);
   }
 
+  async function confirmRoleChange() {
+    if (!pendingRoleChange || !user || isChangingRole) return;
+    setIsChangingRole(true);
+    setRoleError(null);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/workspace/members/${pendingRoleChange.uid}/role`, {
+        method: "PUT",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ role: pendingRoleChange.nextRole }),
+      });
+      if (!response.ok) throw new Error("role_change_failed");
+      const changed = pendingRoleChange;
+      setPendingRoleChange(null);
+      applyMemberOperations(await fetchMemberOperations(user));
+      setMessage(`已將 ${changed.displayName} 設為 ${roleLabels[changed.nextRole]}；新的權限已立即生效。`);
+    } catch {
+      setRoleError("角色變更失敗，請確認會員資料與權限後再試一次。");
+    } finally {
+      setIsChangingRole(false);
+    }
+  }
+
   return (
     <section className="grid gap-5">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -106,7 +164,7 @@ export function MemberOperationsBoard() {
           Owner 可查看會員資料、風險狀態與內部備註；會員本人不能讀取私密營運資料。
           疑似重複手機只顯示警示，不會阻止註冊。
         </p>
-        <p className="mt-3 text-sm text-slate-500">{message}</p>
+        <p className="mt-3 text-sm text-slate-500" aria-live="polite">{message}</p>
       </div>
 
       {duplicatePhoneGroups.length > 0 ? (
@@ -170,6 +228,40 @@ export function MemberOperationsBoard() {
                     </select>
                   </label>
                 </div>
+                <div className="mt-4 grid gap-2 rounded-2xl border border-slate-200 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)] sm:items-end">
+                  <div>
+                    <p className="text-sm font-medium">Role（目前角色）</p>
+                    <p className="mt-1 text-sm text-slate-600">{roleLabels[member.role]}</p>
+                  </div>
+                  {member.role !== "owner" ? (
+                    <label className="grid gap-2 text-sm">
+                      <span className="font-medium">指派角色</span>
+                      <select
+                        defaultValue=""
+                        onChange={(event) => {
+                          const nextRole = event.target.value as AssignableRoleKey;
+                          if (!nextRole || nextRole === member.role) return;
+                          setRoleError(null);
+                          setPendingRoleChange({
+                            uid: member.uid,
+                            displayName: member.displayName || member.uid,
+                            currentRole: member.role,
+                            nextRole,
+                          });
+                          event.currentTarget.value = "";
+                        }}
+                        className="min-h-11 rounded-2xl border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="">選擇新角色</option>
+                        {ASSIGNABLE_ROLE_KEYS.filter((value) => value !== member.role).map((value) => (
+                          <option key={value} value={value}>{roleLabels[value]}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="text-sm text-slate-600">Owner 權限只能透過獨立管理工具維護。</p>
+                  )}
+                </div>
                 <label className="mt-4 grid gap-2 text-sm">
                   <span className="font-medium">Internal Note（內部備註）</span>
                   <textarea
@@ -186,7 +278,7 @@ export function MemberOperationsBoard() {
                 <button
                   type="button"
                   onClick={() => void saveNote(member.uid)}
-                  className="mt-3 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                  className="mt-3 min-h-11 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
                 >
                   儲存會員營運資料
                 </button>
@@ -195,6 +287,42 @@ export function MemberOperationsBoard() {
           })
         )}
       </div>
+      {pendingRoleChange ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="role-change-title"
+            aria-describedby="role-change-description"
+            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl"
+          >
+            <h3 id="role-change-title" className="text-xl font-semibold">確認變更角色</h3>
+            <p id="role-change-description" className="mt-3 text-sm leading-6 text-slate-600">
+              將 {pendingRoleChange.displayName} 從 {roleLabels[pendingRoleChange.currentRole]}
+              變更為 {roleLabels[pendingRoleChange.nextRole]}。變更後舊登入憑證會失效，對方需重新登入。
+            </p>
+            {roleError ? <p role="alert" className="mt-3 text-sm text-rose-700">{roleError}</p> : null}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={isChangingRole}
+                onClick={() => setPendingRoleChange(null)}
+                className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm disabled:opacity-60"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isChangingRole}
+                onClick={() => void confirmRoleChange()}
+                className="min-h-11 rounded-xl bg-[var(--astera-brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {isChangingRole ? "角色變更中…" : "確認變更角色"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

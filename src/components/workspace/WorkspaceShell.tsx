@@ -18,16 +18,8 @@ const navigation = [
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, status, signInWithGoogle } = useAuth();
-  const canUseWorkspace = role === "owner" || role === "helper";
-  const visibleNavigation = navigation.filter((item) => {
-    if (role === "owner") {
-      return true;
-    }
-
-    return !["/workspace/members", "/workspace/payments", "/workspace/audit-logs"].includes(
-      item.href,
-    );
-  });
+  const canUseWorkspace = role === "owner";
+  const visibleNavigation = navigation;
 
   if (status === "loading") {
     return (
@@ -46,7 +38,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">需要後台權限</h1>
           <p className="mt-3 text-sm leading-6 text-astera-secondary">
-            請使用 owner 或 helper 帳號進入工作區。
+            {status === "signedIn" && (role === "partner" || role === "helper")
+              ? `目前角色為 ${role === "partner" ? "Partner（合作人）" : "Helper（小幫手）"}；此角色的工作區功能將在對應批次開放。`
+              : "請使用 Owner 帳號進入工作區。"}
           </p>
           {status === "signedOut" ? (
             <button

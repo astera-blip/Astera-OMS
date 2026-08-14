@@ -205,4 +205,17 @@ describe("shared UI accessibility contract", () => {
     expect(notice).toContain("user.getIdToken()");
     expect(layout).toContain("RoleChangeNotice");
   });
+
+  it("uses an accessible confirmation dialog for Owner role assignments", () => {
+    const members = read("src/components/workspace/MemberOperationsBoard.tsx");
+    const workspace = read("src/components/workspace/WorkspaceShell.tsx");
+
+    expect(members).toContain('role="alertdialog"');
+    expect(members).toContain('aria-modal="true"');
+    expect(members).toContain("角色變更中…");
+    expect(members).toContain("min-h-11");
+    expect(members).toContain("/role");
+    expect(workspace).toContain('const canUseWorkspace = role === "owner"');
+    expect(workspace).toContain("此角色的工作區功能將在對應批次開放");
+  });
 });
