@@ -33,6 +33,14 @@ export function getRoleFromClaims(claims: Record<string, unknown>): RoleKey {
   return isRoleKey(claims.role) ? claims.role : "member";
 }
 
+export function canAccessCatalogWorkspace(role: RoleKey): boolean {
+  return role === "owner" || role === "partner";
+}
+
+export function canReviewCatalogDraft(role: RoleKey): boolean {
+  return role === "owner";
+}
+
 export function validateRoleAssignment(input: {
   actorUid: string;
   targetUid: string;

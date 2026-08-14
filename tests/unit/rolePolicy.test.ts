@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessCatalogWorkspace,
+  canReviewCatalogDraft,
   getRoleFromClaims,
   roleLabels,
   validateRoleAssignment,
@@ -12,6 +14,15 @@ describe("role policy", () => {
     expect(getRoleFromClaims({ role: "helper" })).toBe("helper");
     expect(getRoleFromClaims({ role: "unexpected" })).toBe("member");
     expect(roleLabels.partner).toBe("Partner（合作人）");
+  });
+
+  it("limits catalog drafting to Owner and Partner and review to Owner", () => {
+    expect(canAccessCatalogWorkspace("owner")).toBe(true);
+    expect(canAccessCatalogWorkspace("partner")).toBe(true);
+    expect(canAccessCatalogWorkspace("helper")).toBe(false);
+    expect(canAccessCatalogWorkspace("member")).toBe(false);
+    expect(canReviewCatalogDraft("owner")).toBe(true);
+    expect(canReviewCatalogDraft("partner")).toBe(false);
   });
 
   it("allows Owner to assign Partner, Helper, and Member", () => {
