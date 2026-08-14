@@ -31,6 +31,13 @@ describe("Next server runtime config", () => {
     expect(serverAuthSource).toContain("@/lib/firebase/adminAuth");
   });
 
+  test("loads Firebase Admin Auth through Node require for Turbopack external compatibility", () => {
+    const adminAuthSource = readFileSync("src/lib/firebase/adminAuth.ts", "utf8");
+
+    expect(adminAuthSource).toContain('createRequire(import.meta.url)');
+    expect(adminAuthSource).toContain('requireFirebaseAdminAuth("firebase-admin/auth")');
+  });
+
   test("uses Firebase Admin-compatible Application Default Credentials for Vercel OIDC", () => {
     const adminSource = readFileSync("src/lib/firebase/admin.ts", "utf8");
 
