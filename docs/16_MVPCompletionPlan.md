@@ -2317,8 +2317,12 @@ Preview deployment update:
   on `main` `5890948`. Preserve the newer role-assignment work and combine both
   execution/handoff histories. No Collection, Checkout rule, or Firebase Rule was
   changed.
-- [x] Verification on the integrated tree: TypeScript pass; ESLint pass; Unit
-  61 files／489 tests; Firestore＋Storage Rules 2 files／33 tests; Build 43 routes;
+- [x] Independent review found and closed two Important issues: serialize homepage
+  cart writes so rapid additions cannot overwrite each other, and show only the
+  remaining balance for partially paid member actions. Both fixes have red／green
+  regression tests.
+- [x] Verification on the final integrated tree: TypeScript pass; ESLint pass; Unit
+  62 files／492 tests; Firestore＋Storage Rules 2 files／33 tests; Build 43 routes;
   regular Playwright 22 passed／44 expected Emulator-only skips; full Emulator
   Playwright 55 passed／11 intentional project skips; secret scan pass; production
   dependency audit 0 vulnerabilities.

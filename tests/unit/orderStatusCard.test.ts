@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getOrderAction, resolvePreselectedRequestIds } from "@/lib/storefront/orderActions";
 import type { OrderRecord } from "@/lib/order/checkout";
-import type { LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import {
+  getOutstandingPaymentRequestAmount,
+  type LocalPaymentRequest,
+} from "@/lib/payment/manualBankTransfer";
 
 const order: OrderRecord = {
   id: "order_1", memberUid: "member_1", status: "awaitingPayment", totalTwd: 520,
@@ -30,5 +33,12 @@ describe("member order action", () => {
     expect(resolvePreselectedRequestIds([request], "request_1")).toEqual(["request_1"]);
     expect(resolvePreselectedRequestIds([request], "foreign_request")).toEqual([]);
     expect(resolvePreselectedRequestIds([{ ...request, status: "paid" }], "request_1")).toEqual([]);
+  });
+
+  it("shows only the remaining amount for a partially paid request", () => {
+    expect(getOutstandingPaymentRequestAmount({
+      amountTwd: 1_200,
+      allocatedAmountTwd: 450,
+    })).toBe(750);
   });
 });

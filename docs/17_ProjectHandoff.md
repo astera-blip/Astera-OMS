@@ -2514,10 +2514,14 @@ domain, or change any other Firebase/Vercel setting.
   Conflicts were limited to Playwright configuration and the two project logs;
   the resolution retains current role-assignment changes plus the storefront
   worktree isolation settings and both historical records.
-- Fresh integrated verification: TypeScript pass; ESLint pass; Unit 61 files／489
+- Independent review identified two release blockers. The final tree serializes
+  homepage GET／modify／PUT cart writes and calculates partially paid homepage
+  actions from `amountTwd - allocatedAmountTwd`; focused tests first failed, then
+  passed 2 files／6 tests after the fixes.
+- Fresh integrated verification: TypeScript pass; ESLint pass; Unit 62 files／492
   tests; Rules 2 files／33 tests; Build 43 routes; regular Playwright 22 passed／44
   expected skips; Emulator Playwright 55 passed／11 intentional skips; secret scan
   pass; production audit 0 vulnerabilities.
-- Exact next step: complete independent diff review, create the integration commit,
-  merge it into `main`, push GitHub, deploy and verify Preview, then deploy Production
+- Exact next step: commit the reviewed fixes, merge the branch into `main`, push
+  GitHub, deploy and verify Preview, then deploy Production
   and execute production smoke against `https://astera-oms.vercel.app`.

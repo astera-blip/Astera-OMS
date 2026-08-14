@@ -106,6 +106,12 @@ export function createPaymentRequestForOrder(
   };
 }
 
+export function getOutstandingPaymentRequestAmount(
+  request: Pick<LocalPaymentRequest, "amountTwd" | "allocatedAmountTwd">,
+) {
+  return Math.max(request.amountTwd - (request.allocatedAmountTwd ?? 0), 0);
+}
+
 export function allocatePaymentReportAmount(
   receivedAmountTwd: number,
   requests: ReadonlyArray<{
@@ -117,7 +123,7 @@ export function allocatePaymentReportAmount(
   let remaining = Math.max(0, Math.trunc(receivedAmountTwd));
 
   return requests.flatMap((request) => {
-    const outstanding = Math.max(request.amountTwd - (request.allocatedAmountTwd ?? 0), 0);
+    const outstanding = getOutstandingPaymentRequestAmount(request);
     const allocated = Math.min(remaining, outstanding);
     remaining -= allocated;
 

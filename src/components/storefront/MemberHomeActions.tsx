@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getOutstandingPaymentRequestAmount } from "@/lib/payment/manualBankTransfer";
 
 type MemberAction = {
   id: string;
@@ -45,7 +46,7 @@ export function MemberHomeActions() {
         .map((request) => ({
           id: request.id,
           title: request.status === "partiallyPaid" ? "尚有款項待處理" : "待付款／待回報",
-          description: `${orderLabels.get(request.orderId) ?? "訂單"} · NT$ ${request.amountTwd.toLocaleString()}`,
+          description: `${orderLabels.get(request.orderId) ?? "訂單"} · NT$ ${getOutstandingPaymentRequestAmount(request).toLocaleString()}`,
           href: `/payments?paymentRequestId=${encodeURIComponent(request.id)}`,
           ...(request.dueAt ? { dueAt: request.dueAt } : {}),
         }));

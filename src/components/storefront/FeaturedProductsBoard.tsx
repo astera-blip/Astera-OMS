@@ -19,6 +19,7 @@ import {
   loadPendingCartIntent,
   savePendingCartIntent,
 } from "@/lib/cart/pendingCartIntent";
+import { createCartWriteQueue } from "@/lib/cart/cartWriteQueue";
 import { validateCartAddition, type CartLineItem } from "@/lib/order/checkout";
 
 type LoadState = "loading" | "ready" | "empty" | "error";
@@ -30,6 +31,7 @@ export function FeaturedProductsBoard({ mode }: { mode: "guest" | "member" }) {
   const [message, setMessage] = useState("");
   const [submittingProductId, setSubmittingProductId] = useState<string | null>(null);
   const processingIntent = useRef(false);
+  const cartWriteQueue = useRef(createCartWriteQueue());
 
   const loadCatalog = useCallback(async () => {
     setState("loading");
@@ -56,7 +58,7 @@ export function FeaturedProductsBoard({ mode }: { mode: "guest" | "member" }) {
   const latest = useMemo(() => rankLatestProducts(catalog), [catalog]);
   const closingSoon = useMemo(() => rankClosingSoonProducts(catalog), [catalog]);
 
-  const writeMemberCart = useCallback(async (nextItem: CartLineItem) => {
+  const writeMemberCart = useCallback((nextItem: CartLineItem) => cartWriteQueue.current(async () => {
     if (!user) {
       throw new Error("member_required");
     }
@@ -93,7 +95,7 @@ export function FeaturedProductsBoard({ mode }: { mode: "guest" | "member" }) {
     if (!saveResponse.ok) {
       throw new Error("save_cart_failed");
     }
-  }, [catalog, user]);
+  }), [catalog, user]);
 
   useEffect(() => {
     if (!user || !profile || state !== "ready" || processingIntent.current) {
