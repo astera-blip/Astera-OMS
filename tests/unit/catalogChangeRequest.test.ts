@@ -33,6 +33,7 @@ describe("catalog change request", () => {
       changeReason: "  配合官方定價  ",
       product: validProduct,
       internalNote: "  Partner 交接  ",
+      baseProductVersion: "  version-1  ",
     })).toEqual({
       ok: true,
       value: {
@@ -44,6 +45,7 @@ describe("catalog change request", () => {
           campaigns: [expect.objectContaining({ title: "預購活動" })],
         }),
         internalNote: "Partner 交接",
+        baseProductVersion: "version-1",
       },
     });
   });
@@ -52,6 +54,7 @@ describe("catalog change request", () => {
     [{ title: "", changeReason: "原因", product: validProduct }, "catalog_change_title_required"],
     [{ title: "更新", changeReason: "", product: validProduct }, "catalog_change_reason_required"],
     [{ title: "更新", changeReason: "原因" }, "invalid_product"],
+    [{ title: "更新", changeReason: "原因", product: validProduct }, "catalog_change_base_version_required"],
     [{
       title: "更新",
       changeReason: "原因",
@@ -59,5 +62,34 @@ describe("catalog change request", () => {
     }, "invalid_product"],
   ])("rejects invalid proposal %#", (input, error) => {
     expect(validateCatalogDraftInput(input)).toEqual({ ok: false, error });
+  });
+
+  it.each([
+    { ...validProduct, product: { ...validProduct.product, images: [] } },
+  ])("keeps Partner product images Owner-only", (product) => {
+    expect(validateCatalogDraftInput({
+      title: "更新",
+      changeReason: "原因",
+      product,
+      baseProductVersion: "version-1",
+    })).toEqual({ ok: false, error: "catalog_change_images_owner_only" });
+  });
+
+  it.each([
+    { ...validProduct, product: { ...validProduct.product, publishState: "invalid" } },
+    { ...validProduct, variants: [] },
+    { ...validProduct, variants: [{ ...validProduct.variants[0], isDefault: "yes" }] },
+    { ...validProduct, variants: [{ ...validProduct.variants[0], originalCost: -1 }] },
+    { ...validProduct, variants: [validProduct.variants[0], { ...validProduct.variants[0], id: "variant-b" }] },
+    { ...validProduct, variants: [validProduct.variants[0], { ...validProduct.variants[0] }] },
+    { ...validProduct, campaigns: [{ ...validProduct.campaigns[0], saleType: "invalid" }] },
+    { ...validProduct, campaigns: [validProduct.campaigns[0], { ...validProduct.campaigns[0] }] },
+  ])("rejects untrusted enum, primitive, and duplicate child IDs %#", (product) => {
+    expect(validateCatalogDraftInput({
+      title: "更新",
+      changeReason: "原因",
+      product,
+      baseProductVersion: "version-1",
+    })).toEqual({ ok: false, error: "invalid_product" });
   });
 });

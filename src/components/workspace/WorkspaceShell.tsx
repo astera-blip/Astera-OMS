@@ -16,6 +16,12 @@ const navigation = [
   { href: "/workspace/audit-logs", label: "稽核紀錄 Audit Logs", roles: ["owner"] },
 ];
 
+const partnerAllowedPaths = new Set([
+  "/workspace",
+  "/workspace/products",
+  "/workspace/catalog-reviews",
+]);
+
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, status, signInWithGoogle } = useAuth();
@@ -52,6 +58,26 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
               使用 Google 登入
             </button>
           ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  if (role === "partner" && !partnerAllowedPaths.has(pathname)) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-astera-page px-5 text-astera-ink">
+        <section className="max-w-md rounded-3xl border border-astera-border bg-astera-surface p-6 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-astera-brand">Partner Workspace</p>
+          <h1 className="mt-2 text-2xl font-semibold">沒有此工作區權限</h1>
+          <p className="mt-3 text-sm leading-6 text-astera-secondary">
+            Partner 目前只能使用商品草稿與草稿審核；會員、訂單、付款、內容及稽核頁仍為 Owner 專用。
+          </p>
+          <Link
+            href="/workspace"
+            className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-astera-brand px-4 py-2 text-sm font-medium text-white"
+          >
+            回到 Partner 工作區
+          </Link>
         </section>
       </main>
     );

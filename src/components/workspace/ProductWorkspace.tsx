@@ -29,6 +29,7 @@ import type { CatalogChangeRequest } from "@/lib/catalog-change/catalogChangeReq
 
 type WorkspaceProduct = ProductCatalogRecord & {
   internalNote?: string;
+  catalogVersion: string | null;
 };
 
 type ProductFormState = {
@@ -42,6 +43,7 @@ type ProductFormState = {
   cpId: string;
   brandId: string;
   seriesId: string;
+  baseProductVersion: string | null;
 };
 
 type VariantFormState = {
@@ -103,6 +105,15 @@ export function ProductWorkspace() {
   const [activeTab, setActiveTab] = useState<"products" | "classifications">("products");
   const [activeClassificationKey, setActiveClassificationKey] =
     useState<ProductClassificationKey>("company");
+  const [productForm, setProductForm] = useState<ProductFormState>(() =>
+    buildProductForm(null, ""),
+  );
+  const [variantForms, setVariantForms] = useState<VariantFormState[]>(() =>
+    buildVariantForms(null),
+  );
+  const [campaignForms, setCampaignForms] = useState<CampaignFormState[]>(() =>
+    buildCampaignForms(null),
+  );
 
   useEffect(() => {
     const ownerUser = user;
@@ -133,7 +144,11 @@ export function ProductWorkspace() {
 
       setProducts(workspaceProducts);
       if (workspaceProducts[0] && !editingDraftIdRef.current) {
-        selectProduct(workspaceProducts[0]);
+        const firstProduct = workspaceProducts[0];
+        setSelectedId(firstProduct.product.id);
+        setProductForm(buildProductForm(firstProduct, "prod_002"));
+        setVariantForms(buildVariantForms(firstProduct));
+        setCampaignForms(buildCampaignForms(firstProduct));
       }
       setMessage(workspaceProducts.length > 0 ? "商品資料已載入。" : "目前沒有商品。");
     }
@@ -193,16 +208,6 @@ export function ProductWorkspace() {
     [products, selectedId],
   );
 
-  const [productForm, setProductForm] = useState<ProductFormState>(() =>
-    buildProductForm(null, ""),
-  );
-  const [variantForms, setVariantForms] = useState<VariantFormState[]>(() =>
-    buildVariantForms(null),
-  );
-  const [campaignForms, setCampaignForms] = useState<CampaignFormState[]>(() =>
-    buildCampaignForms(null),
-  );
-
   useEffect(() => {
     if (role !== "partner") return;
     const serialized = window.sessionStorage.getItem("astera.catalogChangeRequest.edit");
@@ -225,6 +230,7 @@ export function ProductWorkspace() {
           createdBy: request.createdBy,
         })),
         ...(request.internalNote ? { internalNote: request.internalNote } : {}),
+        catalogVersion: request.baseProductVersion,
       };
       queueMicrotask(() => {
         setSelectedId(draftProduct.product.id);
@@ -242,6 +248,7 @@ export function ProductWorkspace() {
   }, [role]);
 
   function selectProduct(product: WorkspaceProduct) {
+    clearRejectedDraftEditing();
     setSelectedId(product.product.id);
     setProductForm(buildProductForm(product, "prod_002"));
     setVariantForms(buildVariantForms(product));
@@ -330,6 +337,7 @@ export function ProductWorkspace() {
         updatedBy: "system",
       })),
       internalNote: productForm.internalNote.trim() || undefined,
+      catalogVersion: productForm.baseProductVersion,
     };
 
     if (role === "partner") {
@@ -358,16 +366,20 @@ export function ProductWorkspace() {
               campaigns: result.value.campaigns,
             },
             internalNote: nextProduct.internalNote,
+            baseProductVersion: productForm.baseProductVersion,
           }),
         });
-        if (!response.ok) throw new Error("save_draft_failed");
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => ({})) as { error?: string };
+          throw new Error(errorPayload.error || "save_draft_failed");
+        }
         setMessage(`已送出 ${draftTitle.trim()}，等待 Owner 審核。`);
         setDraftTitle("");
         setDraftReason("");
         setEditingDraftId("");
         editingDraftIdRef.current = "";
-      } catch {
-        setMessage("草稿送審失敗，請確認資料與網路後再試一次。");
+      } catch (error) {
+        setMessage(draftSaveErrorMessage(error));
       } finally {
         setIsSaving(false);
       }
@@ -427,6 +439,7 @@ export function ProductWorkspace() {
   }
 
   function createBlankProduct() {
+    clearRejectedDraftEditing();
     const nextId = "";
     setSelectedId(nextId);
     setProductForm({
@@ -440,10 +453,19 @@ export function ProductWorkspace() {
         cpId: "",
         brandId: "",
         seriesId: "",
+        baseProductVersion: null,
       });
     setVariantForms([buildBlankVariantForm("", true)]);
     setCampaignForms([buildBlankCampaignForm("")]);
     setMessage("已建立新商品草稿。");
+  }
+
+  function clearRejectedDraftEditing() {
+    if (!editingDraftIdRef.current) return;
+    editingDraftIdRef.current = "";
+    setEditingDraftId("");
+    setDraftTitle("");
+    setDraftReason("");
   }
 
   function addVariantForm() {
@@ -549,32 +571,34 @@ export function ProductWorkspace() {
 
   return (
     <div className="grid gap-5">
-      <nav className="flex flex-wrap gap-2" aria-label="商品工作區">
-        {role === "owner" ? <button
-          type="button"
-          onClick={() => setActiveTab("products")}
-          className={[
-            "rounded-full px-4 py-2 text-sm font-medium",
-            activeTab === "products"
-              ? "bg-slate-950 text-white"
-              : "border border-slate-300 text-slate-700",
-          ].join(" ")}
-        >
-          Products（商品管理）
-        </button> : null}
-        <button
-          type="button"
-          onClick={() => setActiveTab("classifications")}
-          className={[
-            "rounded-full px-4 py-2 text-sm font-medium",
-            activeTab === "classifications"
-              ? "bg-slate-950 text-white"
-              : "border border-slate-300 text-slate-700",
-          ].join(" ")}
-        >
-          Classifications（分類管理）
-        </button>
-      </nav>
+      {role === "owner" ? (
+        <nav className="flex flex-wrap gap-2" aria-label="商品工作區">
+          <button
+            type="button"
+            onClick={() => setActiveTab("products")}
+            className={[
+              "rounded-full px-4 py-2 text-sm font-medium",
+              activeTab === "products"
+                ? "bg-slate-950 text-white"
+                : "border border-slate-300 text-slate-700",
+            ].join(" ")}
+          >
+            Products（商品管理）
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("classifications")}
+            className={[
+              "rounded-full px-4 py-2 text-sm font-medium",
+              activeTab === "classifications"
+                ? "bg-slate-950 text-white"
+                : "border border-slate-300 text-slate-700",
+            ].join(" ")}
+          >
+            Classifications（分類管理）
+          </button>
+        </nav>
+      ) : null}
 
       {activeTab === "classifications" && role === "owner" ? (
         <ProductClassificationManager
@@ -800,7 +824,7 @@ export function ProductWorkspace() {
                         </button> : null}
                       </div>
                       <select
-                        value={productForm[`${key}Id` as keyof ProductFormState]}
+                        value={String(productForm[`${key}Id` as keyof ProductFormState] ?? "")}
                         onChange={(event) =>
                           setProductForm((current) => ({
                             ...current,
@@ -1113,6 +1137,7 @@ function buildProductForm(
     cpId: product?.product.classifications?.cp?.id ?? "",
     brandId: product?.product.classifications?.brand?.id ?? "",
     seriesId: product?.product.classifications?.series?.id ?? "",
+    baseProductVersion: product?.catalogVersion ?? null,
   };
 }
 
@@ -1199,6 +1224,17 @@ function buildSelectedClassifications(
     brand: findClassificationLink(masters.brand, form.brandId),
     series: findClassificationLink(masters.series, form.seriesId),
   };
+}
+
+function draftSaveErrorMessage(error: unknown) {
+  const code = error instanceof Error ? error.message : "";
+  if (code === "catalog_change_stale_base") {
+    return "商品已在你編輯期間被更新；請重新載入最新商品後再建立草稿。";
+  }
+  if (code === "catalog_change_revision_limit") {
+    return "此草稿已達修訂上限，請重新載入商品並建立新的草稿。";
+  }
+  return "草稿送審失敗，請確認資料與網路後再試一次。";
 }
 
 function findClassificationLink(entries: CatalogClassification[], id: string) {

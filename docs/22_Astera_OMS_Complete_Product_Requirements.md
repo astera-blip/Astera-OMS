@@ -59,8 +59,13 @@ Helper 只看到任務編號、商品、規格、數量、期限及遮罩後識�
 - Partner 可讀取正式 Product／Variant／Campaign 與分類主檔，作為建立變更草稿的基礎；不可直接寫入正式商品或分類。
 - Partner 每次送審必須填寫草稿標題與變更原因。草稿只寫入 `catalogChangeRequests`，核准前不得更新 `productsInternal`、`productVariants`、`saleCampaigns` 或 `productsPublic`。
 - Owner 可駁回並填寫原因；建立者可載入被駁回草稿、修正後提高 revision 再次送審。Partner 不可修改其他 Partner 的草稿。
-- Owner 核准時才透過既有 Server 商品交易套用正式資料、SKU 與公開 projection；重複核准必須保持冪等，並建立 Audit Log。
+- 草稿必須保存建立者載入時的正式商品版本；送審、重送或核准時若正式商品已變更，Server 必須拒絕並要求重新載入，不得以過期內容覆蓋正式資料。每次被駁回後的修訂保留不可變 revision snapshot。
+- Partner 輸入必須在 Server 嚴格驗證資料型別、狀態、幣別、成本、Default Variant 與子項目 ID 唯一性。Partner 不可修改圖片；新 Product／Variant／Campaign ID 及 SKU 由 Server 派發，封存 ID 不得重用。
+- 分類 ID 與顯示名稱以 active 分類主檔為權威；送審後若分類改名或封存，核准必須回傳衝突，不得靜默套用 Owner 未看見的內容。Owner 審核畫面必須列出核准後將封存的既有 Variant／Campaign。
+- Owner 核准時，正式 Product、Variant、Campaign、公開 projection、審核狀態及 Audit Log 必須在同一 Firestore transaction 完成。完全相同的重複審核保持冪等，變更 decision 或 reason 的 replay 必須拒絕。
+- 封存 Variant 後保留 SKU 與原幣成本歷史；新 Variant 繼續往後編號，不得補用封存號碼。
 - `catalogChangeRequests` 對匿名、Member、Helper、Partner、Owner 的 Client SDK 均拒絕讀寫；畫面只透過驗證 Firebase ID token 與 custom claim 的 Server API 存取。
+- Partner Workspace 僅提供商品與草稿審核；會員、訂單、付款、品牌內容與 Audit Log 等非授權路徑，即使直接輸入網址也必須拒絕。
 
 ## 3. 訪客、會員與公開內容
 

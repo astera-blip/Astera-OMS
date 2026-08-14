@@ -4,7 +4,7 @@
 
 **Goal:** Allow Partner users to propose Product／Variant／Campaign changes without changing formal catalog data until an Owner approves the immutable request.
 
-**Architecture:** Add a protected `catalogChangeRequests` workflow beside the existing catalog repositories. Partner writes create or revise only their own draft request; Owner review applies the saved Product payload through the existing authoritative `saveWorkspaceProductServer` transaction, then records the review and Audit Log in the same server-controlled flow. Public storefront data continues to come only from `productsPublic`.
+**Architecture:** Add a protected `catalogChangeRequests` workflow beside the existing catalog repositories. Partner writes create or revise only their own request; Owner review uses the transaction-aware catalog writer so formal Product／Variant／Campaign data, public projection, request state, and Audit Log commit atomically. Public storefront data continues to come only from `productsPublic`.
 
 **Tech Stack:** Next.js 16 App Router, TypeScript, Firebase Admin SDK, Firestore, React, Vitest, Firebase Rules Emulator, Playwright.
 
@@ -55,11 +55,11 @@
 
 **Interfaces:**
 - Produces: `listCatalogChangeRequestsServer`, `createCatalogChangeRequestServer`, `updateOwnCatalogChangeRequestServer`, `reviewCatalogChangeRequestServer`.
-- Consumes: `saveWorkspaceProductServer`, Firestore transaction/batch interfaces, catalog domain validators.
+- Consumes: the transaction-aware server catalog writer, Firestore transaction interfaces, catalog domain validators.
 
 - [x] **Step 1: Write failing repository tests**
 
-  Cover Partner creation, all-Partner listing, own-draft update, cross-Partner denial, submitted／approved immutability, Owner rejection with reason, Owner approval applying the formal product exactly once, and replay safety.
+  Cover Partner creation, all-Partner listing, own rejected-draft update, cross-Partner denial, submitted／approved immutability, immutable revisions, loaded-base stale rejection, Owner rejection, atomic approval, exact terminal replay, child ownership, classification authority, and archived-ID non-reuse.
 
 - [x] **Step 2: Run focused repository tests and verify RED**
 
@@ -67,7 +67,7 @@
 
 - [x] **Step 3: Implement the minimal repository**
 
-  Use generated request IDs, server timestamps, SHA-256 payload digests, transactions for request state, and append-only `auditLogs`. Approval invokes the existing server catalog save path only after claiming the submitted request for review; a failed apply restores a reviewable state without publishing partial draft data.
+  Use generated request IDs, server timestamps, SHA-256 payload／decision digests, immutable revisions, and loaded-base versions. Apply formal catalog data, projection, review state, and append-only Audit Log in one transaction; a failed transaction publishes nothing and needs no compensation saga.
 
 - [x] **Step 4: Run focused tests and verify GREEN**
 
@@ -99,7 +99,7 @@
 
 - [x] **Step 3: Implement the route handlers**
 
-  Read role only from verified claims, accept only intent fields, return sanitized request view models, and never return internal stack/error details.
+  Read role only from verified claims; parse malformed JSON as safe `400`; strictly validate primitive types, enums, costs, default Variant, duplicate child IDs, Owner-only images, and server-assigned IDs; return sanitized conflict codes without internal stack details.
 
 - [x] **Step 4: Run focused API tests and verify GREEN**
 
@@ -129,7 +129,7 @@
 
 - [x] **Step 3: Implement the smallest accessible UI changes**
 
-  Reuse ProductWorkspace fields; change only the submission destination by role. Add clear status, creator, revision, review reason, loading/error/retry states, 44px controls, focus-visible behavior, and mobile-safe wrapping.
+  Reuse ProductWorkspace fields; change only the submission destination by role. Add clear status, creator, revision, review reason, complete proposal values, archive-impact list, stale/conflict recovery messages, loading/error/retry states, 44px controls, focus-visible behavior, and mobile-safe wrapping. Gate Partner routes to Workspace home, Products, and Catalog Reviews.
 
 - [x] **Step 4: Run focused E2E and verify GREEN**
 
@@ -169,6 +169,12 @@
 - [x] **Step 5: Commit the reviewed batch**
 
   Keep the branch isolated until all gates are green and a deployment decision is made.
+
+### Final hardening evidence
+
+- Independent re-review: Critical 0／Important 0 after atomicity, stale guards, strict trust-boundary validation, child／classification authority, archive history, and Partner route-scope fixes.
+- Fresh final gate: TypeScript; zero-warning ESLint; Unit 66 files／541 tests; Firestore＋Storage Rules 2 files／34 tests; Build 45 routes; regular Playwright 22 passed／46 expected Emulator-only skips; full Emulator Playwright 57 passed／11 intentional project skips; secret scan passed; production dependency audit found 0 vulnerabilities.
+- Deployment remains out of scope for this batch until separately authorized; GitHub, Vercel, Production Rules, environment variables, and Production data are unchanged.
 
 ## Self-review
 

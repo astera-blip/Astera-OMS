@@ -123,6 +123,42 @@ describe("shared UI accessibility contract", () => {
     expect(product).toContain('disabled={isProductsLoading}');
   });
 
+  it("shows complete catalog proposals before Owner approval and provides load retry", () => {
+    const review = read("src/components/workspace/CatalogReviewBoard.tsx");
+
+    expect(review).toContain("公開說明");
+    expect(review).toContain("目標 Product ID");
+    expect(review).toContain("核准後將封存");
+    expect(review).toContain("內部備註");
+    expect(review).toContain("原幣成本");
+    expect(review).toContain("活動售價");
+    expect(review).toContain("重新載入");
+    expect(review).toContain("catalog_change_stale_base");
+    expect(review).toContain("正式商品已被更新");
+  });
+
+  it("keeps classification management Owner-only", () => {
+    const product = read("src/components/workspace/ProductWorkspace.tsx");
+
+    expect(product).toContain('{role === "owner" ? (');
+    expect(product).toContain("Classifications（分類管理）");
+  });
+
+  it("tells Partner to reload a stale product draft", () => {
+    const product = read("src/components/workspace/ProductWorkspace.tsx");
+    expect(product).toContain("draftSaveErrorMessage");
+    expect(product).toContain("商品已在你編輯期間被更新");
+  });
+
+  it("limits Partner workspace routes and homepage cards", () => {
+    const shell = read("src/components/workspace/WorkspaceShell.tsx");
+    const home = read("src/app/workspace/page.tsx");
+    expect(shell).toContain("partnerAllowedPaths");
+    expect(shell).toContain("沒有此工作區權限");
+    expect(home).toContain('role === "partner"');
+    expect(home).toContain("商品草稿 Catalog Reviews");
+  });
+
   it("uses redirect-based Google sign-in without a mobile popup flash", () => {
     const authProvider = read("src/components/auth/AuthProvider.tsx");
     expect(authProvider).toContain("getRedirectResult");

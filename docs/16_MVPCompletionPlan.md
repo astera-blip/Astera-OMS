@@ -2341,10 +2341,13 @@ Preview deployment update:
 
 ### 2026-08-14 Partner Product／Variant／Campaign 草稿審核
 
-- [x] 在隔離分支 `codex/partner-catalog-drafts` 完成 Partner 商品草稿工作流；本批只涵蓋 Product／Variant／Campaign，不擴張 Collection 架構、Checkout 或公開商品來源。
-- [x] 新增 `catalogChangeRequests` domain、Server repository 與受保護 API。Partner 只能建立或修正自己的草稿；Owner 可駁回或核准，核准後才呼叫既有 `saveWorkspaceProductServer` 套用正式商品與 `productsPublic`。
-- [x] Partner Workspace 只顯示工作區、商品與草稿審核；正式商品儲存仍為 Owner-only。Helper／Member 仍不可進入商品工作區。
-- [x] 修正駁回草稿重新載入時的非同步競態：正式商品讀取不得覆蓋正在修正的草稿。桌機與 Pixel 7 已涵蓋送審、駁回、修正、重送與核准。
+- [x] 在隔離分支 `codex/partner-catalog-drafts` 完成 Partner 商品草稿工作流；本批只涵蓋 Product／Variant／Campaign，不改既有正式商品 Collections、Checkout 或 `productsPublic` 前台來源。
+- [x] 新增 `catalogChangeRequests` domain、Server repository 與受保護 API。Partner 只能建立或修正自己的草稿；Owner 核准時以單一 Firestore transaction 同時套用正式商品、Variant、Campaign、`productsPublic`、審核結果與 Audit Log，不存在先發布再補償的中間狀態。
+- [x] Partner Workspace 僅允許 `/workspace`、`/workspace/products` 與 `/workspace/catalog-reviews`；直接輸入會員、訂單、付款、內容或 Audit 路徑亦會拒絕。正式商品儲存仍為 Owner-only，Helper／Member 仍不可進入商品工作區。
+- [x] 修正駁回草稿重新載入競態，並加入 loaded base version／revision guard；商品、分類或子項目在送審期間變動時回傳衝突，要求重新載入，不會靜默覆蓋正式資料。
+- [x] Partner payload 嚴格驗證型別、enum、成本、唯一 Variant／Campaign ID、Default Variant 與 Owner-only 圖片邊界。新 Product／Variant／Campaign ID 由 Server 派發；封存 ID、其他商品子項目及舊 SKU 不可重用。
+- [x] 核准交易以分類主檔的 active ID／label 為權威，保留已封存 Variant 的原幣成本歷史，並在 Owner 審核畫面明示核准後將封存的 Variant／Campaign。
+- [x] exact review replay 以 decision digest 保持冪等；每次駁回修訂保留不可變 revision snapshot。桌機與 Pixel 7 已涵蓋送審、過期衝突、駁回、修正、重送、核准及測試資料還原。
 - [x] `catalogChangeRequests` 已在 Firestore Rules 明確 deny-all Client SDK；匿名、Member、Helper、Partner、Owner 的讀寫矩陣均通過。
-- [x] 驗證：TypeScript、ESLint、Build 通過；Unit 65 files／508 tests；Rules 2 files／34 tests；一般 Playwright 22 passed／46 預期 skips；完整 Emulator Playwright 57 passed／11 預期 project skips；secret scan 通過；Production dependency audit 0 vulnerabilities。
+- [x] 獨立安全複審最終為 Critical 0／Important 0。驗證：TypeScript、zero-warning ESLint、Build 45 routes；Unit 66 files／541 tests；Rules 2 files／34 tests；一般 Playwright 22 passed／46 預期 skips；完整 Emulator Playwright 57 passed／11 預期 project skips；secret scan 通過；Production dependency audit 0 vulnerabilities。
 - [ ] 尚未部署 Preview／Production，也未部署本批 Firestore Rules。下一精確批次為 Partner 分類／品牌內容草稿，或依已確認 rollout 開始 Rush Purchase contribution／Helper 分紅資料層；部署需另行決定。

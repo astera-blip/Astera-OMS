@@ -37,17 +37,29 @@ const product: ProductDraft = {
 };
 
 function createDb(seed: Record<string, Stored> = {}) {
-  const records = new Map<string, Stored>(Object.entries(seed));
+  const records = new Map<string, Stored>(Object.entries({
+    "productsInternal/product-a": { updatedAt: "version-1" },
+    ...seed,
+  }));
   let generated = 0;
   const ref = (collection: string, id: string) => ({ collection, id });
+  const query = (collection: string, field: string, value: string) => ({ collection, field, value });
   const snapshot = (collection: string, id: string) => ({
     id,
     exists: records.has(`${collection}/${id}`),
     data: () => records.get(`${collection}/${id}`),
   });
   const transaction = {
-    get: vi.fn(async (target: { collection: string; id: string }) =>
-      snapshot(target.collection, target.id)),
+    get: vi.fn(async (target: { collection: string; id?: string; field?: string; value?: string }) => {
+      if (target.id) return snapshot(target.collection, target.id);
+      const docs = [...records.entries()]
+        .filter(([key, value]) => key.startsWith(`${target.collection}/`) && value[target.field!] === target.value)
+        .map(([key, value]) => ({
+          id: key.slice(target.collection.length + 1),
+          data: () => value,
+        }));
+      return { docs, empty: docs.length === 0 };
+    }),
     set: vi.fn((target: { collection: string; id: string }, value: Stored, options?: { merge?: boolean }) => {
       const key = `${target.collection}/${target.id}`;
       records.set(key, options?.merge ? { ...records.get(key), ...value } : value);
@@ -56,6 +68,7 @@ function createDb(seed: Record<string, Stored> = {}) {
   const db = {
     collection: vi.fn((collection: string) => ({
       doc: vi.fn((id?: string) => ref(collection, id ?? `${collection}-${++generated}`)),
+      where: vi.fn((field: string, _operator: string, value: string) => query(collection, field, value)),
       orderBy: vi.fn(() => ({
         get: vi.fn(async () => ({
           docs: [...records.entries()]
@@ -74,6 +87,7 @@ const input = {
   changeReason: "官方資料更新",
   product,
   internalNote: "Partner 交接",
+  baseProductVersion: "version-1",
 };
 
 describe("catalog change request repository", () => {
@@ -89,10 +103,65 @@ describe("catalog change request repository", () => {
       createdBy: "partner-a",
       payloadDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
-    expect([...state.records.keys()]).toEqual(["catalogChangeRequests/catalogChangeRequests-1"]);
+    expect([...state.records.keys()]).toEqual([
+      "productsInternal/product-a",
+      "catalogChangeRequests/catalogChangeRequests-1",
+    ]);
   });
 
-  it("lists all requests but only lets the creator revise a reviewable request", async () => {
+  it("rejects submission when the product changed after the Partner loaded it", async () => {
+    const state = createDb({
+      "productsInternal/product-a": { updatedAt: "version-2" },
+    });
+    await expect(createCatalogChangeRequestServer(
+      state.db as never,
+      { ...input, baseProductVersion: "version-1" },
+      "partner-a",
+    )).rejects.toThrow("catalog_change_stale_base");
+    expect([...state.records.keys()]).toEqual(["productsInternal/product-a"]);
+  });
+
+  it("rejects a client-chosen ID for a new product", async () => {
+    const state = createDb();
+    await expect(createCatalogChangeRequestServer(
+      state.db as never,
+      {
+        ...input,
+        baseProductVersion: null,
+        product: { ...product, product: { ...product.product, id: "client-chosen-id" } },
+      },
+      "partner-a",
+    )).rejects.toThrow("catalog_change_product_id_invalid");
+  });
+
+  it("assigns a stable server ID for a new product draft", async () => {
+    const state = createDb();
+    const created = await createCatalogChangeRequestServer(
+      state.db as never,
+      {
+        ...input,
+        baseProductVersion: null,
+        product: { ...product, product: { ...product.product, id: "" } },
+      },
+      "partner-a",
+    );
+    expect(created.product.product.id).toBe("productsInternal-2");
+    expect(created.baseProductVersion).toBeNull();
+  });
+
+  it("captures only active base children for the Owner removal review", async () => {
+    const state = createDb({
+      "productVariants/variant-active": { productId: "product-a", name: "有效規格", publishState: "published" },
+      "productVariants/variant-old": { productId: "product-a", name: "舊規格", publishState: "archived" },
+      "saleCampaigns/campaign-active": { productId: "product-a", title: "有效活動", status: "open" },
+      "saleCampaigns/campaign-old": { productId: "product-a", title: "舊活動", status: "archived" },
+    });
+    const created = await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
+    expect(created.baseVariants).toEqual([{ id: "variant-active", name: "有效規格" }]);
+    expect(created.baseCampaigns).toEqual([{ id: "campaign-active", title: "有效活動" }]);
+  });
+
+  it("only lets the creator revise a rejected request and preserves the rejected revision", async () => {
     const state = createDb();
     const created = await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
 
@@ -103,14 +172,59 @@ describe("catalog change request repository", () => {
       "partner-b",
     )).rejects.toThrow("catalog_change_forbidden");
 
+    await expect(updateOwnCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      { ...input, title: "第二版" },
+      "partner-a",
+    )).rejects.toThrow("catalog_change_locked");
+
+    await reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "reject",
+      "請補活動說明",
+      vi.fn(),
+    );
     const updated = await updateOwnCatalogChangeRequestServer(
       state.db as never,
       created.id,
       { ...input, title: "第二版" },
       "partner-a",
     );
-    expect(updated).toMatchObject({ title: "第二版", revision: 2, status: "submitted" });
+    expect(updated).toMatchObject({
+      title: "第二版",
+      revision: 2,
+      status: "submitted",
+      revisionHistory: [expect.objectContaining({
+        revision: 1,
+        title: "更新商品",
+        status: "rejected",
+        reviewReason: "請補活動說明",
+      })],
+    });
     await expect(listCatalogChangeRequestsServer(state.db as never)).resolves.toHaveLength(1);
+  });
+
+  it("rejects resubmission when the formal product changed after the original draft", async () => {
+    const state = createDb();
+    const created = await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
+    await reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "reject",
+      "請重新確認",
+      vi.fn(),
+    );
+    state.records.set("productsInternal/product-a", { updatedAt: "version-2" });
+    await expect(updateOwnCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      { ...input, title: "過期修訂" },
+      "partner-a",
+    )).rejects.toThrow("catalog_change_stale_base");
   });
 
   it("records an Owner rejection and keeps the proposal for revision", async () => {
@@ -163,9 +277,62 @@ describe("catalog change request repository", () => {
     expect(approved.status).toBe("approved");
     expect(replay).toEqual(approved);
     expect(applyProduct).toHaveBeenCalledTimes(1);
-    expect(applyProduct).toHaveBeenCalledWith(expect.objectContaining({
+    expect(applyProduct).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({
       product: expect.objectContaining({ product: expect.objectContaining({ id: "product-a" }) }),
       internalNote: "Partner 交接",
-    }), "owner-a");
+    }), "owner-a", { expectedProductVersion: "version-1" });
+  });
+
+  it("replays only an identical terminal review decision", async () => {
+    const state = createDb();
+    const created = await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
+
+    const rejected = await reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "reject",
+      "請補活動說明",
+      vi.fn(),
+    );
+    const replay = await reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "reject",
+      "請補活動說明",
+      vi.fn(),
+    );
+    expect(replay).toEqual(rejected);
+    await expect(reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "approve",
+      "請補活動說明",
+      vi.fn(),
+    )).rejects.toThrow("catalog_change_review_conflict");
+    await expect(reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "reject",
+      "不同理由",
+      vi.fn(),
+    )).rejects.toThrow("catalog_change_review_conflict");
+  });
+
+  it("does not change request state when the atomic product apply fails", async () => {
+    const state = createDb();
+    const created = await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
+    await expect(reviewCatalogChangeRequestServer(
+      state.db as never,
+      created.id,
+      "owner-a",
+      "approve",
+      "確認刊登",
+      vi.fn(async () => { throw new Error("apply_failed"); }),
+    )).rejects.toThrow("apply_failed");
+    expect(state.records.get(`catalogChangeRequests/${created.id}`)?.status).toBe("submitted");
   });
 });

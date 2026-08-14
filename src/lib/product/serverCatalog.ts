@@ -1,6 +1,6 @@
 import "server-only";
 
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
 import {
   assignServerManagedSkus,
   buildPublicProductProjection,
@@ -8,8 +8,10 @@ import {
   normalizeProductDraft,
   resolveServerManagedProductSku,
   type ProductCatalogRecord,
+  type ProductClassifications,
   type ProductDraft,
 } from "@/lib/product/catalog";
+import { classificationCollections } from "@/lib/product/classifications";
 
 type SaveProductInput = ProductDraft & {
   internalNote?: string;
@@ -19,7 +21,9 @@ type SequenceDocument = {
   nextProductSequence?: number;
 };
 
-export async function listWorkspaceProductsServer(db: Firestore): Promise<ProductCatalogRecord[]> {
+export async function listWorkspaceProductsServer(
+  db: Firestore,
+): Promise<Array<ProductCatalogRecord & { internalNote?: string; catalogVersion: string | null }>> {
   const [publicSnapshot, internalSnapshot, variantSnapshot, campaignSnapshot] = await Promise.all([
     db.collection("productsPublic").get(),
     db.collection("productsInternal").get(),
@@ -40,7 +44,19 @@ export async function listWorkspaceProductsServer(db: Firestore): Promise<Produc
       classifications?: ProductCatalogRecord["product"]["classifications"];
       images?: ProductCatalogRecord["product"]["images"];
     };
-    const internal = internalById.get(snapshot.id) as { sku?: string; internalNote?: string } | undefined;
+    const internal = internalById.get(snapshot.id) as {
+      sku?: string;
+      internalNote?: string;
+      originalCosts?: Array<{
+        variantId: string;
+        originalCurrency?: ProductCatalogRecord["variants"][number]["originalCurrency"] | null;
+        originalCost?: number | null;
+      }>;
+      updatedAt?: unknown;
+    } | undefined;
+    const originalCostsByVariant = new Map(
+      (internal?.originalCosts ?? []).map((cost) => [cost.variantId, cost]),
+    );
     const productSku = resolveServerManagedProductSku({
       productId: data.id,
       existingSku: internal?.sku,
@@ -60,21 +76,31 @@ export async function listWorkspaceProductsServer(db: Firestore): Promise<Produc
         createdBy: "system",
       },
       variants: variants
-        .filter((variant) => variant.productId === data.id)
-        .map((variant, variantIndex) => ({
-          ...variant,
-          sku: variant.sku || createVariantSku(productSku, variantIndex + 1),
-          createdAt: variant.createdAt ?? new Date().toISOString(),
-          createdBy: variant.createdBy ?? "system",
-        })),
+        .filter((variant) => variant.productId === data.id && (variant as { publishState?: string }).publishState !== "archived")
+        .map((variant, variantIndex) => {
+          const originalCost = originalCostsByVariant.get(variant.id);
+          return {
+            ...variant,
+            sku: variant.sku || createVariantSku(productSku, variantIndex + 1),
+            ...(originalCost?.originalCurrency
+              ? { originalCurrency: originalCost.originalCurrency }
+              : {}),
+            ...(typeof originalCost?.originalCost === "number"
+              ? { originalCost: originalCost.originalCost }
+              : {}),
+            createdAt: variant.createdAt ?? new Date().toISOString(),
+            createdBy: variant.createdBy ?? "system",
+          };
+        }),
       campaigns: campaigns
-        .filter((campaign) => campaign.productId === data.id)
+        .filter((campaign) => campaign.productId === data.id && campaign.status !== "archived")
         .map((campaign) => ({
           ...campaign,
           createdAt: campaign.createdAt ?? new Date().toISOString(),
           createdBy: campaign.createdBy ?? "system",
         })),
       ...(internal?.internalNote ? { internalNote: internal.internalNote } : {}),
+      catalogVersion: productVersion(internal),
     };
   });
 }
@@ -84,16 +110,71 @@ export async function saveWorkspaceProductServer(
   input: SaveProductInput,
   actorUid: string,
 ): Promise<ProductCatalogRecord & { internalNote?: string }> {
-  return db.runTransaction(async (transaction) => {
+  return db.runTransaction((transaction) =>
+    saveWorkspaceProductInTransaction(db, transaction, input, actorUid));
+}
+
+export async function saveWorkspaceProductInTransaction(
+  db: Firestore,
+  transaction: Transaction,
+  input: SaveProductInput,
+  actorUid: string,
+  options: { expectedProductVersion?: string | null } = {},
+): Promise<ProductCatalogRecord & { internalNote?: string }> {
     const requestedProductId = input.product.id.trim();
     const productRef = requestedProductId
       ? db.collection("productsInternal").doc(requestedProductId)
       : db.collection("productsInternal").doc();
+    const preparedInput: SaveProductInput = {
+      ...input,
+      variants: (input.variants.length ? input.variants : [{
+        id: "",
+        sku: "",
+        name: "Default Variant",
+        isDefault: true,
+        priceTwd: 0,
+      }]).map((variant) => ({
+        ...variant,
+        id: variant.id.trim() || db.collection("productVariants").doc().id,
+      })),
+      campaigns: input.campaigns.map((campaign) => ({
+        ...campaign,
+        id: campaign.id.trim() || db.collection("saleCampaigns").doc().id,
+      })),
+    };
     const existingProduct = await transaction.get(productRef);
+    if (
+      "expectedProductVersion" in options
+      && productVersion(existingProduct.data()) !== options.expectedProductVersion
+    ) {
+      throw new Error("catalog_change_stale_base");
+    }
     const sequenceRef = db.collection("siteSettings").doc("system-sequences");
     const existingSequence = await transaction.get(sequenceRef);
     const existingVariantsSnapshot = await transaction.get(
       db.collection("productVariants").where("productId", "==", productRef.id),
+    );
+    const existingCampaignsSnapshot = await transaction.get(
+      db.collection("saleCampaigns").where("productId", "==", productRef.id),
+    );
+    const submittedVariantSnapshots = await Promise.all(
+      preparedInput.variants
+        .map((variant) => variant.id.trim())
+        .filter(Boolean)
+        .map((id) => transaction.get(db.collection("productVariants").doc(id))),
+    );
+    const submittedCampaignSnapshots = await Promise.all(
+      preparedInput.campaigns
+        .map((campaign) => campaign.id.trim())
+        .filter(Boolean)
+        .map((id) => transaction.get(db.collection("saleCampaigns").doc(id))),
+    );
+    assertChildOwnership(submittedVariantSnapshots, productRef.id, "variant");
+    assertChildOwnership(submittedCampaignSnapshots, productRef.id, "campaign");
+    const authoritativeClassifications = await resolveAuthoritativeClassifications(
+      db,
+      transaction,
+      preparedInput.product.classifications,
     );
     const sequenceData = existingSequence.exists
       ? (existingSequence.data() as SequenceDocument)
@@ -124,22 +205,19 @@ export async function saveWorkspaceProductServer(
     const productSku = skuResolution.sku;
     const now = new Date().toISOString();
     const serverManagedDraft = assignServerManagedSkus({
-      ...input,
+      ...preparedInput,
       product: {
-        ...input.product,
+        ...preparedInput.product,
         id: productId,
-        images: input.product.images
+        ...(authoritativeClassifications
+          ? { classifications: authoritativeClassifications }
+          : { classifications: undefined }),
+        images: preparedInput.product.images
           ?? (existingProduct.data()?.images as ProductCatalogRecord["product"]["images"] | undefined)
           ?? [],
       },
-      variants: input.variants.map((variant, index) => ({
-        ...variant,
-        id: variant.id.trim() || `${productId}-variant-${index + 1}`,
-      })),
-      campaigns: input.campaigns.map((campaign, index) => ({
-        ...campaign,
-        id: campaign.id.trim() || `${productId}-campaign-${index + 1}`,
-      })),
+      variants: preparedInput.variants,
+      campaigns: preparedInput.campaigns,
     }, {
       productSku,
       existingVariantSkusById,
@@ -181,14 +259,35 @@ export async function saveWorkspaceProductServer(
       ...publicProjection,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    transaction.set(productRef, {
-      id: record.product.id,
-      sku: record.product.sku,
-      originalCosts: record.variants.map((variant) => ({
+    const originalCostsByVariant = new Map<string, {
+      variantId: string;
+      originalCurrency: ProductCatalogRecord["variants"][number]["originalCurrency"] | null;
+      originalCost: number | null;
+    }>();
+    const existingOriginalCosts = existingProduct.data()?.originalCosts;
+    if (Array.isArray(existingOriginalCosts)) {
+      existingOriginalCosts.forEach((entry) => {
+        if (!entry || typeof entry !== "object") return;
+        const value = entry as { variantId?: unknown; originalCurrency?: unknown; originalCost?: unknown };
+        if (typeof value.variantId !== "string" || !value.variantId) return;
+        originalCostsByVariant.set(value.variantId, {
+          variantId: value.variantId,
+          originalCurrency: isOriginalCurrency(value.originalCurrency) ? value.originalCurrency : null,
+          originalCost: typeof value.originalCost === "number" ? value.originalCost : null,
+        });
+      });
+    }
+    record.variants.forEach((variant) => {
+      originalCostsByVariant.set(variant.id, {
         variantId: variant.id,
         originalCurrency: variant.originalCurrency ?? null,
         originalCost: variant.originalCost ?? null,
-      })),
+      });
+    });
+    transaction.set(productRef, {
+      id: record.product.id,
+      sku: record.product.sku,
+      originalCosts: [...originalCostsByVariant.values()],
       internalNote: record.internalNote ?? null,
       images: record.product.images ?? [],
       updatedAt: FieldValue.serverTimestamp(),
@@ -208,6 +307,16 @@ export async function saveWorkspaceProductServer(
         updatedBy: actorUid,
       });
     });
+    const submittedVariantIds = new Set(record.variants.map((variant) => variant.id));
+    existingVariantsSnapshot.docs
+      .filter((snapshot) => !submittedVariantIds.has(snapshot.id))
+      .forEach((snapshot) => {
+        transaction.set(snapshot.ref, {
+          publishState: "archived",
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actorUid,
+        }, { merge: true });
+      });
     record.campaigns.forEach((campaign) => {
       transaction.set(db.collection("saleCampaigns").doc(campaign.id), {
         id: campaign.id,
@@ -225,6 +334,16 @@ export async function saveWorkspaceProductServer(
         updatedBy: actorUid,
       });
     });
+    const submittedCampaignIds = new Set(record.campaigns.map((campaign) => campaign.id));
+    existingCampaignsSnapshot.docs
+      .filter((snapshot) => !submittedCampaignIds.has(snapshot.id))
+      .forEach((snapshot) => {
+        transaction.set(snapshot.ref, {
+          status: "archived",
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actorUid,
+        }, { merge: true });
+      });
 
     if (skuResolution.nextProductSequence !== (sequenceData.nextProductSequence ?? 1)) {
       transaction.set(sequenceRef, {
@@ -235,5 +354,64 @@ export async function saveWorkspaceProductServer(
     }
 
     return record;
+}
+
+function assertChildOwnership(
+  snapshots: Array<FirebaseFirestore.DocumentSnapshot>,
+  productId: string,
+  kind: "variant" | "campaign",
+) {
+  snapshots.forEach((snapshot) => {
+    if (!snapshot.exists) return;
+    const ownerProductId = String(snapshot.data()?.productId ?? "");
+    const isArchived = kind === "variant"
+      ? snapshot.data()?.publishState === "archived"
+      : snapshot.data()?.status === "archived";
+    if (ownerProductId !== productId || isArchived) {
+      throw new Error("catalog_change_child_id_conflict");
+    }
   });
+}
+
+async function resolveAuthoritativeClassifications(
+  db: Firestore,
+  transaction: Transaction,
+  classifications: ProductClassifications | undefined,
+): Promise<ProductClassifications | undefined> {
+  if (!classifications) return undefined;
+  const entries = Object.entries(classifications) as Array<
+    [keyof typeof classificationCollections, { id: string; label: string }]
+  >;
+  const snapshots = await Promise.all(entries.map(([key, link]) =>
+    transaction.get(db.collection(classificationCollections[key]).doc(link.id))));
+  const resolved = entries.map(([key, link], index) => {
+    const snapshot = snapshots[index];
+    const data = snapshot?.data() as { label?: unknown; status?: unknown } | undefined;
+    if (
+      !snapshot?.exists
+      || data?.status !== "active"
+      || typeof data.label !== "string"
+      || !data.label.trim()
+      || data.label.trim() !== link.label.trim()
+    ) {
+      throw new Error("catalog_change_classification_conflict");
+    }
+    return [key, { id: link.id, label: data.label.trim() }] as const;
+  });
+  return resolved.length ? Object.fromEntries(resolved) as ProductClassifications : undefined;
+}
+
+function isOriginalCurrency(
+  value: unknown,
+): value is NonNullable<ProductCatalogRecord["variants"][number]["originalCurrency"]> {
+  return value === "TWD" || value === "THB" || value === "JPY" || value === "KRW" || value === "USD";
+}
+
+export function productVersion(data: FirebaseFirestore.DocumentData | undefined): string | null {
+  const updatedAt = data?.updatedAt;
+  if (!updatedAt) return null;
+  if (typeof updatedAt.toMillis === "function") return String(updatedAt.toMillis());
+  if (typeof updatedAt === "string") return updatedAt;
+  if (updatedAt instanceof Date) return updatedAt.toISOString();
+  return String(updatedAt);
 }

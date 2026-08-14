@@ -1,6 +1,9 @@
-import Link from "next/link";
+"use client";
 
-const cards = [
+import Link from "next/link";
+import { useAuth } from "@/components/auth/AuthProvider";
+
+const ownerCards = [
   {
     href: "/workspace/products",
     title: "商品與活動 Products",
@@ -28,16 +31,33 @@ const cards = [
   },
 ];
 
+const partnerCards = [
+  {
+    href: "/workspace/products",
+    title: "商品草稿 Products",
+    detail: "依正式商品建立 Product、Variant 與 Campaign 變更草稿。",
+  },
+  {
+    href: "/workspace/catalog-reviews",
+    title: "商品草稿 Catalog Reviews",
+    detail: "查看送審、駁回原因與修訂狀態。",
+  },
+];
+
 export default function WorkspaceHomePage() {
+  const { role } = useAuth();
+  const cards = role === "partner" ? partnerCards : ownerCards;
   return (
     <section className="grid gap-5">
       <div className="rounded-xl border border-astera-border bg-astera-surface p-6">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-astera-service">
-          Owner Operations
+          {role === "partner" ? "Partner Operations" : "Owner Operations"}
         </p>
         <h2 className="mt-2 font-serif text-3xl">工作區總覽</h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-astera-secondary">
-          從商品、活動到付款與會員服務，集中處理每日營運工作。
+          {role === "partner"
+            ? "建立商品與活動草稿，送交 Owner 審核後才會套用正式資料。"
+            : "從商品、活動到付款與會員服務，集中處理每日營運工作。"}
         </p>
       </div>
 

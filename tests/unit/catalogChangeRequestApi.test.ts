@@ -37,6 +37,7 @@ import { GET as formalProductGet, POST as formalProductPost } from "@/app/api/wo
 const requestBody = {
   title: "更新商品",
   changeReason: "官方資料更新",
+  baseProductVersion: null,
   product: {
     product: {
       id: "product-a",
@@ -159,5 +160,25 @@ describe("catalog change request APIs", () => {
     }));
     expect(invalid.status).toBe(400);
     await expect(invalid.json()).resolves.toEqual({ error: "invalid_product" });
+
+    dependencies.create.mockRejectedValue(new Error("catalog_change_stale_base"));
+    const stale = await POST(new Request("https://example.test", {
+      method: "POST",
+      headers: { authorization: "Bearer token" },
+      body: JSON.stringify(requestBody),
+    }));
+    expect(stale.status).toBe(409);
+    await expect(stale.json()).resolves.toEqual({ error: "catalog_change_stale_base" });
+  });
+
+  it("returns a safe 400 response for malformed JSON", async () => {
+    const response = await POST(new Request("https://example.test", {
+      method: "POST",
+      headers: { authorization: "Bearer token", "content-type": "application/json" },
+      body: "{not-json",
+    }));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_request" });
+    expect(dependencies.create).not.toHaveBeenCalled();
   });
 });
