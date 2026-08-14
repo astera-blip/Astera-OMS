@@ -8,7 +8,7 @@ test("workspace product editor remains behind the workspace auth gate", async ({
   await page.goto("/workspace/products");
 
   await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
-  await expect(page.getByText("請使用 owner 或 helper 帳號進入工作區。")).toBeVisible();
+  await expect(page.getByText("請使用 Owner 帳號進入工作區。")).toBeVisible();
   await expect(page.getByRole("button", { name: "使用 Google 登入" })).toBeVisible();
 });
 
@@ -99,5 +99,5 @@ test("member account cannot enter owner workspace in emulator mode", async ({ pa
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
-  await expect(page.getByText("請使用 owner 或 helper 帳號進入工作區。")).toBeVisible();
+  await expect(page.getByText("請使用 Owner 帳號進入工作區。")).toBeVisible();
 });

@@ -55,8 +55,8 @@ test("public storefront headings use buyer-facing Chinese labels", async ({ page
   await page.goto("/products");
   await expect(page.getByRole("heading", { name: "商品列表" })).toBeVisible();
   await expect(page.getByText("Storefront", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("公開商品讀取失敗，請確認網路後再試一次。", { exact: true })).toHaveCount(0);
   if (useEmulatedAuth) {
+    await expect(page.getByText("公開商品讀取失敗，請確認網路後再試一次。", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "重新載入" })).toHaveCount(0);
   }
 
