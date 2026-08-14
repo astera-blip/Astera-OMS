@@ -25,6 +25,7 @@ import {
   publishStateLabels,
   saleTypeLabels,
 } from "@/lib/product/workspaceLabels";
+import type { CatalogChangeRequest } from "@/lib/catalog-change/catalogChangeRequest";
 
 type WorkspaceProduct = ProductCatalogRecord & {
   internalNote?: string;
@@ -88,19 +89,24 @@ export function ProductWorkspace() {
   const { role, user } = useAuth();
   const productsLoadedForUid = useRef("");
   const classificationsLoadedForUid = useRef("");
+  const editingDraftIdRef = useRef("");
   const [products, setProducts] = useState<WorkspaceProduct[]>([]);
   const [classifications, setClassifications] =
     useState<ClassificationMasters>(emptyClassifications);
   const [selectedId, setSelectedId] = useState("");
   const [isProductsLoading, setIsProductsLoading] = useState(true);
   const [message, setMessage] = useState("商品資料載入中。");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftReason, setDraftReason] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState("");
   const [activeTab, setActiveTab] = useState<"products" | "classifications">("products");
   const [activeClassificationKey, setActiveClassificationKey] =
     useState<ProductClassificationKey>("company");
 
   useEffect(() => {
     const ownerUser = user;
-    if (role !== "owner" || !ownerUser) {
+    if ((role !== "owner" && role !== "partner") || !ownerUser) {
       queueMicrotask(() => setIsProductsLoading(false));
       return;
     }
@@ -126,7 +132,7 @@ export function ProductWorkspace() {
       const workspaceProducts = payload.products ?? [];
 
       setProducts(workspaceProducts);
-      if (workspaceProducts[0]) {
+      if (workspaceProducts[0] && !editingDraftIdRef.current) {
         selectProduct(workspaceProducts[0]);
       }
       setMessage(workspaceProducts.length > 0 ? "商品資料已載入。" : "目前沒有商品。");
@@ -143,7 +149,7 @@ export function ProductWorkspace() {
   useEffect(() => {
     async function loadFirestoreClassifications() {
       if (
-        role !== "owner"
+        (role !== "owner" && role !== "partner")
         || !user
         || classificationsLoadedForUid.current === user.uid
       ) {
@@ -197,6 +203,44 @@ export function ProductWorkspace() {
     buildCampaignForms(null),
   );
 
+  useEffect(() => {
+    if (role !== "partner") return;
+    const serialized = window.sessionStorage.getItem("astera.catalogChangeRequest.edit");
+    if (!serialized) return;
+    window.sessionStorage.removeItem("astera.catalogChangeRequest.edit");
+    try {
+      const request = JSON.parse(serialized) as CatalogChangeRequest;
+      editingDraftIdRef.current = request.id;
+      const now = new Date().toISOString();
+      const draftProduct: WorkspaceProduct = {
+        product: { ...request.product.product, createdAt: now, createdBy: request.createdBy },
+        variants: request.product.variants.map((variant) => ({
+          ...variant,
+          createdAt: now,
+          createdBy: request.createdBy,
+        })),
+        campaigns: request.product.campaigns.map((campaign) => ({
+          ...campaign,
+          createdAt: now,
+          createdBy: request.createdBy,
+        })),
+        ...(request.internalNote ? { internalNote: request.internalNote } : {}),
+      };
+      queueMicrotask(() => {
+        setSelectedId(draftProduct.product.id);
+        setProductForm(buildProductForm(draftProduct, ""));
+        setVariantForms(buildVariantForms(draftProduct));
+        setCampaignForms(buildCampaignForms(draftProduct));
+        setDraftTitle(request.title);
+        setDraftReason(request.changeReason);
+        setEditingDraftId(request.id);
+        setMessage(`正在修正 ${request.title}。`);
+      });
+    } catch {
+      queueMicrotask(() => setMessage("無法載入待修正草稿，請回到草稿審核頁重試。"));
+    }
+  }, [role]);
+
   function selectProduct(product: WorkspaceProduct) {
     setSelectedId(product.product.id);
     setProductForm(buildProductForm(product, "prod_002"));
@@ -205,7 +249,7 @@ export function ProductWorkspace() {
   }
 
   async function upsertCurrentProduct() {
-    if (isProductsLoading) {
+    if (isProductsLoading || isSaving) {
       setMessage("商品資料仍在載入中，請稍候。");
       return;
     }
@@ -288,7 +332,50 @@ export function ProductWorkspace() {
       internalNote: productForm.internalNote.trim() || undefined,
     };
 
+    if (role === "partner") {
+      if (!draftTitle.trim() || !draftReason.trim()) {
+        setMessage("請填寫草稿標題與變更原因後再送審。");
+        return;
+      }
+      setIsSaving(true);
+      try {
+        const token = await user?.getIdToken();
+        if (!token) throw new Error("missing_token");
+        const response = await fetch(editingDraftId
+          ? `/api/workspace/catalog-change-requests/${editingDraftId}`
+          : "/api/workspace/catalog-change-requests", {
+          method: editingDraftId ? "PATCH" : "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: draftTitle,
+            changeReason: draftReason,
+            product: {
+              product: result.value.product,
+              variants: result.value.variants.map((variant) => ({ ...variant, sku: "" })),
+              campaigns: result.value.campaigns,
+            },
+            internalNote: nextProduct.internalNote,
+          }),
+        });
+        if (!response.ok) throw new Error("save_draft_failed");
+        setMessage(`已送出 ${draftTitle.trim()}，等待 Owner 審核。`);
+        setDraftTitle("");
+        setDraftReason("");
+        setEditingDraftId("");
+        editingDraftIdRef.current = "";
+      } catch {
+        setMessage("草稿送審失敗，請確認資料與網路後再試一次。");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (role === "owner") {
+      setIsSaving(true);
       try {
         const token = await user?.getIdToken();
         if (!token) {
@@ -332,6 +419,8 @@ export function ProductWorkspace() {
       } catch {
         setMessage("商品儲存失敗，請確認資料與網路後再試一次。");
         return;
+      } finally {
+        setIsSaving(false);
       }
     }
     setMessage("需要 Owner 權限才能儲存商品。");
@@ -461,7 +550,7 @@ export function ProductWorkspace() {
   return (
     <div className="grid gap-5">
       <nav className="flex flex-wrap gap-2" aria-label="商品工作區">
-        <button
+        {role === "owner" ? <button
           type="button"
           onClick={() => setActiveTab("products")}
           className={[
@@ -472,7 +561,7 @@ export function ProductWorkspace() {
           ].join(" ")}
         >
           Products（商品管理）
-        </button>
+        </button> : null}
         <button
           type="button"
           onClick={() => setActiveTab("classifications")}
@@ -487,7 +576,7 @@ export function ProductWorkspace() {
         </button>
       </nav>
 
-      {activeTab === "classifications" ? (
+      {activeTab === "classifications" && role === "owner" ? (
         <ProductClassificationManager
           classifications={classifications}
           activeKey={activeClassificationKey}
@@ -578,12 +667,39 @@ export function ProductWorkspace() {
               <h3 className="text-lg font-semibold">商品資料</h3>
               <button
                 type="submit"
-                disabled={isProductsLoading}
+                disabled={isProductsLoading || isSaving}
                 className="rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                儲存商品
+                {isSaving
+                  ? role === "partner" ? "送審中…" : "儲存中…"
+                  : role === "partner" ? "送出草稿審核" : "儲存商品"}
               </button>
             </div>
+            {role === "partner" ? (
+              <div className="mt-4 grid gap-4 rounded-2xl border border-astera-border bg-astera-brand-soft p-4 md:grid-cols-2">
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium">草稿標題</span>
+                  <input
+                    value={draftTitle}
+                    onChange={(event) => setDraftTitle(event.target.value)}
+                    className="min-h-11 rounded-2xl border border-astera-border bg-white px-4 py-3"
+                  />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span className="font-medium">變更原因</span>
+                  <input
+                    value={draftReason}
+                    onChange={(event) => setDraftReason(event.target.value)}
+                    className="min-h-11 rounded-2xl border border-astera-border bg-white px-4 py-3"
+                  />
+                </label>
+                {editingDraftId ? (
+                  <p className="text-sm text-astera-secondary md:col-span-2">
+                    正在修正已駁回草稿；送出後 Revision 會遞增，原審核歷史仍會保留。
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <fieldset disabled={isProductsLoading} className="mt-4 grid gap-4">
               <div className="grid gap-2 text-sm">
                 <span className="font-medium">Product ID（商品識別碼）</span>
@@ -672,7 +788,7 @@ export function ProductWorkspace() {
                     <div key={key} className="grid gap-2 text-sm">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{classificationLabels[key]}</span>
-                        <button
+                        {role === "owner" ? <button
                           type="button"
                           onClick={() => {
                             setActiveClassificationKey(key);
@@ -681,7 +797,7 @@ export function ProductWorkspace() {
                           className="text-xs font-medium text-amber-700"
                         >
                           管理分類
-                        </button>
+                        </button> : null}
                       </div>
                       <select
                         value={productForm[`${key}Id` as keyof ProductFormState]}
@@ -712,14 +828,14 @@ export function ProductWorkspace() {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold">Variants（商品規格）與 Campaigns（販售活動）</h3>
-              <button
+              {role === "owner" ? <button
                 type="button"
                 onClick={archiveSelectedProduct}
                 disabled={isProductsLoading || !selectedProduct}
                 className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
               >
                 封存商品
-              </button>
+              </button> : null}
             </div>
 
             <div className="mt-4 grid gap-4">
@@ -947,11 +1063,11 @@ export function ProductWorkspace() {
         </div>
 
         <div className="grid gap-5">
-          <ProductImageManager
+          {role === "owner" ? <ProductImageManager
             productId={selectedProduct?.product.id ?? ""}
             images={selectedProduct?.product.images ?? []}
             onChanged={updateProductImages}
-          />
+          /> : null}
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold">商品預覽</h3>
             {selectedProduct ? (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
+import { canAccessCatalogWorkspace, getRoleFromClaims } from "@/lib/member/rolePolicy";
 import {
   listWorkspaceProductsServer,
   saveWorkspaceProductServer,
@@ -10,7 +11,7 @@ import type { ProductDraft } from "@/lib/product/catalog";
 export async function GET(request: Request) {
   try {
     const claims = await requireFirebaseUser(request);
-    if (!isOwnerClaim(claims)) {
+    if (!canAccessCatalogWorkspace(getRoleFromClaims(claims))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 

@@ -119,19 +119,19 @@
 - Owner keeps direct Product save and gains Catalog Reviews.
 - Helper still has no catalog Workspace access.
 
-- [ ] **Step 1: Add failing Emulator Playwright role-flow coverage**
+- [x] **Step 1: Add failing Emulator Playwright role-flow coverage**
 
   Cover Partner navigation, draft submission without public change, Owner rejection, Partner revision/resubmission, Owner approval, and public projection update after approval.
 
-- [ ] **Step 2: Run the focused E2E and verify RED**
+- [x] **Step 2: Run the focused E2E and verify RED**
 
   Run with Auth／Firestore Emulator using the existing project Playwright command and only `workspace-catalog-draft-flow.spec.ts`.
 
-- [ ] **Step 3: Implement the smallest accessible UI changes**
+- [x] **Step 3: Implement the smallest accessible UI changes**
 
   Reuse ProductWorkspace fields; change only the submission destination by role. Add clear status, creator, revision, review reason, loading/error/retry states, 44px controls, focus-visible behavior, and mobile-safe wrapping.
 
-- [ ] **Step 4: Run focused E2E and verify GREEN**
+- [x] **Step 4: Run focused E2E and verify GREEN**
 
   Require desktop and Pixel 7 paths to pass.
 

@@ -119,7 +119,7 @@ describe("shared UI accessibility contract", () => {
     const product = read("src/components/workspace/ProductWorkspace.tsx");
 
     expect(product).toContain('const [isProductsLoading, setIsProductsLoading] = useState(true)');
-    expect(product).toContain('if (isProductsLoading)');
+    expect(product).toContain('if (isProductsLoading || isSaving)');
     expect(product).toContain('disabled={isProductsLoading}');
   });
 
@@ -215,7 +215,7 @@ describe("shared UI accessibility contract", () => {
     expect(members).toContain("角色變更中…");
     expect(members).toContain("min-h-11");
     expect(members).toContain("/role");
-    expect(workspace).toContain('const canUseWorkspace = role === "owner"');
-    expect(workspace).toContain("此角色的工作區功能將在對應批次開放");
+    expect(workspace).toContain('const canUseWorkspace = role === "owner" || role === "partner"');
+    expect(workspace).toContain("目前角色為 Helper（小幫手）；搶購任務功能將在對應批次開放。");
   });
 });

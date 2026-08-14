@@ -6,20 +6,21 @@ import { ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 const navigation = [
-  { href: "/workspace", label: "工作區 Workspace" },
-  { href: "/workspace/products", label: "商品 Products" },
-  { href: "/workspace/members", label: "會員 Members" },
-  { href: "/workspace/orders", label: "訂單 Orders" },
-  { href: "/workspace/payments", label: "付款 Payments" },
-  { href: "/workspace/content", label: "內容 Content" },
-  { href: "/workspace/audit-logs", label: "稽核紀錄 Audit Logs" },
+  { href: "/workspace", label: "工作區 Workspace", roles: ["owner", "partner"] },
+  { href: "/workspace/products", label: "商品 Products", roles: ["owner", "partner"] },
+  { href: "/workspace/catalog-reviews", label: "草稿審核 Catalog Reviews", roles: ["owner", "partner"] },
+  { href: "/workspace/members", label: "會員 Members", roles: ["owner"] },
+  { href: "/workspace/orders", label: "訂單 Orders", roles: ["owner"] },
+  { href: "/workspace/payments", label: "付款 Payments", roles: ["owner"] },
+  { href: "/workspace/content", label: "內容 Content", roles: ["owner"] },
+  { href: "/workspace/audit-logs", label: "稽核紀錄 Audit Logs", roles: ["owner"] },
 ];
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, status, signInWithGoogle } = useAuth();
-  const canUseWorkspace = role === "owner";
-  const visibleNavigation = navigation;
+  const canUseWorkspace = role === "owner" || role === "partner";
+  const visibleNavigation = navigation.filter((item) => item.roles.some((allowed) => allowed === role));
 
   if (status === "loading") {
     return (
@@ -38,8 +39,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">需要後台權限</h1>
           <p className="mt-3 text-sm leading-6 text-astera-secondary">
-            {status === "signedIn" && (role === "partner" || role === "helper")
-              ? `目前角色為 ${role === "partner" ? "Partner（合作人）" : "Helper（小幫手）"}；此角色的工作區功能將在對應批次開放。`
+            {status === "signedIn" && role === "helper"
+              ? "目前角色為 Helper（小幫手）；搶購任務功能將在對應批次開放。"
               : "請使用 Owner 帳號進入工作區。"}
           </p>
           {status === "signedOut" ? (
@@ -66,7 +67,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                 Astera OMS
               </p>
               <h1 className="mt-1 font-serif text-2xl tracking-tight text-astera-ink">
-                Owner 營運工作區
+                {role === "partner" ? "Partner 營運工作區" : "Owner 營運工作區"}
               </h1>
             </div>
             <div className="flex flex-wrap gap-2">

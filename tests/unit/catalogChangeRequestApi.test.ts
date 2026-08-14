@@ -9,6 +9,7 @@ const dependencies = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   review: vi.fn(),
+  listProducts: vi.fn(),
   saveProduct: vi.fn(),
 }));
 
@@ -24,14 +25,14 @@ vi.mock("@/lib/catalog-change/serverCatalogChangeRequests", () => ({
   reviewCatalogChangeRequestServer: dependencies.review,
 }));
 vi.mock("@/lib/product/serverCatalog", () => ({
-  listWorkspaceProductsServer: vi.fn(),
+  listWorkspaceProductsServer: dependencies.listProducts,
   saveWorkspaceProductServer: dependencies.saveProduct,
 }));
 
 import { GET, POST } from "@/app/api/workspace/catalog-change-requests/route";
 import { PATCH } from "@/app/api/workspace/catalog-change-requests/[id]/route";
 import { POST as reviewPost } from "@/app/api/workspace/catalog-change-requests/[id]/review/route";
-import { POST as formalProductPost } from "@/app/api/workspace/products/route";
+import { GET as formalProductGet, POST as formalProductPost } from "@/app/api/workspace/products/route";
 
 const requestBody = {
   title: "更新商品",
@@ -92,6 +93,15 @@ describe("catalog change request APIs", () => {
     }));
     expect(formal.status).toBe(403);
     expect(dependencies.saveProduct).not.toHaveBeenCalled();
+  });
+
+  it("allows Partner to read the formal catalog needed to compose a proposal", async () => {
+    dependencies.listProducts.mockResolvedValue([{ product: { id: "product-a" } }]);
+    const response = await formalProductGet(new Request("https://example.test", {
+      headers: { authorization: "Bearer token" },
+    }));
+    expect(response.status).toBe(200);
+    expect(dependencies.listProducts).toHaveBeenCalledWith({ marker: "db" });
   });
 
   it("lets a Partner revise through the creator-enforcing repository", async () => {

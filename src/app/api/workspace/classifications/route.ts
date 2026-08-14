@@ -11,12 +11,16 @@ import {
   type CatalogClassification,
 } from "@/lib/product/classifications";
 import type { ProductClassificationKey } from "@/lib/product/catalog";
+import { canAccessCatalogWorkspace, getRoleFromClaims } from "@/lib/member/rolePolicy";
 
 const classificationKeys = Object.keys(classificationCollections) as ProductClassificationKey[];
 
 export async function GET(request: Request) {
   try {
-    await requireOwner(request);
+    const claims = await requireFirebaseUser(request);
+    if (!canAccessCatalogWorkspace(getRoleFromClaims(claims))) {
+      throw new Error("forbidden");
+    }
     const db = getAdminFirestore();
     const entries = await Promise.all(
       classificationKeys.map(async (key) => {
