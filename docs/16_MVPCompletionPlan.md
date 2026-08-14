@@ -2338,3 +2338,13 @@ Preview deployment update:
   actionable payment items before latest and closing-soon products. Production
   smoke passed `/`, `/products`, `/terms`, `/privacy`, and
   `/products/prod_002` with HTTP 200.
+
+### 2026-08-14 Partner Product／Variant／Campaign 草稿審核
+
+- [x] 在隔離分支 `codex/partner-catalog-drafts` 完成 Partner 商品草稿工作流；本批只涵蓋 Product／Variant／Campaign，不擴張 Collection 架構、Checkout 或公開商品來源。
+- [x] 新增 `catalogChangeRequests` domain、Server repository 與受保護 API。Partner 只能建立或修正自己的草稿；Owner 可駁回或核准，核准後才呼叫既有 `saveWorkspaceProductServer` 套用正式商品與 `productsPublic`。
+- [x] Partner Workspace 只顯示工作區、商品與草稿審核；正式商品儲存仍為 Owner-only。Helper／Member 仍不可進入商品工作區。
+- [x] 修正駁回草稿重新載入時的非同步競態：正式商品讀取不得覆蓋正在修正的草稿。桌機與 Pixel 7 已涵蓋送審、駁回、修正、重送與核准。
+- [x] `catalogChangeRequests` 已在 Firestore Rules 明確 deny-all Client SDK；匿名、Member、Helper、Partner、Owner 的讀寫矩陣均通過。
+- [x] 驗證：TypeScript、ESLint、Build 通過；Unit 65 files／508 tests；Rules 2 files／34 tests；一般 Playwright 22 passed／46 預期 skips；完整 Emulator Playwright 57 passed／11 預期 project skips；secret scan 通過；Production dependency audit 0 vulnerabilities。
+- [ ] 尚未部署 Preview／Production，也未部署本批 Firestore Rules。下一精確批次為 Partner 分類／品牌內容草稿，或依已確認 rollout 開始 Rush Purchase contribution／Helper 分紅資料層；部署需另行決定。

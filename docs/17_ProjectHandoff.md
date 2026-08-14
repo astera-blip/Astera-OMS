@@ -2542,3 +2542,15 @@ domain, or change any other Firebase/Vercel setting.
   `/terms`, `/privacy`, and `/products/prod_002`.
 - No Firebase Rules, Collection model, Checkout logic, environment variable,
   domain, or Production data mutation was included in this homepage release.
+
+### 2026-08-14 Partner catalog draft batch
+
+- Branch/worktree: `codex/partner-catalog-drafts` at `C:\\Users\\ting1\\Documents\\代購網頁製作\\.worktrees\\partner-catalog-drafts`, based on `main` `9314449`.
+- Commits: `20b50b7` role/domain contract; `e3589bc` repository; `13bf933` protected APIs; `697141f` Workspace UI／E2E. Final Rules／documentation commit follows this entry.
+- Partner can read the formal catalog and classifications through protected GET APIs, then submit Product／Variant／Campaign changes with a title and reason. The formal Product POST, classification mutations, images, and direct publication remain Owner-only.
+- Owner can reject with a reason or approve once. Rejected drafts can only be revised by their creator; approval applies through the existing authoritative server catalog save path and records audit history. No Client SDK path can access the request Collection.
+- A real async race was found by Playwright: the formal catalog request could overwrite a rejected draft after session restoration, leaving a blank Campaign title. `editingDraftIdRef` now gives the draft priority until resubmission; desktop and Pixel 7 flows pass.
+- The new E2E originally polluted the shared `prod_e2e_flow` fixture after approval. It now snapshots and restores the internal product, public projection, variants, and campaigns in `finally`. Set `PLAYWRIGHT_TURBOPACK_ROOT` to the worktree path when running Next.js from nested Windows worktrees, otherwise stale／outer routes can produce false 404 results.
+- Final evidence: TypeScript pass; ESLint pass; Unit 65 files／508 tests; Firestore＋Storage Rules 2 files／34 tests; Build 45 routes; regular Playwright 22 passed／46 intentional Emulator-only skips; full Emulator Playwright 57 passed／11 intentional project skips; secret scan pass; production audit 0 vulnerabilities.
+- Deployment state: local only. GitHub, Vercel Preview／Production, and Production Firestore Rules were not changed in this batch.
+- Exact next executable batch: extend the same immutable request pattern to Partner classification／brand-content drafts, or begin Rush Purchase contribution and Helper bonus records from the confirmed role design. Do not expose Partner payment／refund, member private notes, role assignment, or unrestricted Audit Log access.

@@ -54,6 +54,14 @@ Partner 可查看及處理被授權的商品、Campaign、訂單、採購、到�
 
 Helper 只看到任務編號、商品、規格、數量、期限及遮罩後識別資訊。Helper 可以回報搶購結果、數量、金額及附件，也可以查看自己的任務分紅、計算方式、狀態及發放紀錄，但不可查看其他人的分潤、完整會員資料、付款資料或公司完整成本。
 
+### 2.4 Partner 商品草稿審核（已實作）
+
+- Partner 可讀取正式 Product／Variant／Campaign 與分類主檔，作為建立變更草稿的基礎；不可直接寫入正式商品或分類。
+- Partner 每次送審必須填寫草稿標題與變更原因。草稿只寫入 `catalogChangeRequests`，核准前不得更新 `productsInternal`、`productVariants`、`saleCampaigns` 或 `productsPublic`。
+- Owner 可駁回並填寫原因；建立者可載入被駁回草稿、修正後提高 revision 再次送審。Partner 不可修改其他 Partner 的草稿。
+- Owner 核准時才透過既有 Server 商品交易套用正式資料、SKU 與公開 projection；重複核准必須保持冪等，並建立 Audit Log。
+- `catalogChangeRequests` 對匿名、Member、Helper、Partner、Owner 的 Client SDK 均拒絕讀寫；畫面只透過驗證 Firebase ID token 與 custom claim 的 Server API 存取。
+
 ## 3. 訪客、會員與公開內容
 
 訪客的產品權限只有：
@@ -226,7 +234,7 @@ Owner 使用 Firebase custom claim `role: owner`；Server 重新驗證價格、C
 
 ### 已完成／現況
 
-目前程式已涵蓋 Google Login、Profile、Owner Product／Variant／Campaign／分類、SKU、公開 projection、Cart、Campaign 拆單 Checkout、ConsentRecord、未付款取消、基本 Payment、取消申請、通知事件、內容及基礎 Audit／Rules。
+目前程式已涵蓋 Google Login、Profile、Owner Product／Variant／Campaign／分類、Partner Product／Variant／Campaign 草稿送審與 Owner 核准、SKU、公開 projection、Cart、Campaign 拆單 Checkout、ConsentRecord、未付款取消、基本 Payment、取消申請、通知事件、內容及基礎 Audit／Rules。
 
 ### 首次正式上線 MVP
 
@@ -244,7 +252,7 @@ Member Dashboard、搜尋篩選排序、收藏、搶購、候補、Guest Order�
 
 ## 17. 待確認與外部依賴
 
-- Partner 完整權限矩陣及可查看的敏感資料範圍。
+- Partner 分類／品牌內容草稿、訂單營運與敏感資料的後續分批權限範圍；正式商品草稿權限已確認並完成。
 - 搶購、候補及庫存鎖定的所有例外規則。
 - 會員餘額特殊提領例外、少匯門檻及個資保存期限。
 - 台灣配送方式實際啟用項目及費用。

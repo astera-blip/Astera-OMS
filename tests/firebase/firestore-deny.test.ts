@@ -271,6 +271,32 @@ describe("Day 1 Firestore rules", () => {
     }
   });
 
+  it("denies every Client SDK role from catalog change requests", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "catalogChangeRequests/request-a"), {
+        id: "request-a",
+        createdBy: "partner-a",
+        status: "submitted",
+        title: "Partner 商品草稿",
+      });
+    });
+
+    const contexts = [
+      testEnv.unauthenticatedContext().firestore(),
+      testEnv.authenticatedContext("member-a", { role: "member" }).firestore(),
+      testEnv.authenticatedContext("helper-a", { role: "helper" }).firestore(),
+      testEnv.authenticatedContext("partner-a", { role: "partner" }).firestore(),
+      testEnv.authenticatedContext("owner-a", { role: "owner" }).firestore(),
+    ];
+
+    for (const db of contexts) {
+      await assertFails(getDoc(doc(db, "catalogChangeRequests/request-a")));
+      await assertFails(setDoc(doc(db, "catalogChangeRequests/request-b"), {
+        status: "submitted",
+      }));
+    }
+  });
+
   it("denies the full Client SDK role by read/write matrix for protected refund collections", async () => {
     const collections = [
       "cancellationRequests",

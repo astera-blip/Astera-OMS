@@ -56,7 +56,7 @@ test("helper mobile session cannot enter the workspace before its feature batch"
 
   await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
   await expect(page.getByText(
-    "目前角色為 Helper（小幫手）；此角色的工作區功能將在對應批次開放。",
+    "目前角色為 Helper（小幫手）；搶購任務功能將在對應批次開放。",
   )).toBeVisible();
   await expect(page.getByRole("link", { name: "商品 Products" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "訂單 Orders" })).toHaveCount(0);

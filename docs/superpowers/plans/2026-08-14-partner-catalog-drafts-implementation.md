@@ -148,23 +148,25 @@
 - Client SDK reads/writes to `catalogChangeRequests` are denied for every role.
 - Server Admin SDK remains the only data path.
 
-- [ ] **Step 1: Add failing Rules tests for the new Collection**
+- [x] **Step 1: Add Rules coverage for the new Collection**
 
-  Assert anonymous, Member, Helper, Partner, and Owner Client SDK read/write denial.
+  Assert anonymous, Member, Helper, Partner, and Owner Client SDK read/write denial. The
+  existing catch-all already denied this new Collection, so this was a characterization
+  test rather than a new RED behavior.
 
-- [ ] **Step 2: Add the explicit deny rule and verify GREEN**
+- [x] **Step 2: Add the explicit deny rule and verify GREEN**
 
   Run: `npm run firebase:rules:test`.
 
-- [ ] **Step 3: Run the complete local release gate**
+- [x] **Step 3: Run the complete local release gate**
 
   Run TypeScript, ESLint, Unit, Firestore／Storage Rules, Build, regular Playwright, Emulator Playwright, secret scan, and production dependency audit.
 
-- [ ] **Step 4: Update execution and handoff documents**
+- [x] **Step 4: Update execution and handoff documents**
 
   Record exact files, red／green evidence, test counts, commit IDs, deployment state, and the next precise batch: classification／content drafts or rush-purchase contributions.
 
-- [ ] **Step 5: Commit the reviewed batch**
+- [x] **Step 5: Commit the reviewed batch**
 
   Keep the branch isolated until all gates are green and a deployment decision is made.
 
