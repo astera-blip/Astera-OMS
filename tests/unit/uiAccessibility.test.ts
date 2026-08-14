@@ -193,4 +193,16 @@ describe("shared UI accessibility contract", () => {
     expect(footer).not.toContain("：暫不提供");
     expect(footer).not.toContain("instagram\"] as const");
   });
+
+  it("announces a one-time role change with an accessible touch target", () => {
+    const notice = read("src/components/auth/RoleChangeNotice.tsx");
+    const layout = read("src/app/layout.tsx");
+
+    expect(notice).toContain('role="status"');
+    expect(notice).toContain('aria-live="polite"');
+    expect(notice).toContain("min-h-11");
+    expect(notice).toContain("/api/member/role-notifications");
+    expect(notice).toContain("user.getIdToken()");
+    expect(layout).toContain("RoleChangeNotice");
+  });
 });

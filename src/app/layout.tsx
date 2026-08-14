@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { RoleChangeNotice } from "@/components/auth/RoleChangeNotice";
 import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
 import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
 import { RouteFocusManager } from "@/components/accessibility/RouteFocusManager";
@@ -22,6 +23,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="flex min-h-dvh flex-col">
             <StorefrontHeader />
+            <RoleChangeNotice />
             <RouteFocusManager>{children}</RouteFocusManager>
             <StorefrontFooter />
           </div>
