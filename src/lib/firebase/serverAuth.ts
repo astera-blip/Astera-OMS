@@ -1,16 +1,6 @@
 import "server-only";
-
-type IdentityToolkitUser = {
-  localId?: string;
-  email?: string;
-  displayName?: string;
-  customAttributes?: string;
-};
-
-type AccountsLookupResponse = {
-  users?: IdentityToolkitUser[];
-  error?: unknown;
-};
+import { getAdminAuth } from "@/lib/firebase/adminAuth";
+import { isRoleKey } from "@/lib/member/rolePolicy";
 
 export type FirebaseUserClaims = Record<string, unknown> & {
   uid: string;
@@ -18,71 +8,22 @@ export type FirebaseUserClaims = Record<string, unknown> & {
   name?: string;
 };
 
-function getFirebaseApiKey() {
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("firebase_api_key_not_configured");
-  }
-
-  return apiKey;
-}
-
-function getAccountsLookupUrl() {
-  const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-
-  if (emulatorHost) {
-    return `http://${emulatorHost}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(getFirebaseApiKey())}`;
-  }
-
-  return `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(getFirebaseApiKey())}`;
-}
-
-function parseCustomClaims(customAttributes: string | undefined) {
-  if (!customAttributes) {
-    return {};
-  }
-
+async function verifyFirebaseIdToken(idToken: string): Promise<FirebaseUserClaims> {
   try {
-    const parsed = JSON.parse(customAttributes) as unknown;
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
+    const decodedToken = await getAdminAuth().verifyIdToken(idToken, true);
+    if (!decodedToken.uid) {
+      throw new Error("invalid_token");
     }
 
-    return parsed as Record<string, unknown>;
+    return {
+      uid: decodedToken.uid,
+      ...(typeof decodedToken.email === "string" ? { email: decodedToken.email } : {}),
+      ...(typeof decodedToken.name === "string" ? { name: decodedToken.name } : {}),
+      ...(isRoleKey(decodedToken.role) ? { role: decodedToken.role } : {}),
+    };
   } catch {
-    return {};
-  }
-}
-
-async function verifyFirebaseIdToken(idToken: string): Promise<FirebaseUserClaims> {
-  const response = await fetch(getAccountsLookupUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ idToken }),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
     throw new Error("invalid_token");
   }
-
-  const payload = await response.json() as AccountsLookupResponse;
-  const user = payload.users?.[0];
-
-  if (!user?.localId) {
-    throw new Error("invalid_token");
-  }
-
-  return {
-    ...parseCustomClaims(user.customAttributes),
-    uid: user.localId,
-    ...(user.email ? { email: user.email } : {}),
-    ...(user.displayName ? { name: user.displayName } : {}),
-  };
 }
 
 export async function requireFirebaseUser(request: Request) {

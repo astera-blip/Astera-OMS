@@ -20,12 +20,15 @@ describe("Next server runtime config", () => {
     );
   });
 
-  test("does not load firebase-admin auth from the shared Admin SDK module", () => {
+  test("isolates firebase-admin auth in the dedicated server adapter", () => {
     const adminSource = readFileSync("src/lib/firebase/admin.ts", "utf8");
+    const adminAuthSource = readFileSync("src/lib/firebase/adminAuth.ts", "utf8");
     const serverAuthSource = readFileSync("src/lib/firebase/serverAuth.ts", "utf8");
 
     expect(adminSource).not.toContain("firebase-admin/auth");
+    expect(adminAuthSource).toContain("firebase-admin/auth");
     expect(serverAuthSource).not.toContain("firebase-admin/auth");
+    expect(serverAuthSource).toContain("@/lib/firebase/adminAuth");
   });
 
   test("uses Firebase Admin-compatible Application Default Credentials for Vercel OIDC", () => {
