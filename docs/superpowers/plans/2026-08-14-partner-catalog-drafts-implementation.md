@@ -57,19 +57,19 @@
 - Produces: `listCatalogChangeRequestsServer`, `createCatalogChangeRequestServer`, `updateOwnCatalogChangeRequestServer`, `reviewCatalogChangeRequestServer`.
 - Consumes: `saveWorkspaceProductServer`, Firestore transaction/batch interfaces, catalog domain validators.
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
   Cover Partner creation, all-Partner listing, own-draft update, cross-Partner denial, submitted／approved immutability, Owner rejection with reason, Owner approval applying the formal product exactly once, and replay safety.
 
-- [ ] **Step 2: Run focused repository tests and verify RED**
+- [x] **Step 2: Run focused repository tests and verify RED**
 
   Run: `npm run test:unit -- tests/unit/catalogChangeRequestRepository.test.ts`
 
-- [ ] **Step 3: Implement the minimal repository**
+- [x] **Step 3: Implement the minimal repository**
 
   Use generated request IDs, server timestamps, SHA-256 payload digests, transactions for request state, and append-only `auditLogs`. Approval invokes the existing server catalog save path only after claiming the submitted request for review; a failed apply restores a reviewable state without publishing partial draft data.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
   Run the same focused command and require zero failures.
 
