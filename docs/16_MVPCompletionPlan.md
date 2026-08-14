@@ -2326,5 +2326,15 @@ Preview deployment update:
   regular Playwright 22 passed／44 expected Emulator-only skips; full Emulator
   Playwright 55 passed／11 intentional project skips; secret scan pass; production
   dependency audit 0 vulnerabilities.
-- [ ] Push the reviewed integration to GitHub, deploy Preview, verify guest/member
-  homepage behavior, then deploy Production and run production smoke.
+- [x] Fast-forward the reviewed integration to `main` and push GitHub at `0b81cd1`.
+  Vercel Preview `dpl_2vVMrLwHr1HqRncWp8rgLAJaW1jE` reached Ready at
+  `https://astera-6gd2psiv9-astera-oms.vercel.app`.
+- [x] Verify the hydrated Preview guest homepage: public Header, Google member
+  login, three-step purchase flow, closing-soon area, and latest real
+  `productsPublic` product all render; the removed legacy workflow／supplement／FAQ
+  homepage sections do not return.
+- [x] Git-integrated Production `dpl_Gfx2vDL85fqkNXQECT6LUxrVSQNR` reached Ready
+  and owns `https://astera-oms.vercel.app`. The hydrated signed-in homepage shows
+  actionable payment items before latest and closing-soon products. Production
+  smoke passed `/`, `/products`, `/terms`, `/privacy`, and
+  `/products/prod_002` with HTTP 200.

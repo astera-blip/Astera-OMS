@@ -2525,3 +2525,20 @@ domain, or change any other Firebase/Vercel setting.
 - Exact next step: commit the reviewed fixes, merge the branch into `main`, push
   GitHub, deploy and verify Preview, then deploy Production
   and execute production smoke against `https://astera-oms.vercel.app`.
+
+### 2026-08-14 Homepage integration release result
+
+- `codex/homepage-main-integration` was fast-forwarded into `main`; GitHub `main`
+  now contains merge `5f88727` and review fix `0b81cd1`.
+- Preview `dpl_2vVMrLwHr1HqRncWp8rgLAJaW1jE` is Ready at
+  `https://astera-6gd2psiv9-astera-oms.vercel.app`. Browser hydration confirmed the
+  approved guest Header, login card, purchase steps, closing-soon and latest-product
+  sections using the live public product projection.
+- Git-integrated Production `dpl_Gfx2vDL85fqkNXQECT6LUxrVSQNR` is Ready and is the
+  deployment behind `https://astera-oms.vercel.app`. Browser hydration confirmed
+  the signed-in member hierarchy: outstanding actions first, latest products
+  second, closing-soon products third.
+- Read-only Production smoke passed five routes with HTTP 200: `/`, `/products`,
+  `/terms`, `/privacy`, and `/products/prod_002`.
+- No Firebase Rules, Collection model, Checkout logic, environment variable,
+  domain, or Production data mutation was included in this homepage release.
