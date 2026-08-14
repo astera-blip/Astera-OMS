@@ -89,19 +89,19 @@
 - `POST /api/workspace/catalog-change-requests/:id/review`: Owner `approve | reject` with reason.
 - Existing formal Product POST remains Owner-only.
 
-- [ ] **Step 1: Write failing API authorization and response tests**
+- [x] **Step 1: Write failing API authorization and response tests**
 
   Assert missing token 401, Helper／Member 403, Partner formal Product POST 403, Partner draft creation 201, cross-Partner edit 403, Owner approve/reject success, and safe 4xx error mapping.
 
-- [ ] **Step 2: Run focused API tests and verify RED**
+- [x] **Step 2: Run focused API tests and verify RED**
 
   Run: `npm run test:unit -- tests/unit/catalogChangeRequestApi.test.ts`
 
-- [ ] **Step 3: Implement the route handlers**
+- [x] **Step 3: Implement the route handlers**
 
   Read role only from verified claims, accept only intent fields, return sanitized request view models, and never return internal stack/error details.
 
-- [ ] **Step 4: Run focused API tests and verify GREEN**
+- [x] **Step 4: Run focused API tests and verify GREEN**
 
   Run the same focused command and require zero failures.
 
