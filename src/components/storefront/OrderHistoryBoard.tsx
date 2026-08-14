@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { OrderBundle } from "@/lib/order/checkout";
 import { orderStatusLabel, shippingMethodLabel } from "@/lib/storefront/customerLabels";
+import { getOrderAction } from "@/lib/storefront/orderActions";
 
 export function OrderHistoryBoard() {
   const { user } = useAuth();
@@ -95,6 +96,10 @@ export function OrderHistoryBoard() {
                   查看詳情
                 </Link>
               </div>
+            </div>
+            <div className="mt-4 rounded-xl border border-astera-border bg-astera-page p-3 text-sm">
+              <p className="font-semibold text-astera-service">{getOrderAction(bundle.order, null).title}</p>
+              <p className="mt-1 text-astera-secondary">{getOrderAction(bundle.order, null).description}</p>
             </div>
             <div className="mt-4 grid gap-3 text-sm">
               {bundle.items.map((item) => (

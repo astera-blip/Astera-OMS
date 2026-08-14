@@ -2251,3 +2251,76 @@ Preview deployment update:
 - [ ] Vercel still builds with Node 24.15.0 while `package.json` requests
   `>=24.18.0 <25`; the warning does not fail the build but remains a release
   configuration follow-up. The next functional batch is Partner catalog drafts.
+
+### 2026-08-12 Storefront product, order, and navigation refinement
+
+- [x] Create the isolated `codex/storefront-product-order` worktree and implement
+  the approved mobile Header (fixed ASTERA／cart／menu; vertical menu below Header),
+  a dismissible Header cart drawer, responsive public Product cards, Product image
+  gallery controls, separated cart／checkout presentation, and clear Order action
+  cards.
+- [x] Preserve all existing Firebase, `productsPublic`, Cart API, Checkout, pricing,
+  Rules, and Order business logic. No Collection or Rule change was made.
+- [x] Add regression coverage for responsive navigation／cart drawer, guest checkout
+  presentation, and order-action payment-request selection.
+- [x] Fix two release-relevant regressions found during verification: the cart drawer
+  now safely degrades when public Firebase configuration is unavailable, and the
+  `/payments` query-driven preselection is wrapped in the required Next.js Suspense
+  boundary for production static builds.
+- [x] Verification: TypeScript; ESLint; Unit 57 files／457 tests; Firestore＋Storage
+  Rules 2 files／32 tests; Build 42 routes; focused public navigation E2E 4/4;
+  public smoke 14 passed／2 expected Emulator-only skips; and Emulator homepage E2E
+  10/10 (390px／768px／1365px plus signed-in cart continuation).
+- [x] Re-run the complete regular Playwright suite on a fresh isolated server after
+  confirming no stale listener remained: 24 passed／38 expected Emulator-only skips.
+  The earlier 404 sequence was caused by a timed-out development server being reused,
+  not by application routing.
+- [x] Push `codex/storefront-product-order` to GitHub through `44138b4`. Vercel
+  automatically built Preview `dpl_7BsLuhmHK8zFZteMHKHPY3dk4FK3` and reported
+  `Ready`. The stable branch alias is protected by Vercel SSO, so anonymous requests
+  correctly redirect to Vercel login; authenticated read-only checks returned HTTP
+  200 for `/`, `/products`, `/terms`, `/privacy`, and `/products/prod_002`.
+- [ ] Production remains unchanged. Merge／Production deployment requires a separate
+  explicit decision after manual Preview acceptance.
+
+### 2026-08-12 Approved guest／member homepage correction
+
+- [x] Identify why the Preview did not match the approved homepage: the branch had
+  navigation／product refinements but `src/app/page.tsx` still rendered the earlier
+  ASTERA SELECT hero, four-step guide, supplement, and FAQ hierarchy.
+- [x] Replace the real `/` homepage with the approved auth-aware experience. Guests
+  now see the member-login card, three-step purchasing card, and side-by-side
+  closing-soon／latest product groups. Signed-in members see actionable payment
+  items first, then latest and closing-soon products. No alternate mock route was
+  created.
+- [x] Preserve Firebase Auth, Profile guard, `productsPublic`, Cart API, pending
+  guest cart intent, Server price／Campaign validation, Checkout, Collections, and
+  Rules. Guest Header cart is hidden by design; signed-in members retain the cart
+  drawer, orders, profile, and custom-claim Owner workspace link.
+- [x] TDD evidence: the new latest／closing-soon ranking tests first failed because
+  both functions were absent, then the complete Unit suite passed at 57 files／459
+  tests. TypeScript, ESLint, Rules 2 files／32 tests, Build 42 routes, secret scan,
+  and production dependency audit (0 vulnerabilities) passed.
+- [x] Browser evidence: regular Playwright 22 passed／42 expected Emulator-only
+  skips; complete Auth／Firestore／Storage Emulator Playwright 54 passed／10 expected
+  skips. The suite covers 390px, 768px, 1365px, signed-in member ordering, guest
+  cart-intent continuation, Header states, desktop, and Pixel 7.
+- [ ] Push and Vercel Preview deployment are the next release step. Production is
+  unchanged and still requires separate explicit authorization.
+
+### 2026-08-14 Approved homepage integration into current main
+
+- [x] Confirm the missing homepage lived at `c9dfc49` and required the seven
+  preceding storefront commits after `dca4eaf`; integrating only the final commit
+  would omit the mobile navigation and Header cart dependencies.
+- [x] Merge the complete storefront dependency range into an isolated branch based
+  on `main` `5890948`. Preserve the newer role-assignment work and combine both
+  execution/handoff histories. No Collection, Checkout rule, or Firebase Rule was
+  changed.
+- [x] Verification on the integrated tree: TypeScript pass; ESLint pass; Unit
+  61 files／489 tests; Firestore＋Storage Rules 2 files／33 tests; Build 43 routes;
+  regular Playwright 22 passed／44 expected Emulator-only skips; full Emulator
+  Playwright 55 passed／11 intentional project skips; secret scan pass; production
+  dependency audit 0 vulnerabilities.
+- [ ] Push the reviewed integration to GitHub, deploy Preview, verify guest/member
+  homepage behavior, then deploy Production and run production smoke.

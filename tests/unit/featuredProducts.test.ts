@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCampaignDeadline,
+  rankClosingSoonProducts,
   rankFeaturedProducts,
+  rankLatestProducts,
   saleTypeCustomerLabels,
 } from "@/lib/catalog/featuredProducts";
 import type { PublicCatalogItem } from "@/lib/catalog/publicCatalog";
@@ -62,6 +64,32 @@ describe("featured products", () => {
     archivedOnly.campaigns[0]!.status = "archived";
 
     expect(rankFeaturedProducts([archivedOnly])).toEqual([]);
+  });
+
+  it("ranks latest products by the public product update time", () => {
+    const ranked = rankLatestProducts([
+      item("older", "preorder", "2030-08-20T00:00:00.000Z", "2026-07-01T00:00:00.000Z"),
+      item("newest", "inStock", "2030-08-30T00:00:00.000Z", "2026-08-11T00:00:00.000Z"),
+      item("middle", "rushPurchase", "2030-08-10T00:00:00.000Z", "2026-08-01T00:00:00.000Z"),
+    ]);
+
+    expect(ranked.map((entry) => entry.product.id)).toEqual(["newest", "middle", "older"]);
+  });
+
+  it("ranks only open future campaigns by the nearest closing time", () => {
+    const now = new Date("2026-08-12T00:00:00.000Z");
+    const alreadyClosed = item("closed", "preorder", "2026-08-11T00:00:00.000Z", "2026-08-01");
+    const upcoming = item("upcoming", "preorder", "2026-08-13T00:00:00.000Z", "2026-08-01");
+    upcoming.campaigns[0]!.status = "upcoming";
+
+    const ranked = rankClosingSoonProducts([
+      item("later", "preorder", "2026-08-20T00:00:00.000Z", "2026-08-01"),
+      alreadyClosed,
+      item("sooner", "preorder", "2026-08-13T00:00:00.000Z", "2026-08-01"),
+      upcoming,
+    ], now);
+
+    expect(ranked.map((entry) => entry.product.id)).toEqual(["sooner", "later"]);
   });
 
   it("uses customer-facing sale type labels", () => {

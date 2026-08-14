@@ -187,6 +187,7 @@ export default async function globalSetup() {
           status: "open",
           salePriceTwd: 640,
           requiresSupplement: true,
+          endsAt: "2030-08-20T15:59:00.000Z",
         },
         {
           id: "camp_e2e_flow_rush",
@@ -196,6 +197,7 @@ export default async function globalSetup() {
           status: "open",
           salePriceTwd: 750,
           requiresSupplement: true,
+          endsAt: "2030-08-15T15:59:00.000Z",
         },
       ],
       updatedAt: new Date(),

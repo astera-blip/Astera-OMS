@@ -21,7 +21,9 @@ const nextConfig: NextConfig = {
     };
   },
   turbopack: {
-    root: process.cwd(),
+    // Playwright worktrees can set this to their shared repository root so
+    // Turbopack may resolve the existing dependency directory safely.
+    root: process.env.NEXT_TURBOPACK_ROOT ?? process.cwd(),
   },
 };
 

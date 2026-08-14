@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { LocalPaymentRequest, MemberPaymentSummary } from "@/lib/payment/manualBankTransfer";
 import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
@@ -9,9 +10,11 @@ import {
   type PublicMemberPaymentAccount,
 } from "@/lib/payment/memberBankAccounts";
 import { paymentRequestStatusLabel, paymentStatusLabel } from "@/lib/storefront/customerLabels";
+import { resolvePreselectedRequestIds } from "@/lib/storefront/orderActions";
 
 export function PaymentRequestsBoard() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
   const [payments, setPayments] = useState<MemberPaymentSummary[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PublicPaymentAccount[]>([]);
@@ -77,15 +80,21 @@ export function PaymentRequestsBoard() {
       setSelectedPaymentAccountId(nextAccounts[0]?.id ?? "");
       setMemberPaymentAccounts(nextMemberAccounts);
       setSelectedMemberPaymentAccountId(nextMemberAccounts[0]?.id ?? "");
+      const requestedId = searchParams.get("paymentRequestId");
+      const preselectedIds = resolvePreselectedRequestIds(nextRequests, requestedId);
       const firstRequest = nextRequests.find((request) => request.status !== "paid" && request.status !== "cancelled");
-      setSelectedRequestIds(firstRequest ? [firstRequest.id] : []);
-      setAmount(firstRequest ? String(firstRequest.amountTwd - (firstRequest.allocatedAmountTwd ?? 0)) : "");
+      const nextSelectedIds = preselectedIds.length > 0 ? preselectedIds : firstRequest ? [firstRequest.id] : [];
+      setSelectedRequestIds(nextSelectedIds);
+      const nextTotal = nextRequests
+        .filter((request) => nextSelectedIds.includes(request.id))
+        .reduce((total, request) => total + request.amountTwd - (request.allocatedAmountTwd ?? 0), 0);
+      setAmount(nextTotal > 0 ? String(nextTotal) : "");
       setStatus("ready");
     } catch {
       setRequests([]);
       setStatus("error");
     }
-  }, [user]);
+  }, [searchParams, user]);
 
   useEffect(() => {
     queueMicrotask(() => {

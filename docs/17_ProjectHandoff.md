@@ -2436,3 +2436,88 @@ domain, or change any other Firebase/Vercel setting.
   engine range begins at 24.18.0. Build and TypeScript passed, but align the Vercel
   patch version when the platform exposes that control. Next functional batch:
   Partner catalog drafts.
+
+### 2026-08-12 Storefront navigation／product／order refinement (local branch)
+
+- Branch/worktree: `codex/storefront-product-order` at
+  `C:\\Users\\ting1\\Documents\\代購網頁製作\\.worktrees\\codex-storefront-product-order`.
+- Implemented approved UI behavior: compact mobile Header and expanding vertical
+  member menu; Header cart summary drawer; public 2-column mobile／4-column desktop
+  Product grid; simplified Product detail with image gallery controls; `/cart` as
+  review then `/checkout` as the only recipient／consent confirmation step; and
+  status-first Order cards with direct Payment Report entry when applicable.
+- Server trust boundaries and financial behavior were not changed. The cart drawer
+  only reads public catalog/cart information and safely keeps navigation available
+  when its catalog read cannot initialize.
+- Build correction: `/payments` uses `useSearchParams()` for a preselected payment
+  request, so `src/app/payments/page.tsx` now supplies the required local Suspense
+  boundary. This removes the Next.js 16 production prerender failure.
+- Test runner correction: `playwright.config.ts` supports explicit
+  `PLAYWRIGHT_PORT`, `PLAYWRIGHT_TURBOPACK_ROOT`, and `PLAYWRIGHT_WORKERS` values
+  to isolate a Windows Git worktree from an unrelated active local server. Do not
+  use the root `localhost:3000` server as proof of this branch.
+- Verified locally: TypeScript pass; ESLint pass; Unit 57 files／457 tests; Rules
+  2 files／32 tests; Build 42 routes; secret scan pass; production dependency audit
+  0 vulnerabilities; focused navigation E2E 4/4; public smoke 14 passed／2 expected
+  skips; Emulator homepage E2E 10/10.
+- Complete regular Playwright was repeated on a fresh isolated port after verifying
+  no stale listener remained: 24 passed／38 expected Emulator-only skips. The prior
+  404 sequence came from reusing a timed-out development server, not an application
+  route defect. Emulator homepage acceptance remains 10/10.
+- GitHub push completed for `codex/storefront-product-order` through `44138b4`.
+  Vercel Preview `dpl_7BsLuhmHK8zFZteMHKHPY3dk4FK3` reached Ready at
+  `https://astera-5x6239vce-astera-oms.vercel.app`; stable branch alias:
+  `https://astera-oms-git-codex-storefront-product-order-astera-oms.vercel.app`.
+  Deployment Protection redirects anonymous traffic to Vercel SSO. Authenticated
+  Vercel checks returned 200 for the homepage, product list, terms, privacy, and
+  `prod_002` detail. No Production deployment or alias change was performed.
+
+### 2026-08-12 Real homepage state correction
+
+- Root cause of the reported Preview mismatch: the approved document
+  `docs/superpowers/specs/2026-08-12-home-states-design.md` existed, but the actual
+  branch still used the older `src/app/page.tsx`. This was a delivery-scope error,
+  not a Vercel cache problem.
+- `src/app/page.tsx` now renders `HomeExperience`. The new client boundary uses the
+  existing `AuthProvider` to select the guest or member hierarchy without creating
+  a second homepage.
+- Guest order: login card → three purchasing steps → `正在販售` with independent
+  `即將結單` and `最新商品` cards → existing Footer. The old hero service summary,
+  supplement card, FAQ card, and forced bottom whitespace are absent.
+- Member order: `需要你處理` → `最新商品` → `即將結單`. Member actions are real
+  own-member open／partially-paid PaymentRequests only, maximum three, ordered by
+  due time; no action data is fabricated. The empty state remains visible.
+- Homepage products continue to read only `productsPublic`. Latest products rank by
+  public update time; closing-soon products require an open future Campaign and
+  rank by deadline. Images remain fixed 4:5 with the existing fallback. Guest
+  product clicks preserve the existing Google-login cart intent and revalidate it
+  after profile completion.
+- Header behavior now matches the approved state contract: guest navigation uses
+  plain `會員登入` and no cart; signed-in users retain cart, orders, account, and
+  custom-claim Owner workspace access. No Email-based role check was introduced.
+- Final local evidence: TypeScript pass; ESLint pass; Unit 57 files／459 tests;
+  Firestore＋Storage Rules 2 files／32 tests; Build 42 routes; regular Playwright
+  22 passed／42 expected skips; full Emulator Playwright 54 passed／10 expected
+  skips; secret scan pass; production audit 0 vulnerabilities.
+- Exact next step: commit and push the branch, wait for the Vercel Preview to reach
+  Ready, then inspect the authenticated Preview `/` at desktop and mobile widths.
+  Do not deploy Production without a new explicit authorization.
+
+### 2026-08-14 Homepage integration handoff
+
+- Root cause confirmed: Production was current for `main` `5890948`, but the
+  approved auth-aware homepage commit `c9dfc49` and its seven storefront prerequisite
+  commits were only on `codex/storefront-product-order`.
+- Integration branch/worktree: `codex/homepage-main-integration` at
+  `C:\\Users\\ting1\\Documents\\代購網頁製作\\.worktrees\\homepage-main-integration`.
+- A dependency-aware merge was used instead of cherry-picking only `c9dfc49`.
+  Conflicts were limited to Playwright configuration and the two project logs;
+  the resolution retains current role-assignment changes plus the storefront
+  worktree isolation settings and both historical records.
+- Fresh integrated verification: TypeScript pass; ESLint pass; Unit 61 files／489
+  tests; Rules 2 files／33 tests; Build 43 routes; regular Playwright 22 passed／44
+  expected skips; Emulator Playwright 55 passed／11 intentional skips; secret scan
+  pass; production audit 0 vulnerabilities.
+- Exact next step: complete independent diff review, create the integration commit,
+  merge it into `main`, push GitHub, deploy and verify Preview, then deploy Production
+  and execute production smoke against `https://astera-oms.vercel.app`.

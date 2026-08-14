@@ -19,6 +19,9 @@ describe("member payment report board", () => {
     expect(source).toContain('fetch("/api/payments"');
     expect(source).toContain("我的付款回報");
     expect(source).toContain("paymentStatusLabel(payment.status)");
+    expect(source).toContain("useSearchParams");
+    expect(source).toContain("resolvePreselectedRequestIds");
+    expect(source).toContain('searchParams.get("paymentRequestId")');
   });
 
   it("provides the confirmed Chinese status vocabulary", () => {
