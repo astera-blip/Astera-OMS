@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { getAdminAuth } from "@/lib/firebase/adminAuth";
 import { isOwnerClaim, requireFirebaseUser } from "@/lib/firebase/serverAuth";
 import { groupDuplicatePhones } from "@/lib/member/duplicatePhones";
+import { getRoleFromClaims } from "@/lib/member/rolePolicy";
 import type { MemberPrivateNote } from "@/lib/member/operationsRepository";
 import type { StoredMemberProfile } from "@/lib/member/repository";
 
@@ -27,6 +29,19 @@ export async function GET(request: Request) {
         ...(data.birthday ? { birthday: data.birthday } : {}),
       };
     });
+    const roleByUid = new Map<string, ReturnType<typeof getRoleFromClaims>>();
+    const auth = getAdminAuth();
+    for (let index = 0; index < members.length; index += 100) {
+      const batch = members.slice(index, index + 100);
+      const result = await auth.getUsers(batch.map((member) => ({ uid: member.uid })));
+      result.users.forEach((user) => {
+        roleByUid.set(user.uid, getRoleFromClaims(user.customClaims ?? {}));
+      });
+    }
+    const membersWithRoles = members.map((member) => ({
+      ...member,
+      role: roleByUid.get(member.uid) ?? "member",
+    }));
     const privateNotes = notesSnapshot.docs.map((document) => {
       const data = document.data() as MemberPrivateNote;
       return {
@@ -36,9 +51,9 @@ export async function GET(request: Request) {
       } satisfies MemberPrivateNote;
     });
     return NextResponse.json({
-      members,
+      members: membersWithRoles,
       privateNotes,
-      duplicatePhoneGroups: groupDuplicatePhones(members),
+      duplicatePhoneGroups: groupDuplicatePhones(membersWithRoles),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown_error";
