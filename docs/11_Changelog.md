@@ -250,3 +250,10 @@
   zero unique matches. No real transaction was selected or recognized.
 - This is an Owner UI／summary-contract change only; matching criteria, Payment
   confirmation, Order state, Audit Logs, Collections, and Rules are unchanged.
+
+### 2026-08-15 reconciliation integration
+
+- Integrated the Taishin batch-reconciliation commits onto current `main` without merging the obsolete storefront branch wholesale.
+- Preserved the current Partner catalog draft workflow, member role management, and approved guest／member homepage.
+- Consolidated single-payment and Excel batch confirmation through the same Server transaction helper, while retaining Owner-only authorization and immutable duplicate-transaction claims.
+- No Collection redesign, Checkout change, Firebase Rules change, Production data mutation, GitHub push, or Vercel deployment was performed in this local integration batch.

@@ -2351,3 +2351,13 @@ Preview deployment update:
 - [x] `catalogChangeRequests` 已在 Firestore Rules 明確 deny-all Client SDK；匿名、Member、Helper、Partner、Owner 的讀寫矩陣均通過。
 - [x] 獨立安全複審最終為 Critical 0／Important 0。驗證：TypeScript、zero-warning ESLint、Build 45 routes；Unit 66 files／541 tests；Rules 2 files／34 tests；一般 Playwright 22 passed／46 預期 skips；完整 Emulator Playwright 57 passed／11 預期 project skips；secret scan 通過；Production dependency audit 0 vulnerabilities。
 - [ ] 尚未部署 Preview／Production，也未部署本批 Firestore Rules。下一精確批次為 Partner 分類／品牌內容草稿，或依已確認 rollout 開始 Rush Purchase contribution／Helper 分紅資料層；部署需另行決定。
+
+### 2026-08-15 台新 Excel 批次對帳整合
+
+- [x] 以 `main` `ba8d293` 為基礎建立隔離分支 `codex/excel-partner-release`，只挑選台新 Excel 對帳所需程式與測試；未整併舊分支的整體歷史，因此新版 Partner 草稿、角色管理與首頁均保留。
+- [x] Owner 可上傳 `.xlsx`，Server 重新解析後以金額與會員匯款帳號末五碼比對所有 `pendingReview` 付款群組，分類為唯一吻合、多筆可能、未找到、資料不足或重複交易。
+- [x] UI 提供「全選可認列項目」、「全部取消」、逐筆取消勾選與第二次確認後批次認列；只有 Server 重新計算後仍為唯一吻合的項目可執行。
+- [x] 批次認列重用單筆付款確認的權威 transaction，更新 Payment、PaymentRequest、Order、OrderItem、PaymentAllocation、Audit Log 與通知事件；每筆銀行交易以不可變 reconciliation claim 防止重複認列。
+- [x] 原始 Excel、餘額與完整備註不保存。台新合併儲存格頁尾可安全略過，但中間的畸形交易列仍 fail closed。
+- [x] 整合驗證：TypeScript、ESLint、Build 46 routes；Unit 71 files／561 tests；Rules 2 files／34 tests；一般 Playwright 22 passed／48 expected skips；完整 Emulator Playwright 58 passed／12 intentional skips；secret scan 通過；Production dependency audit 0 vulnerabilities。
+- [ ] 本批尚未推送 GitHub、部署 Preview 或 Production，也未對正式付款執行批次認列。下一步是將已驗證分支快轉整合至本機 `main`，再依獨立授權推送與部署 Preview。

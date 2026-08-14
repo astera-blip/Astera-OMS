@@ -425,3 +425,11 @@ session; otherwise use a separately approved, test-first diagnostic change.
   never a combined value of 2 under a single mixed-unit label.
 - Focused reconciliation Playwright verifies the two new labels are rendered and the
   old combined `需人工處理` label is absent while safe selection behavior is retained.
+
+### 2026-08-15 integrated release gate
+
+- Focused reconciliation: 7 Unit files／27 tests passed.
+- Full integrated tree: Unit 71 files／561 tests; Firestore＋Storage Rules 2 files／34 tests; Build 46 routes.
+- Browser: regular Playwright 22 passed／48 expected Emulator-only skips; full Auth／Firestore／Storage Emulator Playwright 58 passed／12 intentional project skips. The desktop reconciliation scenario covered upload, safe select-all, manual deselection, batch confirmation, Firestore state updates, and duplicate reimport detection.
+- Security: secret scan passed and `npm audit --omit=dev --audit-level=high` reported 0 vulnerabilities.
+- Windows nested-worktree runs must set `PLAYWRIGHT_TURBOPACK_ROOT` to the active worktree and use an unused `PLAYWRIGHT_PORT`; otherwise tests can accidentally exercise the outer checkout.
