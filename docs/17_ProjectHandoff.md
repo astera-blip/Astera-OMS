@@ -2393,3 +2393,26 @@ domain, or change any other Firebase/Vercel setting.
   `https://astera-czlg1up5n-astera-oms.vercel.app` completed and owns
   `https://astera-oms.vercel.app`. Fresh browser inspection confirms the duplicate
   card is gone and receipt fields remain. Public production smoke: 5/5 HTTP 200.
+
+### 2026-08-14 Role assignment implementation handoff
+
+- Branch/worktree: `codex/role-assignment` in
+  `C:\Users\ting1\Documents\代購網頁製作\.worktrees\codex-role-assignment`.
+- Commits: `28a86c1`, `cbc3465`, `12d1da5`, `f3d3736`, `22d2817`, `2f33117`,
+  and `be6c94c`.
+- Owner can assign a completed member as Partner, Helper, or Member from the
+  existing member workspace. Owner accounts remain non-editable on the website.
+  Changes preserve claims, revoke refresh tokens, write `auth.role.updated` audit
+  data, and create a member-only one-time notification.
+- A real Emulator Timestamp regression was fixed by invoking
+  `timestamp.toDate()` with its receiver intact. Client SDK access to role notices
+  and role audit data is denied for anonymous, Member, Helper, Partner, and Owner.
+- Evidence: TypeScript pass; ESLint pass; Unit 60 files／481 tests; Rules 2 files／33
+  tests; Build 43 routes; regular Playwright 20 passed／40 expected Emulator-only
+  skips; targeted desktop member/role E2E 3/3; secret scan pass; production audit
+  0 vulnerabilities after nanoid 3.3.18.
+- Remaining gate: full `npm run test:e2e:emulated` exceeded the 300-second tool
+  timeout, so it has no final pass/fail summary. Continue in this worktree with
+  `$env:PLAYWRIGHT_PORT='3202'; npm run test:e2e:emulated` using a timeout above
+  five minutes. If green, update the count and commit these docs. Do not deploy or
+  push without separate authorization.

@@ -2215,3 +2215,25 @@ Preview deployment update:
   `https://astera-oms.vercel.app`. A fresh `/checkout` browser inspection confirms
   the self-link card is absent and the receipt form remains visible; public smoke
   remains 5/5 HTTP 200.
+
+### 2026-08-14 Owner role assignment — local implementation
+
+- [x] Formal roles are `owner | partner | helper | member`; Firebase Custom Claims
+  remain authoritative. The website can assign Partner, Helper, or Member but
+  cannot grant, remove, or transfer Owner.
+- [x] Server APIs verify revoked tokens. Role changes preserve unrelated claims,
+  revoke target sessions, append an immutable Audit Log and a one-time notice,
+  with compensation on Auth or Firestore persistence failure.
+- [x] `/workspace/members` has role display, selection, and second confirmation.
+  Current Workspace business functions remain Owner-only pending the later
+  Partner／Helper functional batches.
+- [x] Verification: TypeScript; ESLint; Unit 60 files／481 tests; Rules 2 files／33
+  tests; Build 43 routes; secret scan; production audit 0 vulnerabilities;
+  regular Playwright 20 passed／40 expected Emulator-only skips; targeted desktop
+  member/role E2E 3 passed.
+- [ ] Full Emulator Playwright exceeded the 300-second command limit and was
+  terminated without a final result. Exact next command with a longer timeout:
+  `$env:PLAYWRIGHT_PORT='3202'; npm run test:e2e:emulated`.
+- [ ] No Preview／Production deployment or GitHub push was performed. After the
+  complete Emulator suite passes, review and integrate `codex/role-assignment`;
+  the next functional batch is Partner catalog drafts.
