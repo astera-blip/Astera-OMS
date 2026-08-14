@@ -2237,6 +2237,17 @@ Preview deployment update:
   `/workspace/payments` horizontal overflow caused by unbroken Payment IDs.
   Commit `7b84ab6` aligns the mobile role contract with the Owner-only Workspace
   gate and lets long payment/request identifiers wrap without hiding them.
-- [ ] No Preview／Production deployment or GitHub push was performed. After the
-  verified branch is reviewed, integrate `codex/role-assignment`; the next
-  functional batch is Partner catalog drafts.
+- [x] Fast-forward `codex/role-assignment` into local `main` at `0e488c7`, rerun
+  `npm test` on the merged tree (481 Unit／33 Rules), and remove the clean feature
+  worktree and merged local branch.
+- [x] Push GitHub `main` from `d0d9302` to `0e488c7`. The Git integration created
+  Ready Production deployment `dpl_AF8HKGiBwk7feed6Dby33J8xA839` at
+  `https://astera-7yzyqpecr-astera-oms.vercel.app` and assigned
+  `https://astera-oms.vercel.app`.
+- [x] Create protected Preview `https://astera-helt9y17m-astera-oms.vercel.app`;
+  its 43-route build completed and all five protected smoke routes passed through
+  the Vercel bypass. Production smoke passed `/`, `/products`, `/terms`,
+  `/privacy`, and `/products/prod_002` with HTTP 200.
+- [ ] Vercel still builds with Node 24.15.0 while `package.json` requests
+  `>=24.18.0 <25`; the warning does not fail the build but remains a release
+  configuration follow-up. The next functional batch is Partner catalog drafts.

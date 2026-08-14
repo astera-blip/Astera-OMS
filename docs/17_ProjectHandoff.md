@@ -2394,10 +2394,11 @@ domain, or change any other Firebase/Vercel setting.
   `https://astera-oms.vercel.app`. Fresh browser inspection confirms the duplicate
   card is gone and receipt fields remain. Public production smoke: 5/5 HTTP 200.
 
-### 2026-08-14 Role assignment implementation handoff
+### 2026-08-14 Role assignment implementation and deployment handoff
 
-- Branch/worktree: `codex/role-assignment` in
-  `C:\Users\ting1\Documents\代購網頁製作\.worktrees\codex-role-assignment`.
+- `codex/role-assignment` was fast-forwarded into local `main` at `0e488c7`.
+  The clean feature worktree and merged local branch were removed after merged-tree
+  verification.
 - Commits: `28a86c1`, `cbc3465`, `12d1da5`, `f3d3736`, `22d2817`, `2f33117`,
   `be6c94c`, `b8c70fa`, and `7b84ab6`.
 - Owner can assign a completed member as Partner, Helper, or Member from the
@@ -2421,6 +2422,17 @@ domain, or change any other Firebase/Vercel setting.
   60 files／481 tests; Rules 2 files／33 tests; Build 43 routes; secret scan pass;
   production audit 0 vulnerabilities; full Emulator Playwright 49 passed／11
   expected skips.
-- No Preview／Production deployment or GitHub push was performed. Next exact step
-  requires separate authorization: review and integrate `codex/role-assignment`,
-  then begin the Partner catalog-draft functional batch.
+- GitHub `main` was pushed from `d0d9302` to `0e488c7`.
+- Protected Preview `https://astera-helt9y17m-astera-oms.vercel.app` completed its
+  43-route build. Vercel-bypass checks for `/`, `/products`, `/terms`, `/privacy`,
+  and `/products/prod_002` all exited successfully.
+- Git integration Production deployment `dpl_AF8HKGiBwk7feed6Dby33J8xA839`
+  (`https://astera-7yzyqpecr-astera-oms.vercel.app`) is Ready and owns
+  `https://astera-oms.vercel.app`. Explicit Production smoke passed all five
+  public routes with HTTP 200.
+- No Firebase Rules, Firebase data, Vercel environment variable, domain, or
+  financial-data mutation was performed in this deployment batch.
+- Remaining release warning: Vercel selected Node 24.15.0 although the repository
+  engine range begins at 24.18.0. Build and TypeScript passed, but align the Vercel
+  patch version when the platform exposes that control. Next functional batch:
+  Partner catalog drafts.
