@@ -2520,7 +2520,7 @@ Preview deployment update:
   test-only Internal Note/reason, and resubmit Revision 2. Owner approval must be
   action-time-confirmed and followed by the same public-projection check.
 
-### 2026-08-15 Partner／Helper 工作區入口修正（本機待部署）
+### 2026-08-15 Partner／Helper 工作區入口修正（Preview 已部署）
 
 - [x] 根因：前台共用 `AccountActions` 僅在 `role === "owner"` 時顯示工作區連結；
   因此已具 Partner claim 的帳號在 `/account/profile` 與前台頁首沒有進入
@@ -2536,7 +2536,14 @@ Preview deployment update:
   新增實際 React SSR 輸出的回歸測試 `tests/unit/accountActions.test.ts`，並移除
   與新 Helper 工作區權限相衝突的舊 source-only 斷言。
 - [x] 驗證：TypeScript、zero-warning ESLint、Unit 72 files／568 tests、
-  Next Production Build（46 routes）均通過。
-- [ ] 下一精確步驟：只部署 Preview，使用已授權 Partner 帳號從
+  Next Production Build（46 routes）與 Vercel Preview remote build 均通過。
+- [x] Preview 部署：`https://astera-5cy9gm58t-astera-oms.vercel.app` 已完成，
+  已授權 Firebase 的穩定 alias
+  `https://astera-oms-astera-blip-astera-oms.vercel.app` 已指向此版本。匿名
+  smoke 受 Vercel Deployment Protection SSO 以 302 攔截，並非應用路由錯誤。
+- [x] 安全處置：直接推送 `main` 會被 Vercel 設定為 Production deployment；本次
+  意外產生的 queued deployment 已在完成前移除，既有 Production 未變更。後續 Preview
+  使用非 main branch 或不含 `--prod` 的 Vercel CLI，避免再次觸發 Production。
+- [ ] 下一精確步驟：使用已授權 Partner 帳號從
   `/account/profile` 的「合作人工作區」開啟 `/workspace/catalog-reviews`；另以
   Helper 測試帳號確認只看得到受限任務首頁。通過後再繼續 Partner Revision 2。

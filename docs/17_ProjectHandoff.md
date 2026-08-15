@@ -2737,7 +2737,7 @@ domain, or change any other Firebase/Vercel setting.
 - Reported issue: the signed-in Partner could not see a UI control to open
   `/workspace/catalog-reviews` from `/account/profile`. Root cause was the shared
   `AccountActions` component rendering a workspace link only for Owner.
-- Implemented, not yet deployed: Partner receives `合作人工作區` →
+- Implemented and Preview deployed: Partner receives `合作人工作區` →
   `/workspace/catalog-reviews`; Owner remains `管理後台` → `/workspace`.
 - The user also requested a Helper entry. Helper receives `小幫手工作區` →
   `/workspace`. The Workspace gate now permits Helper only to its own landing page,
@@ -2753,7 +2753,16 @@ domain, or change any other Firebase/Vercel setting.
 - Fresh local evidence: TypeScript PASS; zero-warning ESLint PASS; Unit 72 files /
   568 tests PASS; `next build` PASS (46 routes). No Firebase Rules, Custom Claims,
   Collections, product data, order data, or payment data changed.
-- Exact continuation: commit this focused local change, deploy Preview only, then
-  sign in as the Partner test account and use the new header/account action to open
-  `Catalog Reviews`; sign in as Helper and confirm the restricted task-only
-  workspace. After that, return to the rejected Partner draft and submit Revision 2.
+- Deployment evidence: local commit `53a29fa` was pushed to `main`; Vercel’s Git
+  configuration incorrectly queued it as Production, so that queued deployment was
+  removed before it completed. A separate explicit Preview deployment completed at
+  `https://astera-5cy9gm58t-astera-oms.vercel.app`, and the Firebase-authorized
+  stable Preview alias `https://astera-oms-astera-blip-astera-oms.vercel.app`
+  now targets it. The remote build completed 46 routes. Anonymous smoke requests
+  return Vercel Deployment Protection SSO 302 before reaching the app; this is an
+  external access gate, not an app route failure.
+- Exact continuation: sign in as the Partner test account on the stable Preview
+  and use the new header/account action to open `Catalog Reviews`; sign in as
+  Helper and confirm the restricted task-only workspace. After that, return to the
+  rejected Partner draft and submit Revision 2. Never push `main` merely to test
+  Preview: use a non-main branch or Vercel CLI without `--prod`.
