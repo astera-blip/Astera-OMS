@@ -2492,3 +2492,17 @@ Preview deployment update:
   Preview, open `/workspace/products`, and create the first explicitly test-only
   catalog change request. Do not change a public product or perform an approval
   without action-time confirmation.
+
+### 2026-08-15 Preview真人驗收：Partner草稿送審
+
+- [x] Partner 測試帳戶在穩定 Preview 成功進入 `/workspace/products`，工作區僅顯示
+  Products／Catalog Reviews，並出現角色已更新通知。
+- [x] 對既有 `92帽子` 建立 `【測試專用】Partner 商品草稿驗收`。變更原因明確標示
+  Preview 測試；提案只在 Internal Note 追加測試文字，未改商品名稱、公開說明、價格、
+  Variant、Campaign、SKU 或刊登狀態。
+- [x] 草稿送出後畫面顯示「等待 Owner 審核」。重整公開 `/products` 後，`92帽子` 仍為
+  NT$ 520／預購／可能二補，封存的測試商品仍未出現；證明 submitted draft 未直接變更
+  `productsPublic`。
+- [ ] Next exact step: switch to the Owner session, open `/workspace/catalog-reviews`,
+  inspect this complete diff, then reject it with a test-only reason. Approval remains
+  an action-time-confirmed step after the Partner revises and resubmits.

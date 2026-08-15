@@ -2703,3 +2703,18 @@ domain, or change any other Firebase/Vercel setting.
   submitting an explicitly test-only product-change draft. Keep Owner approval,
   payment confirmation, batch reconciliation, and refund actions behind their
   own action-time confirmations.
+
+### 2026-08-15 Preview human acceptance — Partner catalog draft submitted
+
+- The Partner test session opened `/workspace/products`; the Workspace navigation was
+  limited to Products and Catalog Reviews. It submitted
+  `【測試專用】Partner 商品草稿驗收` for `92帽子`, with an explicitly test-only reason.
+- The proposed change appends only an Internal Note. It does not alter public name,
+  description, publish state, price, Variant, Campaign, SKU, or images.
+- Preview confirmed the submitted state. A public `/products` reload still showed the
+  same `92帽子` card (NT$ 520 / preorder / supplement badge), and the archived test
+  product remained absent. This validates that a Partner draft does not change the
+  public projection before Owner approval.
+- Exact next step: re-login as Owner and inspect the full review diff at
+  `/workspace/catalog-reviews`; reject this first revision with an explicit test-only
+  reason, then ask Partner to revise/resubmit before action-time-confirmed approval.
