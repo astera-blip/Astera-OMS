@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { ProductClassificationKey } from "@/lib/product/catalog";
+import { classificationSaveFeedback } from "@/lib/workspace/operationsPresentation";
 import type {
   CatalogClassification,
   CatalogClassificationStatus,
@@ -146,30 +147,51 @@ function ClassificationRow({
   const { user } = useAuth();
   const [label, setLabel] = useState(entry.label);
   const [status, setStatus] = useState<CatalogClassificationStatus>(entry.status);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState("");
 
   async function save() {
+    if (isSaving) return;
     const token = await user?.getIdToken();
     if (!token) {
-      onError("需要 Owner 權限才能更新分類。");
+      const message = "需要 Owner 權限才能更新分類。";
+      setSaveFeedback(message);
+      onError(message);
       return;
     }
-    const response = await fetch("/api/workspace/classifications", {
-      method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ key: classificationKey, id: entry.id, label, status }),
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      classification?: CatalogClassification;
-      error?: string;
-    } | null;
-    if (!response.ok || !payload?.classification) {
-      onError(classificationErrorMessage(payload?.error));
-      return;
+    setIsSaving(true);
+    setSaveFeedback(classificationSaveFeedback({ state: "saving" }));
+    try {
+      const response = await fetch("/api/workspace/classifications", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ key: classificationKey, id: entry.id, label, status }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        classification?: CatalogClassification;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.classification) {
+        const message = classificationSaveFeedback({ state: "error", error: payload?.error });
+        setSaveFeedback(message);
+        onError(message);
+        return;
+      }
+      onChanged(payload.classification);
+      setSaveFeedback(classificationSaveFeedback({
+        state: "saved",
+        label: payload.classification.label,
+      }));
+    } catch {
+      const message = classificationSaveFeedback({ state: "error" });
+      setSaveFeedback(message);
+      onError(message);
+    } finally {
+      setIsSaving(false);
     }
-    onChanged(payload.classification);
   }
 
   return (
@@ -200,20 +222,18 @@ function ClassificationRow({
       <button
         type="button"
         onClick={() => void save()}
-        className="self-end rounded-full border border-slate-300 px-4 py-3 text-sm font-medium"
+        disabled={isSaving}
+        className="min-h-11 self-end rounded-full border border-slate-300 px-4 py-3 text-sm font-medium disabled:cursor-wait disabled:opacity-60"
       >
-        儲存變更
+        {isSaving ? "儲存中…" : "儲存變更"}
       </button>
+      {saveFeedback ? (
+        <p className="md:col-span-3" role="status" aria-live="polite">{saveFeedback}</p>
+      ) : null}
     </div>
   );
 }
 
 function classificationErrorMessage(error?: string) {
-  if (error === "classification_label_conflict") {
-    return "已有相同名稱的分類。";
-  }
-  if (error === "classification_label_required") {
-    return "請輸入分類顯示名稱。";
-  }
-  return "分類儲存失敗，請確認資料與網路後再試一次。";
+  return classificationSaveFeedback({ state: "error", error });
 }

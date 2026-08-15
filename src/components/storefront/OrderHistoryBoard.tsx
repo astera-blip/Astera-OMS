@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import type { OrderBundle } from "@/lib/order/checkout";
 import { orderStatusLabel, shippingMethodLabel } from "@/lib/storefront/customerLabels";
 import { getOrderAction } from "@/lib/storefront/orderActions";
+import { formatOperationsOrderReference } from "@/lib/workspace/operationsPresentation";
 
 export function OrderHistoryBoard() {
   const { user } = useAuth();
@@ -82,7 +83,7 @@ export function OrderHistoryBoard() {
           <article key={bundle.order.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold">{bundle.order.orderNumber ?? bundle.order.id}</h2>
+                <h2 className="text-xl font-semibold">{formatOperationsOrderReference(bundle.order)}</h2>
                 <p className="mt-1 text-sm text-slate-600">
                   狀態：{orderStatusLabel(bundle.order.status)} · 總額：NT$ {bundle.order.totalTwd.toLocaleString()}
                 </p>
@@ -106,7 +107,7 @@ export function OrderHistoryBoard() {
                 <div key={item.id} className="rounded-2xl bg-slate-50 p-4">
                   <p className="font-medium">{item.snapshot.productName}</p>
                   <p className="mt-1 text-slate-600">
-                    {item.snapshot.variantName} · {item.snapshot.sku} · NT$ {item.snapshot.unitPriceTwd.toLocaleString()}
+                    {item.snapshot.variantName} · NT$ {item.snapshot.unitPriceTwd.toLocaleString()}
                   </p>
                   {item.snapshot.publicSaleNotes ? (
                     <p className="mt-1 text-slate-500">備註：{item.snapshot.publicSaleNotes}</p>

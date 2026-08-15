@@ -5,6 +5,15 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { reviewCancellationRequest } from "@/lib/order/cancellation";
 import type { OrderBundle } from "@/lib/order/checkout";
 import type { CancellationRequestRecord } from "@/lib/order/cancellation";
+import {
+  cancellationRequestStatusLabel,
+  orderItemStatusLabel,
+  orderStatusLabel,
+} from "@/lib/storefront/customerLabels";
+import {
+  formatOperationsOrderReference,
+  formatOperationsRecipientName,
+} from "@/lib/workspace/operationsPresentation";
 
 export function OrderOperationsBoard() {
   const { user } = useAuth();
@@ -193,13 +202,15 @@ export function OrderOperationsBoard() {
             <article key={bundle.order.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-semibold">{bundle.order.id}</h3>
+                  <h3 className="text-xl font-semibold">
+                    {formatOperationsOrderReference(bundle.order)}
+                  </h3>
                   <p className="mt-1 text-sm text-slate-600">
-                    {bundle.order.memberUid} · {bundle.order.status} · NT$ {bundle.order.totalTwd.toLocaleString()}
+                    {formatOperationsRecipientName(bundle.order.recipientName)} · {orderStatusLabel(bundle.order.status)} · NT$ {bundle.order.totalTwd.toLocaleString()}
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  {bundle.items.length} items
+                  {bundle.items.length} 項商品
                 </span>
               </div>
 
@@ -208,9 +219,9 @@ export function OrderOperationsBoard() {
                   <div key={item.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
                     <p className="font-medium">{item.snapshot.productName}</p>
                     <p className="mt-1 text-slate-600">
-                      {item.snapshot.variantName} · {item.snapshot.sku} · 數量 {item.quantity}
+                      {item.snapshot.variantName} · 數量 {item.quantity}
                     </p>
-                    <p className="mt-1 text-slate-500">狀態：{item.status}</p>
+                    <p className="mt-1 text-slate-500">狀態：{orderItemStatusLabel(item.status)}</p>
                   </div>
                 ))}
               </div>
@@ -226,11 +237,16 @@ export function OrderOperationsBoard() {
           {cancellationRequests.length === 0 ? (
             <p className="text-sm text-slate-600">目前沒有取消申請。</p>
           ) : (
-            cancellationRequests.map((request) => (
+            cancellationRequests.map((request) => {
+              const order = orders.find((bundle) => bundle.order.id === request.orderId)?.order;
+              return (
               <div key={request.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
-                <p className="font-medium">{request.orderId}</p>
+                <p className="font-medium">
+                  {order ? formatOperationsOrderReference(order) : "歷史取消申請"}
+                </p>
                 <p className="mt-1 text-slate-600">
-                  {request.memberUid} · {request.status} · {request.reason}
+                  {order ? `${formatOperationsRecipientName(order.recipientName)} · ` : ""}
+                  {cancellationRequestStatusLabel(request.status)} · {request.reason}
                 </p>
                 <label className="mt-3 grid gap-2">
                   <span className="font-medium text-slate-700">審核理由</span>
@@ -305,7 +321,8 @@ export function OrderOperationsBoard() {
                   <p className="mt-2 text-slate-500">備註：{request.reviewNote}</p>
                 ) : null}
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

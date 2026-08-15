@@ -15,6 +15,11 @@ import type {
 import type { OrderBundle } from "@/lib/order/checkout";
 import { getPaymentAccountLast5 } from "@/lib/payment/manualBankTransfer";
 import type { LocalPayment, LocalPaymentRequest } from "@/lib/payment/manualBankTransfer";
+import {
+  formatOperationsOrderReference,
+  formatOperationsRecipientName,
+  paymentReviewStatusLabel,
+} from "@/lib/workspace/operationsPresentation";
 
 export function PaymentOperationsBoard() {
   const { role } = useAuth();
@@ -101,7 +106,9 @@ export function PaymentOperationsBoard() {
   function selectPayment(payment: LocalPayment) {
     setSelectedPaymentId(payment.id);
     setReason("");
-    setMessage(`已選擇 ${payment.id}。`);
+    const request = requests.find((item) => item.id === payment.paymentRequestId);
+    const order = request ? orders.find((item) => item.order.id === request.orderId)?.order : undefined;
+    setMessage(`已選擇${order ? ` ${formatOperationsOrderReference(order)}` : "這筆付款回報"}。`);
   }
 
   if (role !== "owner") {
@@ -182,7 +189,7 @@ export function PaymentOperationsBoard() {
             : bundle,
         ),
       );
-      setMessage(`已確認 ${selectedPayment.id}，並建立分配與稽核紀錄。`);
+      setMessage(`已確認 ${formatOperationsOrderReference(orderBundle.order)} 的付款回報，並建立分配與稽核紀錄。`);
     } catch {
       setMessage("付款確認失敗，請稍後再試。");
     }
@@ -236,7 +243,7 @@ export function PaymentOperationsBoard() {
             : request,
         ),
       );
-      setMessage(`已撤銷 ${selectedPayment.id}，並建立負向 adjustment 與 audit log。`);
+      setMessage("已撤銷付款確認，並建立負向調整與稽核紀錄。");
     } catch {
       setMessage("付款撤銷失敗，請稍後再試。");
     }
@@ -281,7 +288,7 @@ export function PaymentOperationsBoard() {
             }
           : payment
       )));
-      setMessage(`已拒絕 ${selectedPayment.id}，並建立稽核紀錄。`);
+      setMessage("已拒絕付款回報，並建立稽核紀錄。");
       setReason("");
     } catch {
       setMessage("拒絕付款回報失敗，請稍後再試。");
@@ -327,8 +334,8 @@ export function PaymentOperationsBoard() {
       );
       setMessage(
         payload.status === "sent"
-          ? `通知 ${event.id} 已送出。`
-          : `通知 ${event.id} 尚未送出，請確認寄送設定。`,
+          ? "通知已送出。"
+          : "通知尚未送出，請確認寄送設定。",
       );
     } catch {
       setMessage("通知重試失敗，請稍後再試。");
@@ -406,6 +413,7 @@ export function PaymentOperationsBoard() {
         ) : (
           payments.map((payment) => {
             const request = requests.find((item) => item.id === payment.paymentRequestId);
+            const order = request ? orders.find((item) => item.order.id === request.orderId)?.order : undefined;
 
             return (
             <button
@@ -421,13 +429,15 @@ export function PaymentOperationsBoard() {
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="break-all text-lg font-semibold">{payment.id}</p>
-                  <p className="mt-1 break-all text-sm opacity-80">
-                    {payment.paymentRequestId} · {payment.memberUid}
+                  <p className="text-lg font-semibold">
+                    {order ? formatOperationsOrderReference(order) : "歷史付款回報"}
+                  </p>
+                  <p className="mt-1 text-sm opacity-80">
+                    {order ? formatOperationsRecipientName(order.recipientName) : "找不到對應訂單"}
                   </p>
                 </div>
                 <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium">
-                  {payment.status}
+                  {paymentReviewStatusLabel(payment.status)}
                 </span>
               </div>
               <p className="mt-4 text-sm">
@@ -513,17 +523,22 @@ export function PaymentOperationsBoard() {
             <p className="mt-3 text-sm text-slate-600">目前沒有未分配超額。</p>
           ) : (
             <div className="mt-4 grid gap-3 text-sm">
-              {overpaidRequests.map((request) => (
+              {overpaidRequests.map((request) => {
+                const order = orders.find((bundle) => bundle.order.id === request.orderId)?.order;
+                return (
                 <div key={request.id} className="rounded-2xl bg-white p-3">
-                  <p className="break-all font-semibold">{request.id}</p>
-                  <p className="mt-1 break-all text-slate-600">
-                    {request.memberUid} · 訂單 {request.orderId}
+                  <p className="font-semibold">
+                    {order ? formatOperationsOrderReference(order) : "歷史付款請求"}
+                  </p>
+                  <p className="mt-1 text-slate-600">
+                    {order ? formatOperationsRecipientName(order.recipientName) : "找不到對應訂單"}
                   </p>
                   <p className="mt-1 text-amber-700">
                     未分配 NT$ {(request.unallocatedAmountTwd ?? 0).toLocaleString()}；需人工銀行退款。
                   </p>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -560,8 +575,8 @@ export function PaymentOperationsBoard() {
                       <p className="mt-1 text-slate-700">
                         銀行 {event.bankCode} · 末五碼 {event.accountNumberLast5}
                       </p>
-                      <p className="mt-1 break-all text-slate-600">
-                        帳戶 ID：{event.accountIds.join("、")}
+                      <p className="mt-1 text-slate-600">
+                        涉及 {event.accountIds.length} 筆會員帳戶，請確認是否為同一匯款來源。
                       </p>
                       {event.status === "pendingReview" ? (
                         <div className="mt-3 flex flex-wrap gap-2">

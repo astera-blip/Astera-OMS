@@ -80,7 +80,7 @@ export function MemberPaymentAccountRequestsBoard() {
             <article key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
               <div>
                 <h3 className="font-semibold">銀行代碼 {account.bankCode}</h3>
-                <p className="mt-1 text-sm text-slate-600">{account.accountNumberMasked} · memberPaymentAccountId：{account.id}</p>
+                <p className="mt-1 text-sm text-slate-600">{account.accountNumberMasked} · 會員已申請封存此匯款帳戶</p>
               </div>
               <button type="button" onClick={() => void approve(account)} disabled={Boolean(pendingId)} className="min-h-11 rounded-full bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50">
                 {pendingId === account.id ? "處理中…" : "核准封存"}

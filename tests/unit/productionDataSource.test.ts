@@ -131,7 +131,7 @@ describe("production data-source boundary", () => {
     ]) {
       const source = readFileSync(resolve(file), "utf8");
 
-      expect(source, file).toContain("orderNumber ??");
+      expect(source, file).toContain("formatOperationsOrderReference");
     }
   });
 

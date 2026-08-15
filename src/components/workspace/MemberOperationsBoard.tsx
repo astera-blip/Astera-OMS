@@ -41,6 +41,8 @@ export function MemberOperationsBoard() {
   const [duplicatePhoneGroups, setDuplicatePhoneGroups] =
     useState<DuplicatePhoneGroup[]>([]);
   const [message, setMessage] = useState("會員營運資料尚未載入。");
+  const [savingMemberUid, setSavingMemberUid] = useState("");
+  const [memberSaveFeedback, setMemberSaveFeedback] = useState<Record<string, string>>({});
   const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange | null>(null);
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
@@ -102,29 +104,49 @@ export function MemberOperationsBoard() {
   );
 
   async function saveNote(uid: string) {
+    if (savingMemberUid === uid) {
+      return;
+    }
     const note = drafts[uid];
     const token = await user?.getIdToken();
     if (!note || !token) {
-      setMessage("需要 Owner 權限才能更新會員營運資料。");
+      setMemberSaveFeedback((current) => ({
+        ...current,
+        [uid]: "需要 Owner 權限才能儲存。",
+      }));
       return;
     }
-    const response = await fetch("/api/workspace/member-private-notes", {
-      method: "PUT",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(note),
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      note?: MemberPrivateNote;
-    } | null;
-    if (!response.ok || !payload?.note) {
-      setMessage("會員風險與內部備註更新失敗，請稍後再試一次。");
-      return;
+    setSavingMemberUid(uid);
+    setMemberSaveFeedback((current) => ({ ...current, [uid]: "儲存中…" }));
+    try {
+      const response = await fetch("/api/workspace/member-private-notes", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(note),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        note?: MemberPrivateNote;
+      } | null;
+      if (!response.ok || !payload?.note) {
+        throw new Error("member_operations_save_failed");
+      }
+      setDrafts((current) => ({ ...current, [uid]: payload.note! }));
+      setMemberSaveFeedback((current) => ({
+        ...current,
+        [uid]: "已儲存風險狀態與內部備註。",
+      }));
+      setMessage("會員營運資料已更新；本次變更已寫入 Audit Log。");
+    } catch {
+      setMemberSaveFeedback((current) => ({
+        ...current,
+        [uid]: "儲存失敗，請確認資料與網路後再試一次。",
+      }));
+    } finally {
+      setSavingMemberUid((current) => current === uid ? "" : current);
     }
-    setDrafts((current) => ({ ...current, [uid]: payload.note! }));
-    setMessage(`已更新 ${uid}；本次變更已寫入 Audit Log。`);
   }
 
   async function confirmRoleChange() {
@@ -279,10 +301,16 @@ export function MemberOperationsBoard() {
                 <button
                   type="button"
                   onClick={() => void saveNote(member.uid)}
-                  className="mt-3 min-h-11 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                  disabled={savingMemberUid === member.uid}
+                  className="mt-3 min-h-11 rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-wait disabled:opacity-60"
                 >
-                  儲存會員營運資料
+                  {savingMemberUid === member.uid ? "儲存中…" : "儲存風險狀態與內部備註"}
                 </button>
+                {memberSaveFeedback[member.uid] ? (
+                  <p role="status" aria-live="polite" className="mt-2 text-sm text-slate-600">
+                    {memberSaveFeedback[member.uid]}
+                  </p>
+                ) : null}
               </article>
             );
           })

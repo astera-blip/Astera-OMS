@@ -15,6 +15,7 @@ import {
   shippingMethodLabel,
 } from "@/lib/storefront/customerLabels";
 import { getOrderAction } from "@/lib/storefront/orderActions";
+import { formatOperationsOrderReference } from "@/lib/workspace/operationsPresentation";
 
 type Props = {
   orderId: string;
@@ -278,7 +279,7 @@ export function OrderDetailBoard({ orderId }: Props) {
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
               訂單
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">{order.order.orderNumber ?? order.order.id}</h2>
+            <h2 className="mt-2 text-2xl font-semibold">{formatOperationsOrderReference(order.order)}</h2>
             <p className="mt-2 text-sm text-slate-600">
               狀態：{orderStatusLabel(order.order.status)} · NT$ {order.order.totalTwd.toLocaleString()}
             </p>
@@ -336,7 +337,7 @@ export function OrderDetailBoard({ orderId }: Props) {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{item.snapshot.productName}</p>
                   <p className="mt-1 text-slate-600">
-                    {item.snapshot.variantName} · {item.snapshot.sku} · 數量 {item.quantity}
+                    {item.snapshot.variantName} · 數量 {item.quantity}
                   </p>
                   <p className="mt-1 text-slate-500">狀態：{orderItemStatusLabel(item.status)}</p>
                   {hasPendingRequest ? <p className="mt-1 text-xs text-amber-700">這個項目已有待審核取消申請。</p> : null}

@@ -31,6 +31,6 @@ test("owner creates, renames, and archives a classification", async ({ page }, t
   await row.getByLabel("Status（狀態）").selectOption("archived");
   await row.getByRole("button", { name: "儲存變更" }).click();
 
-  await expect(page.getByText(`已更新 ${renamedLabel}。`)).toBeVisible();
+  await expect(row.getByText(`已儲存 ${renamedLabel}。`)).toBeVisible();
   await expect(row.getByLabel("Status（狀態）")).toHaveValue("archived");
 });

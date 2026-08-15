@@ -29,8 +29,8 @@ test("owner reviews duplicate phones and saves audited member risk details", asy
   });
   await memberCard.getByLabel("Risk Status（風險狀態）").selectOption("watch");
   await memberCard.getByLabel("Internal Note（內部備註）").fill("需要人工確認重複手機");
-  await memberCard.getByRole("button", { name: "儲存會員營運資料" }).click();
-  await expect(page.getByText(/本次變更已寫入 Audit Log/)).toBeVisible();
+  await memberCard.getByRole("button", { name: "儲存風險狀態與內部備註" }).click();
+  await expect(memberCard.getByText("已儲存風險狀態與內部備註。")).toBeVisible();
 
   process.env.FIRESTORE_EMULATOR_HOST ??= "127.0.0.1:8080";
   process.env.GCLOUD_PROJECT ??= "demo-astera-oms";

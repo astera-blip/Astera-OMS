@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { LocalPaymentRequest, MemberPaymentSummary } from "@/lib/payment/manualBankTransfer";
+import type { OrderBundle } from "@/lib/order/checkout";
 import type { PublicPaymentAccount } from "@/lib/payment/bankAccounts";
 import {
   isMemberPaymentAccountUsableForPayment,
@@ -11,11 +12,13 @@ import {
 } from "@/lib/payment/memberBankAccounts";
 import { paymentRequestStatusLabel, paymentStatusLabel } from "@/lib/storefront/customerLabels";
 import { resolvePreselectedRequestIds } from "@/lib/storefront/orderActions";
+import { formatOperationsOrderReference } from "@/lib/workspace/operationsPresentation";
 
 export function PaymentRequestsBoard() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [requests, setRequests] = useState<LocalPaymentRequest[]>([]);
+  const [orders, setOrders] = useState<OrderBundle[]>([]);
   const [payments, setPayments] = useState<MemberPaymentSummary[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PublicPaymentAccount[]>([]);
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState("");
@@ -34,6 +37,7 @@ export function PaymentRequestsBoard() {
   const loadRequests = useCallback(async () => {
     if (!user) {
       setRequests([]);
+      setOrders([]);
       setPayments([]);
       setStatus("idle");
       return;
@@ -41,11 +45,15 @@ export function PaymentRequestsBoard() {
 
     setStatus("loading");
     try {
-      const [{ db }, { listMemberPaymentRequests }] = await Promise.all([
+      const [{ db }, { listMemberPaymentRequests }, { listMemberOrders }] = await Promise.all([
         import("@/lib/firebase/client"),
         import("@/lib/payment/repository"),
+        import("@/lib/order/repository"),
       ]);
-      const nextRequests = await listMemberPaymentRequests(db, user.uid);
+      const [nextRequests, nextOrders] = await Promise.all([
+        listMemberPaymentRequests(db, user.uid),
+        listMemberOrders(db, user.uid),
+      ]);
       const token = await user.getIdToken();
       const [accountsResponse, memberAccountsResponse, paymentsResponse] = await Promise.all([
         fetch("/api/payment-accounts", {
@@ -75,6 +83,7 @@ export function PaymentRequestsBoard() {
         ? memberAccountsPayload.accounts.filter(isMemberPaymentAccountUsableForPayment)
         : [];
       setRequests(nextRequests);
+      setOrders(nextOrders);
       setPayments(Array.isArray(paymentsPayload.payments) ? paymentsPayload.payments : []);
       setPaymentAccounts(nextAccounts);
       setSelectedPaymentAccountId(nextAccounts[0]?.id ?? "");
@@ -105,6 +114,11 @@ export function PaymentRequestsBoard() {
   const selectedMemberPaymentAccount = memberPaymentAccounts.find(
     (account) => account.id === selectedMemberPaymentAccountId,
   );
+
+  function orderReferenceFor(request: LocalPaymentRequest) {
+    const order = orders.find((bundle) => bundle.order.id === request.orderId)?.order;
+    return formatOperationsOrderReference(order ?? { id: request.orderId });
+  }
 
   if (!user) {
     return (
@@ -246,7 +260,7 @@ export function PaymentRequestsBoard() {
                         setAmount(nextTotal > 0 ? String(nextTotal) : "");
                       }}
                     />
-                    <span>{request.orderId}／NT$ {request.amountTwd.toLocaleString()} · {paymentRequestStatusLabel(request.status)}</span>
+                    <span>{orderReferenceFor(request)}／NT$ {request.amountTwd.toLocaleString()} · {paymentRequestStatusLabel(request.status)}</span>
                   </label>
                 );
               })}
@@ -378,9 +392,9 @@ export function PaymentRequestsBoard() {
           <article key={request.id} className="rounded-xl border border-astera-border bg-astera-surface p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold">{request.id}</h2>
+                <h2 className="text-xl font-semibold">{orderReferenceFor(request)}</h2>
                 <p className="mt-1 text-sm text-astera-secondary">
-                  訂單：{request.orderId} · 狀態：{paymentRequestStatusLabel(request.status)}
+                  狀態：{paymentRequestStatusLabel(request.status)}
                 </p>
               </div>
               <span className="rounded-full bg-astera-service/10 px-3 py-1 text-xs font-medium text-astera-service">
