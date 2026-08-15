@@ -2666,3 +2666,23 @@ domain, or change any other Firebase/Vercel setting.
   success, preview/cover and saved alt text, then confirm the archived product is
   not publicly listed. Only after that should Owner upload actual product images
   and run the final physical-device image acceptance.
+
+### 2026-08-15 Preview human acceptance — Partner role-assignment blocker
+
+- Owner Preview loaded `/workspace/members` and identified the explicitly named
+  Task7 test account `ting1811tin@gmail.com`. With user approval, attempted a
+  Member → Partner assignment. The confirmation dialog was submitted once;
+  Preview returned a failure, retained the Member role, and the dialog was then
+  cancelled. No role, Order, Payment, product, or Rule change was persisted.
+- Root cause is IAM, not a UI or Firestore Rules failure. The Vercel OIDC runtime
+  account `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com` has only
+  `roles/datastore.user`, `roles/firebaseauth.viewer`, and
+  `roles/storage.objectViewer`. The role API needs Firebase Auth user read/update
+  permissions to set Custom Claims and revoke existing tokens.
+- Required explicit external change: create a minimal project custom role with
+  exactly `firebaseauth.users.get`, `firebaseauth.users.update`, and
+  `firebase.projects.get`, then bind it only to the existing Vercel runtime
+  account. Do not substitute broad `roles/firebaseauth.admin`; do not modify
+  Owner accounts, Firebase Rules, environment variables, domains, or customer
+  data. After IAM propagation, repeat the test-only assignment and re-login as
+  the Partner account before resuming the Partner draft → Owner review flow.

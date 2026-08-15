@@ -2454,3 +2454,24 @@ Preview deployment update:
   first-cover behaviour, alt-text save, and that the archived product remains
   absent from `/products`. Then repeat with an actual published-product image as
   part of the final real-device acceptance.
+
+### 2026-08-15 Preview真人驗收：Partner角色指派阻塞
+
+- [x] 在穩定 Preview
+  `https://astera-oms-astera-blip-astera-oms.vercel.app/workspace/members` 以
+  Owner session 讀取會員與角色管理。使用者確認以明確標示 Task7 的
+  `ting1811tin@gmail.com` 作為本輪 Partner 測試帳號；送出 Member → Partner
+  確認對話後，UI 正確保留原 Member 狀態並顯示失敗，不會留下半完成的角色指派。
+- [x] Root cause readback: Vercel runtime service account
+  `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com` 目前只有
+  `roles/datastore.user`、`roles/firebaseauth.viewer`、
+  `roles/storage.objectViewer`。Owner角色指派需要 Admin Auth
+  `getUser`／`setCustomUserClaims`／token revoke，其中 Custom Claim 寫入需要
+  `firebaseauth.users.update`，viewer 不具備該權限。
+- [ ] External approval required before continuing human acceptance: create and
+  bind a project custom role containing only `firebaseauth.users.get`,
+  `firebaseauth.users.update`, and `firebase.projects.get` to that existing
+  Vercel runtime service account. Do **not** grant the broad
+  `roles/firebaseauth.admin`, and do not alter Owner accounts, Rules, data,
+  domains, or environment variables. After IAM propagation, retry exactly the
+  same test-only Member → Partner action and require the account to re-login.
