@@ -2645,3 +2645,24 @@ domain, or change any other Firebase/Vercel setting.
   and actual delivery, and action-time-authorized Owner payment/refund lifecycle
   testing. No Firebase Rule, environment variable, domain, or data mutation was
   made during this acceptance.
+
+### 2026-08-15 Product-image upload live acceptance attempt
+
+- Production Owner workspace loaded the actual archived test-only product
+  `ZdW58A6aZqJLVHvioU6W` / `AST-P000003` and its `Product Images（商品圖片）`
+  control. It was enabled after data load, showed the expected eight-image,
+  JPEG/PNG/WebP, five-MB, cover-order, and alt-text contract, and had no console
+  error.
+- The validation intentionally targeted only this archived non-public test
+  product. No file was ultimately selected, so no Storage object, product-image
+  metadata, public projection, published product, order, payment, Rule, or
+  environment value changed.
+- Blocker: this Codex in-app-browser run cannot obtain a supported native file
+  chooser from the visually hidden file input, including from a fresh Owner tab.
+  The existing Emulator image tests still cover the upload permission and API
+  path; this attempt neither proves nor disproves the live Storage write.
+- Exact handoff step: use the Owner tab left at `/workspace/products` to select a
+  local non-personal image under five MB for the archived test product; verify
+  success, preview/cover and saved alt text, then confirm the archived product is
+  not publicly listed. Only after that should Owner upload actual product images
+  and run the final physical-device image acceptance.

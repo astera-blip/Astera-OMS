@@ -2431,3 +2431,26 @@ Preview deployment update:
   Resend domain/API-key verification and delivery, plus the deliberate Owner
   payment/refund lifecycle acceptance. Do not treat this runtime correction as
   completion of those independent gates.
+
+### 2026-08-15 Production product-image upload acceptance attempt
+
+- [x] Verified the deployed Owner `Product Images（商品圖片）` UI on the
+  archived, non-public test-only product `ZdW58A6aZqJLVHvioU6W`
+  (`AST-P000003`, `【測試專用】Preview Checkout — 請勿付款`). The control is
+  enabled after the real catalog has loaded and states the enforced contract:
+  maximum eight JPEG/PNG/WebP images, five MB per file, first image as cover,
+  sortable order, and editable alt text.
+- [x] Confirmed the current Owner session, the Production workspace API, and the
+  Storage-backed upload control load without browser console errors. No public
+  product, order, payment, Rules, environment variable, or real business image
+  was changed.
+- [ ] The Codex in-app browser did not emit a supported file chooser for the
+  visually hidden native `<input type="file">`, after direct, label, and fresh-tab
+  interaction attempts. This is a test-surface limitation rather than evidence
+  of a Production upload failure; no test image was selected or transmitted.
+- [ ] Next exact step: in the Owner browser tab left at
+  `/workspace/products`, choose the same archived test product and upload one
+  non-personal PNG/JPEG/WebP under five MB. Confirm the success message, preview,
+  first-cover behaviour, alt-text save, and that the archived product remains
+  absent from `/products`. Then repeat with an actual published-product image as
+  part of the final real-device acceptance.
