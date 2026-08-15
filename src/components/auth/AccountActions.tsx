@@ -39,6 +39,8 @@ export function AccountActions({
     <div className={isMobile ? "grid" : "flex flex-wrap items-center justify-end gap-2 text-sm"}>
       {isMobile ? <p className="min-h-11 border-b border-astera-border px-1 pt-3 text-sm text-astera-secondary">您好，{user?.displayName || "會員"}</p> : null}
       {role === "owner" ? <Link href="/workspace" onClick={onNavigate} className={itemClassName}>管理後台</Link> : null}
+      {role === "partner" ? <Link href="/workspace/catalog-reviews" onClick={onNavigate} className={itemClassName}>合作人工作區</Link> : null}
+      {role === "helper" ? <Link href="/workspace" onClick={onNavigate} className={itemClassName}>小幫手工作區</Link> : null}
       <Link href="/orders" onClick={onNavigate} className={itemClassName}>我的訂單</Link>
       <Link href="/account/profile" onClick={onNavigate} className={itemClassName}>{isMobile ? "我的帳號" : user?.displayName || "會員資料"}</Link>
       <button

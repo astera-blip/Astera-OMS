@@ -2519,3 +2519,24 @@ Preview deployment update:
 - [ ] Next exact step: Partner re-login, use `載入並修改草稿`, change only the
   test-only Internal Note/reason, and resubmit Revision 2. Owner approval must be
   action-time-confirmed and followed by the same public-projection check.
+
+### 2026-08-15 Partner／Helper 工作區入口修正（本機待部署）
+
+- [x] 根因：前台共用 `AccountActions` 僅在 `role === "owner"` 時顯示工作區連結；
+  因此已具 Partner claim 的帳號在 `/account/profile` 與前台頁首沒有進入
+  `/workspace/catalog-reviews` 的 UI 入口。
+- [x] Partner 現在顯示「合作人工作區」，固定導向
+  `/workspace/catalog-reviews`；Owner 原有「管理後台」入口維持 `/workspace`。
+- [x] Helper 顯示「小幫手工作區」並可進入受限的 `/workspace`。此頁只顯示
+  「目前沒有待處理任務」與未來搶購／成本任務說明，不顯示或連結 Owner 的會員、
+  訂單、付款、內容、稽核或 Partner 草稿審核功能；直接輸入任何其他
+  `/workspace/...` 路徑亦會拒絕並導回小幫手工作區。
+- [x] 影響檔案：`src/components/auth/AccountActions.tsx`、
+  `src/components/workspace/WorkspaceShell.tsx`、`src/app/workspace/page.tsx`；
+  新增實際 React SSR 輸出的回歸測試 `tests/unit/accountActions.test.ts`，並移除
+  與新 Helper 工作區權限相衝突的舊 source-only 斷言。
+- [x] 驗證：TypeScript、zero-warning ESLint、Unit 72 files／568 tests、
+  Next Production Build（46 routes）均通過。
+- [ ] 下一精確步驟：只部署 Preview，使用已授權 Partner 帳號從
+  `/account/profile` 的「合作人工作區」開啟 `/workspace/catalog-reviews`；另以
+  Helper 測試帳號確認只看得到受限任務首頁。通過後再繼續 Partner Revision 2。

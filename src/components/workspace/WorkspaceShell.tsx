@@ -6,7 +6,7 @@ import { ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 const navigation = [
-  { href: "/workspace", label: "工作區 Workspace", roles: ["owner", "partner"] },
+  { href: "/workspace", label: "工作區 Workspace", roles: ["owner", "partner", "helper"] },
   { href: "/workspace/products", label: "商品 Products", roles: ["owner", "partner"] },
   { href: "/workspace/catalog-reviews", label: "草稿審核 Catalog Reviews", roles: ["owner", "partner"] },
   { href: "/workspace/members", label: "會員 Members", roles: ["owner"] },
@@ -21,11 +21,12 @@ const partnerAllowedPaths = new Set([
   "/workspace/products",
   "/workspace/catalog-reviews",
 ]);
+const helperAllowedPaths = new Set(["/workspace"]);
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, status, signInWithGoogle } = useAuth();
-  const canUseWorkspace = role === "owner" || role === "partner";
+  const canUseWorkspace = role === "owner" || role === "partner" || role === "helper";
   const visibleNavigation = navigation.filter((item) => item.roles.some((allowed) => allowed === role));
 
   if (status === "loading") {
@@ -45,9 +46,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">需要後台權限</h1>
           <p className="mt-3 text-sm leading-6 text-astera-secondary">
-            {status === "signedIn" && role === "helper"
-              ? "目前角色為 Helper（小幫手）；搶購任務功能將在對應批次開放。"
-              : "請使用 Owner 帳號進入工作區。"}
+            請使用具備工作區權限的帳號進入。
           </p>
           {status === "signedOut" ? (
             <button
@@ -83,6 +82,26 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     );
   }
 
+  if (role === "helper" && !helperAllowedPaths.has(pathname)) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-astera-page px-5 text-astera-ink">
+        <section className="max-w-md rounded-3xl border border-astera-border bg-astera-surface p-6 shadow-sm">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-astera-brand">Helper Workspace</p>
+          <h1 className="mt-2 text-2xl font-semibold">沒有此工作區權限</h1>
+          <p className="mt-3 text-sm leading-6 text-astera-secondary">
+            小幫手目前只能查看自己的任務首頁；搶購任務與成本填寫會在指派後開放。
+          </p>
+          <Link
+            href="/workspace"
+            className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-astera-brand px-4 py-2 text-sm font-medium text-white"
+          >
+            回到小幫手工作區
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-dvh bg-astera-page px-4 py-4 text-astera-ink sm:px-6 lg:px-8">
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-5">
@@ -93,7 +112,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                 Astera OMS
               </p>
               <h1 className="mt-1 font-serif text-2xl tracking-tight text-astera-ink">
-                {role === "partner" ? "Partner 營運工作區" : "Owner 營運工作區"}
+              {role === "partner" ? "Partner 營運工作區" : role === "helper" ? "小幫手工作區" : "Owner 營運工作區"}
               </h1>
             </div>
             <div className="flex flex-wrap gap-2">

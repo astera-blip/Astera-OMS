@@ -2731,3 +2731,29 @@ domain, or change any other Firebase/Vercel setting.
 - Next handoff: re-login as the Partner test account, choose `載入並修改草稿`, append
   a Revision 2 test-only note/reason, then resubmit. Obtain action-time approval
   before the Owner applies it.
+
+### 2026-08-15 Local fix — Partner and Helper workspace entry
+
+- Reported issue: the signed-in Partner could not see a UI control to open
+  `/workspace/catalog-reviews` from `/account/profile`. Root cause was the shared
+  `AccountActions` component rendering a workspace link only for Owner.
+- Implemented, not yet deployed: Partner receives `合作人工作區` →
+  `/workspace/catalog-reviews`; Owner remains `管理後台` → `/workspace`.
+- The user also requested a Helper entry. Helper receives `小幫手工作區` →
+  `/workspace`. The Workspace gate now permits Helper only to its own landing page,
+  whose navigation contains only that landing page and whose content is the safe
+  empty state `目前沒有待處理任務`. It exposes no Owner payment/order/member/content/audit
+  page and no Partner catalog-review route; direct URLs under any other
+  `/workspace/...` path are denied and return the Helper to this landing page. The
+  actual rush-purchase and cost-entry workboard remains a separately pending feature.
+- Files: `src/components/auth/AccountActions.tsx`,
+  `src/components/workspace/WorkspaceShell.tsx`, `src/app/workspace/page.tsx`,
+  `tests/unit/accountActions.test.ts`, and the obsolete conflicting assertion in
+  `tests/unit/uiAccessibility.test.ts`.
+- Fresh local evidence: TypeScript PASS; zero-warning ESLint PASS; Unit 72 files /
+  568 tests PASS; `next build` PASS (46 routes). No Firebase Rules, Custom Claims,
+  Collections, product data, order data, or payment data changed.
+- Exact continuation: commit this focused local change, deploy Preview only, then
+  sign in as the Partner test account and use the new header/account action to open
+  `Catalog Reviews`; sign in as Helper and confirm the restricted task-only
+  workspace. After that, return to the rejected Partner draft and submit Revision 2.
