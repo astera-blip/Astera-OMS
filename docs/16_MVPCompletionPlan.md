@@ -2506,3 +2506,16 @@ Preview deployment update:
 - [ ] Next exact step: switch to the Owner session, open `/workspace/catalog-reviews`,
   inspect this complete diff, then reject it with a test-only reason. Approval remains
   an action-time-confirmed step after the Partner revises and resubmits.
+
+### 2026-08-15 Preview真人驗收：Owner駁回草稿
+
+- [x] Owner 在 `/workspace/catalog-reviews` 讀到完整 Revision 1：目標 Product ID
+  `prod_002`、公開說明／Variant／Campaign／分類／圖片均維持既有值，僅 Internal Note
+  含測試字樣。
+- [x] Owner 已以「測試專用：第一次駁回，用於驗證 Partner 修訂與重新送審流程。」
+  駁回；重新載入後狀態為 `Rejected（已駁回）` 且保留審核原因。
+- [x] 駁回後重新讀取公開 `/products`，`92帽子` 仍為 NT$ 520／預購／可能二補，封存
+  測試商品仍不可見。
+- [ ] Next exact step: Partner re-login, use `載入並修改草稿`, change only the
+  test-only Internal Note/reason, and resubmit Revision 2. Owner approval must be
+  action-time-confirmed and followed by the same public-projection check.

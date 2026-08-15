@@ -2718,3 +2718,16 @@ domain, or change any other Firebase/Vercel setting.
 - Exact next step: re-login as Owner and inspect the full review diff at
   `/workspace/catalog-reviews`; reject this first revision with an explicit test-only
   reason, then ask Partner to revise/resubmit before action-time-confirmed approval.
+
+### 2026-08-15 Preview human acceptance — Owner rejected test draft
+
+- Owner reviewed Revision 1 at `/workspace/catalog-reviews`. It showed target
+  `prod_002`, the full current Variant/Campaign/classification/image data, and only
+  the test Internal Note change.
+- Owner rejected the draft with `測試專用：第一次駁回，用於驗證 Partner 修訂與重新送審流程。`.
+  Reload verified `Rejected（已駁回）` and the immutable review reason.
+- A public catalog reload was unchanged: `92帽子` stayed NT$ 520/preorder/
+  supplement-required and the archived test product stayed hidden.
+- Next handoff: re-login as the Partner test account, choose `載入並修改草稿`, append
+  a Revision 2 test-only note/reason, then resubmit. Obtain action-time approval
+  before the Owner applies it.
