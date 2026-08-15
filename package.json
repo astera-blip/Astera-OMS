@@ -57,7 +57,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
-    "firebase-admin": "^14.2.0",
+    "firebase-admin": "13.10.0",
     "firebase-tools": "^15.24.0",
     "tailwindcss": "^4",
     "typescript": "^5",

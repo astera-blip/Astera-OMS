@@ -2365,3 +2365,32 @@ Preview deployment update:
 - [x] Fresh verification after the hotfix: TypeScript, zero-warning ESLint, Unit 71 files／562 tests, Firestore＋Storage Rules 2 files／34 tests, Production Build 46 routes, regular Playwright 22 passed／48 expected non-Emulator skips, and Emulator Playwright 58 passed／12 intentional skips. The first normal／Emulator Playwright attempts detected a stale local port 3000 server; re-running with fresh ports 3101／3102 proved the current tree.
 - [x] Preview public smoke through authenticated Vercel access: `/`, `/products`, `/brand`, `/terms`, `/privacy`, and `/products/prod_002` load; `/e2e-auth` returns the production-safe 404 with no test login form.
 - [ ] Final OIDC Admin API runtime verification remains: log into the hotfix Preview as an Owner, open `/workspace/products`, and confirm the real catalog loads without the prior `firebase-admin/auth` module error. Do not push the hotfix commit until this result is confirmed, because pushing `main` will automatically create another Vercel Production deployment.
+
+### 2026-08-15 Firebase Admin Vercel runtime compatibility correction
+
+- [x] The `78f8f63` `createRequire` trial did not resolve the deployed Vercel
+  Runtime failure. Preview logs still reached the CommonJS `jwks-rsa` → ESM-only
+  `jose` boundary while resolving `firebase-admin/auth`; it was not safe to
+  describe that trial as a completed hotfix.
+- [x] Pin the server-only test dependency to `firebase-admin` `13.10.0`, which
+  resolves its Admin Auth JWKS chain through `jwks-rsa` `3.2.2` and `jose`
+  `4.15.9`, rather than the incompatible v14 chain. `adminAuth.ts` again uses
+  the ordinary direct `firebase-admin/auth` import; no Firebase collection,
+  Rules, Checkout behaviour, environment variable, or production data changed.
+- [x] Add a regression assertion that the exact compatible Admin SDK line stays
+  pinned and that the direct Admin Auth import is retained.
+- [x] Fresh local gate after the pin: TypeScript pass; zero-warning ESLint pass;
+  Unit 71 files／563 tests; Firestore＋Storage Rules 2 files／34 tests; Production
+  Build 46 routes; regular Playwright 22 passed／48 expected Emulator-only skips;
+  Emulator Playwright 58 passed／12 intentional skips; secret scan pass; and
+  production dependency audit reports 0 vulnerabilities.
+- [x] The first Emulator Playwright attempt stopped before cases started because
+  Next/Turbopack cold startup exceeded Playwright's existing 120-second local
+  web-server wait. The isolated process was verified and stopped; a clean rerun
+  on port 3115 entered the test suite and passed. This is a local cold-start
+  harness condition, not a Firebase permission or workflow failure.
+- [ ] Next exact step: commit this pin and the corrected records, create a new
+  Vercel Preview, repoint the pre-authorized stable Preview alias to that build,
+  then authenticate as Owner and verify a real workspace API response and clean
+  Vercel logs. Only after this Preview result may `main` be pushed, which will
+  trigger the existing Git-integrated Production deployment.

@@ -2,6 +2,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 
 describe("Next server runtime config", () => {
+  test("pins Firebase Admin to the Vercel-compatible CommonJS JWKS line", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      devDependencies?: Record<string, string>;
+    };
+
+    expect(packageJson.devDependencies?.["firebase-admin"]).toBe("13.10.0");
+  });
+
   test("keeps firebase-admin external in server bundles", () => {
     const configSource = readFileSync("next.config.ts", "utf8");
 
@@ -31,11 +39,11 @@ describe("Next server runtime config", () => {
     expect(serverAuthSource).toContain("@/lib/firebase/adminAuth");
   });
 
-  test("loads Firebase Admin Auth through Node require for Turbopack external compatibility", () => {
+  test("imports Firebase Admin Auth directly after pinning its compatible dependency line", () => {
     const adminAuthSource = readFileSync("src/lib/firebase/adminAuth.ts", "utf8");
 
-    expect(adminAuthSource).toContain('createRequire(import.meta.url)');
-    expect(adminAuthSource).toContain('requireFirebaseAdminAuth("firebase-admin/auth")');
+    expect(adminAuthSource).toContain('import { getAuth } from "firebase-admin/auth"');
+    expect(adminAuthSource).not.toContain("createRequire");
   });
 
   test("uses Firebase Admin-compatible Application Default Credentials for Vercel OIDC", () => {
