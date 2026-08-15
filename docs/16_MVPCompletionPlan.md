@@ -2475,3 +2475,20 @@ Preview deployment update:
   `roles/firebaseauth.admin`, and do not alter Owner accounts, Rules, data,
   domains, or environment variables. After IAM propagation, retry exactly the
   same test-only Member → Partner action and require the account to re-login.
+
+### 2026-08-15 Preview真人驗收：Partner角色指派已解除
+
+- [x] 使用者已授權建立並授予最小 Firebase Auth 自訂角色。Production 專案新增
+  `projects/astera-oms-prod/roles/asteraVercelAuthRoleAssignment`，權限**僅**為
+  `firebase.projects.get`、`firebaseauth.users.get`、`firebaseauth.users.update`；
+  僅綁定至 Vercel OIDC runtime account
+  `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`。未授予廣泛的
+  `roles/firebaseauth.admin`，未修改 Rules、網域、環境變數或 Owner 帳號。
+- [x] IAM readback 已確認自訂角色內容與單一 Service Account 綁定正確。重新送出
+  明確標示 Task7 的 `ting1811tin@gmail.com` Member → Partner 指派後，Firebase Auth
+  唯讀查詢確認 Custom Claim 為 `role: partner`；重新載入 Preview 會員清單後，畫面也
+  顯示 `Partner（合作人）`。最初畫面保留 Member 是快取中的舊清單，並非寫入失敗。
+- [ ] Next exact step: use the now-Partner test account to re-login to the stable
+  Preview, open `/workspace/products`, and create the first explicitly test-only
+  catalog change request. Do not change a public product or perform an approval
+  without action-time confirmation.

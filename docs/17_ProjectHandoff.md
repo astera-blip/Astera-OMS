@@ -2686,3 +2686,20 @@ domain, or change any other Firebase/Vercel setting.
   Owner accounts, Firebase Rules, environment variables, domains, or customer
   data. After IAM propagation, repeat the test-only assignment and re-login as
   the Partner account before resuming the Partner draft → Owner review flow.
+
+### 2026-08-15 Preview human acceptance — Partner role-assignment resolved
+
+- User authorized the minimal Firebase Auth custom-role change. Created
+  `projects/astera-oms-prod/roles/asteraVercelAuthRoleAssignment` with exactly
+  `firebase.projects.get`, `firebaseauth.users.get`, and
+  `firebaseauth.users.update`, then bound it only to
+  `astera-vercel-admin@astera-oms-prod.iam.gserviceaccount.com`.
+- IAM readback confirmed the exact permission set and binding. The approved
+  Task7 account `ting1811tin@gmail.com` was then assigned Member → Partner.
+  A read-only Firebase Auth lookup returned `customClaims.role = partner`; a
+  Preview page reload displayed `Partner（合作人）`. The intermediate Member UI was
+  a stale member-list render, not a failed assignment.
+- Next handoff: the Partner account must re-login to the stable Preview before
+  submitting an explicitly test-only product-change draft. Keep Owner approval,
+  payment confirmation, batch reconciliation, and refund actions behind their
+  own action-time confirmations.
