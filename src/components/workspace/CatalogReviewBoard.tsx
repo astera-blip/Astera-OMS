@@ -134,13 +134,7 @@ export function CatalogReviewBoard() {
               </span>
             </div>
 
-            <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-              <div><dt className="text-astera-secondary">商品</dt><dd>{request.product.product.name}</dd></div>
-              <div><dt className="text-astera-secondary">目標 Product ID</dt><dd className="break-all">{request.product.product.id}</dd></div>
-              <div><dt className="text-astera-secondary">建立者</dt><dd className="break-all">{request.createdBy}</dd></div>
-              <div><dt className="text-astera-secondary">刊登狀態</dt><dd>{publishStateLabels[request.product.product.publishState]}</dd></div>
-              <div><dt className="text-astera-secondary">基準版本</dt><dd className="break-all">{request.baseProductVersion ?? "新商品"}</dd></div>
-            </dl>
+            <CatalogReviewDetails request={request} />
 
             <div className="mt-4 grid gap-4 rounded-xl bg-astera-page p-4 text-sm">
               <section>
@@ -241,6 +235,23 @@ export function CatalogReviewBoard() {
         ))}
       </div>
     </section>
+  );
+}
+
+export function CatalogReviewDetails({ request }: { request: CatalogChangeRequest }) {
+  return (
+    <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+      <div><dt className="text-astera-secondary">商品</dt><dd>{request.product.product.name}</dd></div>
+      <div><dt className="text-astera-secondary">目標 Product ID</dt><dd className="break-all">{request.product.product.id}</dd></div>
+      <div><dt className="text-astera-secondary">建立者</dt><dd>{request.creatorDisplayName ?? "未完成會員資料"}</dd></div>
+      <div><dt className="text-astera-secondary">刊登狀態</dt><dd>{publishStateLabels[request.product.product.publishState]}</dd></div>
+      <div className="sm:col-span-2">
+        <dt className="text-astera-secondary">送審時版本</dt>
+        <dd>{request.baseProductVersion
+          ? "以送審當下的正式商品為準；若之後被更新，系統會阻止核准並要求重新送審。"
+          : "新商品草稿，尚無既有正式版本。"}</dd>
+      </div>
+    </dl>
   );
 }
 

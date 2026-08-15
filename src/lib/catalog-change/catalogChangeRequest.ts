@@ -34,6 +34,8 @@ export type CatalogChangeRequest = {
   baseCampaigns: Array<{ id: string; title: string }>;
   revisionHistory?: CatalogChangeRequestRevision[];
   createdBy: string;
+  /** Response-only presentation value resolved from members/{createdBy}. */
+  creatorDisplayName?: string;
   createdAt: IsoDateTime;
   updatedBy: string;
   updatedAt: IsoDateTime;

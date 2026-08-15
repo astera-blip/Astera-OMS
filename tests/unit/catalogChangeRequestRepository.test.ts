@@ -42,7 +42,11 @@ function createDb(seed: Record<string, Stored> = {}) {
     ...seed,
   }));
   let generated = 0;
-  const ref = (collection: string, id: string) => ({ collection, id });
+  const ref = (collection: string, id: string) => ({
+    collection,
+    id,
+    get: vi.fn(async () => snapshot(collection, id)),
+  });
   const query = (collection: string, field: string, value: string) => ({ collection, field, value });
   const snapshot = (collection: string, id: string) => ({
     id,
@@ -107,6 +111,31 @@ describe("catalog change request repository", () => {
       "productsInternal/product-a",
       "catalogChangeRequests/catalogChangeRequests-1",
     ]);
+  });
+
+  it("adds the completed member name to a listed request without replacing createdBy", async () => {
+    const state = createDb({
+      "members/partner-a": {
+        displayName: "合作人小葉",
+        communityId: "葉葉",
+      },
+    });
+    await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
+
+    const [request] = await listCatalogChangeRequestsServer(state.db as never);
+
+    expect(request.createdBy).toBe("partner-a");
+    expect(request.creatorDisplayName).toBe("合作人小葉（葉葉）");
+  });
+
+  it("uses a safe creator fallback and never exposes a UID when no profile exists", async () => {
+    const state = createDb();
+    await createCatalogChangeRequestServer(state.db as never, input, "partner-a");
+
+    const [request] = await listCatalogChangeRequestsServer(state.db as never);
+
+    expect(request.creatorDisplayName).toBe("未完成會員資料");
+    expect(request.creatorDisplayName).not.toContain(request.createdBy);
   });
 
   it("rejects submission when the product changed after the Partner loaded it", async () => {

@@ -28,10 +28,23 @@ export async function listCatalogChangeRequestsServer(
   db: Firestore,
 ): Promise<CatalogChangeRequest[]> {
   const snapshot = await db.collection("catalogChangeRequests").orderBy("updatedAt", "desc").get();
-  return snapshot.docs.map((document) => ({
+  const requests = snapshot.docs.map((document) => ({
     id: document.id,
     ...document.data(),
   }) as CatalogChangeRequest);
+  const creatorUids = [...new Set(requests.map((request) => request.createdBy).filter(Boolean))];
+  const names = new Map(await Promise.all(creatorUids.map(async (uid) => {
+    try {
+      const member = await db.collection("members").doc(uid).get();
+      return [uid, formatCreatorDisplayName(member.data() as Record<string, unknown> | undefined)] as const;
+    } catch {
+      return [uid, "未完成會員資料"] as const;
+    }
+  })));
+  return requests.map((request) => ({
+    ...request,
+    creatorDisplayName: names.get(request.createdBy) ?? "未完成會員資料",
+  }));
 }
 
 export async function createCatalogChangeRequestServer(
@@ -327,4 +340,13 @@ function buildAudit(
     reviewDecisionDigest: request.reviewDecisionDigest,
     createdAt: new Date().toISOString(),
   };
+}
+
+function formatCreatorDisplayName(member: Record<string, unknown> | undefined) {
+  const displayName = typeof member?.displayName === "string" ? member.displayName.trim() : "";
+  const communityId = typeof member?.communityId === "string" ? member.communityId.trim() : "";
+  if (!displayName) return "未完成會員資料";
+  return communityId && communityId !== displayName
+    ? `${displayName}（${communityId}）`
+    : displayName;
 }

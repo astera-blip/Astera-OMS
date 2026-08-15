@@ -2766,3 +2766,33 @@ domain, or change any other Firebase/Vercel setting.
   Helper and confirm the restricted task-only workspace. After that, return to the
   rejected Partner draft and submit Revision 2. Never push `main` merely to test
   Preview: use a non-main branch or Vercel CLI without `--prod`.
+
+### 2026-08-15 Preview acceptance — Partner Revision 2 approved
+
+- The Partner test account resubmitted Revision 2 of the explicitly test-only
+  `92帽子` catalog draft. Its scope was limited to a test Internal Note and a
+  test-only reason; it did not propose public price, Campaign, SKU, image, Variant,
+  product-name, or published-state changes.
+- The Owner reviewed the complete proposal and, with explicit action-time user
+  authorization, approved it with `測試專用：核准 Revision 2 內部備註驗收。` The
+  Preview card read back `Approved（已核准）`, including the immutable reason.
+- Public verification immediately after approval: `/products` continued to show
+  `92帽子` at NT$ 520, preorder, and supplement-required. The approval changed only
+  the private test note on `prod_002`; no order, payment, customer, Rules, domain,
+  environment variable, or public projection data was changed.
+- UX defect discovered during this successful acceptance: the review card exposed a
+  Firebase UID under `建立者` and a raw internal `基準版本` token. The agreed fix is
+  response-only member presentation (`displayName` plus distinct `communityId`) and
+  human-readable `送審時版本` stale-protection copy. The UID and version token remain
+  stored only for authorization/stale checks and are never written into public data.
+- Implementation worktree: `C:\Users\ting1\Documents\代購網頁製作\.worktrees\codex-catalog-review-identity`
+  on `codex/catalog-review-identity`. Fresh evidence before merge: focused tests
+  2 files／14 tests, TypeScript pass, Unit 73 files／571 tests, zero-warning ESLint,
+  and Production Build 46 routes pass. Build commands inside nested Windows
+  worktrees require the documented
+  `NEXT_TURBOPACK_ROOT=C:\Users\ting1\Documents\代購網頁製作` environment value;
+  this is a validation harness setting, not a deployed application change.
+- Exact next step: review the branch diff, merge only this response/UI/test/document
+  change into local `main`, then deploy Preview from a non-main branch or Vercel CLI
+  without `--prod`. Re-open the approved draft as Owner and verify readable creator
+  and version copy before Production consideration.

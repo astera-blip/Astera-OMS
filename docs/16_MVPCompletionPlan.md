@@ -2547,3 +2547,20 @@ Preview deployment update:
 - [ ] 下一精確步驟：使用已授權 Partner 帳號從
   `/account/profile` 的「合作人工作區」開啟 `/workspace/catalog-reviews`；另以
   Helper 測試帳號確認只看得到受限任務首頁。通過後再繼續 Partner Revision 2。
+
+### 2026-08-15 Preview真人驗收：Partner Revision 2 核准
+
+- [x] Owner 在已授權的穩定 Preview `/workspace/catalog-reviews` 審閱唯一的
+  `【測試專用】Partner 商品草稿驗收` Revision 2，目標為既有商品 `prod_002`。
+  提案內容只更新測試用 Internal Note；公開說明、刊登狀態、Variant、Campaign、
+  價格、SKU 與圖片均維持原值。
+- [x] 依使用者 action-time 明確授權，以「測試專用：核准 Revision 2 內部備註驗收。」
+  核准。畫面重新讀回 `Approved（已核准）` 與該審核原因。
+- [x] 隨後重讀公開 `/products`：`92帽子` 仍為 NT$ 520／預購／可能二補，證實核准的
+  Internal Note 未改變 `productsPublic` 的公開售價或活動內容。
+- [x] 發現審核卡把建立者顯示為 Firebase UID、把基準版本顯示為技術數字。已獲使用者
+  同意以既有會員姓名／社群 ID 顯示建立者，並以「送審時版本」的防覆寫說明取代數字。
+  此修正於隔離分支 `codex/catalog-review-identity` 進行；不改 Firestore Collection、
+  Rules、商品／結帳商業邏輯或持久化 UID。
+- [ ] 下一精確步驟：合併已驗證的可讀化審核資訊修正，部署 Preview 後以 Owner 重新讀取
+  同一筆 Approved 草稿，確認不顯示 UID 或版本數字；再繼續 Excel 對帳與付款生命週期驗收。
