@@ -2364,7 +2364,9 @@ Preview deployment update:
 - [x] 建立不改動 Git／Production 的 Preview runtime hotfix deployment：`https://astera-c05lh0at0-astera-oms.vercel.app`。修正 `firebase-admin/auth` 在 Vercel Turbopack external dynamic import 下因 `jwks-rsa`／ESM 相容性而無法載入的錯誤，改由 Node `createRequire` 載入 Admin Auth；回歸測試已加入。
 - [x] Fresh verification after the hotfix: TypeScript, zero-warning ESLint, Unit 71 files／562 tests, Firestore＋Storage Rules 2 files／34 tests, Production Build 46 routes, regular Playwright 22 passed／48 expected non-Emulator skips, and Emulator Playwright 58 passed／12 intentional skips. The first normal／Emulator Playwright attempts detected a stale local port 3000 server; re-running with fresh ports 3101／3102 proved the current tree.
 - [x] Preview public smoke through authenticated Vercel access: `/`, `/products`, `/brand`, `/terms`, `/privacy`, and `/products/prod_002` load; `/e2e-auth` returns the production-safe 404 with no test login form.
-- [ ] Final OIDC Admin API runtime verification remains: log into the hotfix Preview as an Owner, open `/workspace/products`, and confirm the real catalog loads without the prior `firebase-admin/auth` module error. Do not push the hotfix commit until this result is confirmed, because pushing `main` will automatically create another Vercel Production deployment.
+- [x] This `createRequire` Preview verification item is superseded by the
+  `firebase-admin` v13 compatibility correction below; the earlier deployed
+  trial itself did not resolve the Vercel runtime failure.
 
 ### 2026-08-15 Firebase Admin Vercel runtime compatibility correction
 
@@ -2394,3 +2396,20 @@ Preview deployment update:
   then authenticate as Owner and verify a real workspace API response and clean
   Vercel logs. Only after this Preview result may `main` be pushed, which will
   trigger the existing Git-integrated Production deployment.
+
+### 2026-08-15 Pinned Firebase Admin Preview verification
+
+- [x] Commit `930ada6` was deployed only as Vercel Preview
+  `dpl_NwPpw9reGmo1rRS3cx51cPjRwtMK` at
+  `https://astera-omxqnkzyp-astera-oms.vercel.app`.
+- [x] The pre-authorized stable Preview alias
+  `https://astera-oms-astera-blip-astera-oms.vercel.app` now points to that
+  deployment. No Production alias, Firebase setting, environment variable, Rule,
+  or data changed.
+- [x] A signed-in Owner loaded `/workspace/products` and received real product
+  catalog data, classifications, variants, and Campaign controls. The bounded
+  error-level Vercel log query for this deployment returned no errors, including
+  no prior `firebase-admin/auth` ESM failure.
+- [ ] Next exact step: commit this Preview record, push local `main` to GitHub,
+  wait for the Git-integrated Production deployment, then perform read-only
+  Production route and Owner Workspace smoke verification.

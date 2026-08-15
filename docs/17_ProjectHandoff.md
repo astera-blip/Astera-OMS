@@ -2577,7 +2577,9 @@ domain, or change any other Firebase/Vercel setting.
 - Fresh verification after the hotfix: TypeScript pass; zero-warning ESLint pass; Unit 71 files／562 tests; Firestore＋Storage Rules 2 files／34 tests; Production Build 46 routes; regular Playwright 22 passed／48 non-Emulator skips; Emulator Playwright 58 passed／12 intentional skips; secret scan pass; production dependency audit 0 vulnerabilities.
 - The first ordinary Playwright run reused an existing local port-3000 dev server and saw an obsolete homepage. The first Emulator run correctly refused that same occupied port. Both were re-run on fresh ports 3101／3102 and passed; this is a local test-harness isolation issue, not a deployed application failure.
 - Authenticated Preview smoke confirmed `/`, `/products`, `/brand`, `/terms`, `/privacy`, and `/products/prod_002`; `/e2e-auth` is a 404 in normal production mode and exposes no test login form. Vercel does not permit safely retrieving all sensitive Preview environment values for local inspection, so the final environment/OIDC proof is an Owner session reading the real workspace data.
-- Exact next step: obtain explicit consent to sign into `https://astera-c05lh0at0-astera-oms.vercel.app` with the current Owner Google account, navigate to `/workspace/products`, and verify catalog load plus the absence of the previous Admin Auth error in Vercel logs. If successful, commit the two source files and these records; request a separate explicit confirmation before pushing `main`, because Git integration will deploy Production automatically.
+- This `createRequire` Preview verification step is superseded by the pinned
+  Firebase Admin correction below; the trial deployment did not resolve the
+  runtime failure.
 
 ### 2026-08-15 Firebase Admin runtime compatibility correction
 
@@ -2608,3 +2610,20 @@ domain, or change any other Firebase/Vercel setting.
   the pinned dependency, validate a signed-in Owner workspace API and Vercel
   runtime logs, then push `main` so the existing Git integration can deploy
   Production.
+
+### 2026-08-15 Pinned Firebase Admin Preview acceptance
+
+- Local commit `930ada6` was deployed to Preview only as
+  `dpl_NwPpw9reGmo1rRS3cx51cPjRwtMK` at
+  `https://astera-omxqnkzyp-astera-oms.vercel.app`.
+- The existing Firebase-authorized stable Preview alias
+  `https://astera-oms-astera-blip-astera-oms.vercel.app` was moved to that
+  deployment. Production aliases, Firebase configuration, Rules, environment
+  variables, and data were unchanged.
+- The current signed-in Owner session loaded `/workspace/products` and rendered
+  actual product, classification, Variant, and Campaign data. A bounded
+  error-level Vercel log read for this deployment returned no errors; the previous
+  `firebase-admin/auth` module-resolution failure was absent.
+- Next exact step: commit this record, push `main`, wait for the existing
+  Git-integrated Production deployment, then run public route and signed-in Owner
+  Workspace smoke checks before declaring the runtime correction released.
