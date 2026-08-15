@@ -2627,3 +2627,21 @@ domain, or change any other Firebase/Vercel setting.
 - Next exact step: commit this record, push `main`, wait for the existing
   Git-integrated Production deployment, then run public route and signed-in Owner
   Workspace smoke checks before declaring the runtime correction released.
+
+### 2026-08-15 Pinned Firebase Admin Production acceptance
+
+- GitHub `main` received `930ada6` and `9880f27`. Its existing Vercel Git
+  integration built Production deployment `dpl_8ytNucEwdiW4anyqXjNtMLou6UEm`
+  (`https://astera-gmozuqeg9-astera-oms.vercel.app`), now Ready behind the
+  canonical `https://astera-oms.vercel.app` alias.
+- Read-only Production smoke using `prod_002` passed `/`, `/products`, `/terms`,
+  `/privacy`, and `/products/prod_002` with HTTP 200.
+- The current signed-in Owner session rendered the actual Production
+  `/workspace/products` catalog controls and data. A bounded Vercel error-log
+  query returned no errors; the earlier Admin Auth ESM module failure is absent.
+- This resolves only the Vercel Firebase Admin runtime compatibility blocker.
+  Outstanding release gates remain: live image upload/real-device testing,
+  consumer/legal content approval, `asteratw.com` DNS, Resend SPF/DKIM/API key
+  and actual delivery, and action-time-authorized Owner payment/refund lifecycle
+  testing. No Firebase Rule, environment variable, domain, or data mutation was
+  made during this acceptance.

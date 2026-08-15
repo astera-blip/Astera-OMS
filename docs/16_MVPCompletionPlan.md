@@ -2413,3 +2413,21 @@ Preview deployment update:
 - [ ] Next exact step: commit this Preview record, push local `main` to GitHub,
   wait for the Git-integrated Production deployment, then perform read-only
   Production route and Owner Workspace smoke verification.
+
+### 2026-08-15 Pinned Firebase Admin Production verification
+
+- [x] Push `930ada6` and `9880f27` to GitHub `main`; Vercel Git integration
+  created Production deployment `dpl_8ytNucEwdiW4anyqXjNtMLou6UEm` at
+  `https://astera-gmozuqeg9-astera-oms.vercel.app`, which reached Ready and owns
+  `https://astera-oms.vercel.app`.
+- [x] Read-only Production smoke with `prod_002` passed `/`, `/products`,
+  `/terms`, `/privacy`, and `/products/prod_002` (HTTP 200 for all five).
+- [x] The signed-in Owner loaded Production `/workspace/products` with real
+  catalog, classification, Variant, and Campaign data. A bounded error-level
+  log read found no Production errors and no prior `firebase-admin/auth` ESM
+  module-resolution failure.
+- [ ] Remaining release gates are unchanged: real-device acceptance, active
+  product images, final consumer/legal content approval, `asteratw.com` DNS,
+  Resend domain/API-key verification and delivery, plus the deliberate Owner
+  payment/refund lifecycle acceptance. Do not treat this runtime correction as
+  completion of those independent gates.
