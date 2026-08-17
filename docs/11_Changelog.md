@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-17
+
+- Removed the unused direct `@vitest/coverage-v8` dev dependency and its lockfile-only coverage packages; TypeScript, ESLint, 74 Unit test files / 577 tests, and the Production Build still pass.
+
 ## 2026-07-29
 
 - Corrected the homepage brand heading to `ASTERA OMS` only, omitted blank `birthday` from member profile save payloads, and mapped missing Admin Firestore credentials to an explicit profile-save error.
