@@ -6,6 +6,7 @@ const playwrightPort = process.env.PLAYWRIGHT_PORT ?? "3000";
 const localBaseUrl = `http://127.0.0.1:${playwrightPort}`;
 const playwrightTurbopackRoot = process.env.PLAYWRIGHT_TURBOPACK_ROOT;
 const configuredWorkers = Number(process.env.PLAYWRIGHT_WORKERS);
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -30,7 +31,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
       ? undefined
       : {
-        command: `npm.cmd run dev -- --port ${playwrightPort}`,
+        command: `${npmCommand} run dev -- --port ${playwrightPort}`,
         url: localBaseUrl,
         reuseExistingServer: !useFirebaseEmulators,
         timeout: 120_000,
