@@ -186,6 +186,30 @@ describe("Owner payment account display", () => {
 });
 
 describe("payment report member account snapshot", () => {
+  it.each([
+    "2026-8-03",
+    "2026-02-30",
+    "2026-08-03T01:00:00.000Z",
+    "not-a-date",
+  ])("rejects a non-canonical or impossible payment date before persistence: %s", async (receivedAt) => {
+    const response = await POST(paymentReportRequest({ receivedAt }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_request" });
+    expect(firestore.getAdminFirestore).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    Number.MAX_SAFE_INTEGER + 1,
+    10_000_001,
+  ])("rejects an unsafe or out-of-policy payment amount before persistence: %s", async (receivedAmountTwd) => {
+    const response = await POST(paymentReportRequest({ receivedAmountTwd }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_request" });
+    expect(firestore.getAdminFirestore).not.toHaveBeenCalled();
+  });
+
   it("returns the original payment without writing again for an identical replay", async () => {
     const reporting = createPaymentReportFirestore();
     firestore.getAdminFirestore.mockReturnValue(reporting.db);

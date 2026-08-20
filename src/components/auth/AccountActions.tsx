@@ -43,6 +43,7 @@ export function AccountActions({
       {role === "helper" ? <Link href="/workspace" onClick={onNavigate} className={itemClassName}>小幫手工作區</Link> : null}
       <Link href="/orders" onClick={onNavigate} className={itemClassName}>我的訂單</Link>
       <Link href="/account/profile" onClick={onNavigate} className={itemClassName}>{isMobile ? "我的帳號" : user?.displayName || "會員資料"}</Link>
+      <Link href="/account/bank-accounts" onClick={onNavigate} className={itemClassName}>付款設定</Link>
       <button
         type="button"
         onClick={() => void signOut().then(onNavigate)}

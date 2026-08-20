@@ -1,11 +1,101 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   buildMemberPaymentAccountSnapshot,
   isMemberPaymentAccountUsableForPayment,
 } from "@/lib/payment/memberBankAccounts";
 
+const { useStateMock } = vi.hoisted(() => ({ useStateMock: vi.fn() }));
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+
+  return { ...actual, useState: useStateMock };
+});
+
+vi.mock("@/components/auth/AuthProvider", () => ({
+  useAuth: () => ({
+    user: {
+      uid: "member-1",
+      getIdToken: vi.fn(),
+    },
+  }),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock("next/link", async () => {
+  const { createElement: createAnchor } = await import("react");
+
+  return {
+    default: (props: Record<string, unknown>) =>
+      createAnchor("a", { ...props, "data-next-link": "true" }),
+  };
+});
+
+import MembersPage from "@/app/members/page";
+import { PaymentRequestsBoard } from "@/components/storefront/PaymentRequestsBoard";
+
+function expectNextLinkWithLabel(markup: string, href: string, label: string) {
+  expect(markup).toMatch(
+    new RegExp(
+      `<a(?=[^>]*data-next-link="true")(?=[^>]*href="${href}")[^>]*>[\\s\\S]*?${label}[\\s\\S]*?</a>`,
+    ),
+  );
+}
+
+function renderPaymentRequestsBoardWithAccounts(
+  accounts: Array<Record<string, unknown>>,
+  selectedAccountId: string,
+) {
+  const states = [
+    [],
+    [],
+    [],
+    [],
+    "",
+    accounts,
+    selectedAccountId,
+    [],
+    "",
+    "",
+    "",
+    "ready",
+    "",
+    false,
+  ];
+  let stateIndex = 0;
+
+  // This test-only driver matches PaymentRequestsBoard's current state declarations.
+  // Recreate it per render and assert the populated selector below so a hook-layout
+  // change is diagnosed as fixture maintenance rather than discoverability behavior.
+  useStateMock.mockImplementation(() => [states[stateIndex++], vi.fn()]);
+
+  return renderToStaticMarkup(createElement(PaymentRequestsBoard));
+}
+
+function renderPaymentRequestsBoardWithUsableAccount() {
+  return renderPaymentRequestsBoardWithAccounts([{
+    id: "member-account-1",
+    memberUid: "member-1",
+    bankCode: "012",
+    accountNumberLast5: "56789",
+    accountNumberMasked: "*****56789",
+    payerName: "王小明",
+    status: "active",
+    verificationStatus: "verified",
+  }], "member-account-1");
+}
+
 describe("member payment account UI contract", () => {
+  afterEach(() => {
+    useStateMock.mockReset();
+  });
+
   it("collects bank code, transient full account and the linked payer name", () => {
     const page = readFileSync("src/app/account/bank-accounts/page.tsx", "utf8");
     const board = readFileSync("src/components/account/MemberPaymentAccountsBoard.tsx", "utf8");
@@ -112,5 +202,28 @@ describe("member payment account UI contract", () => {
     expect(paymentBody).toContain("memberPaymentAccountId: selectedMemberPaymentAccountId");
     expect(paymentBody).not.toContain("payerName");
     expect(paymentBody).not.toContain("last5");
+  });
+
+  it("會員工作台有連結自己匯款帳戶的付款設定", () => {
+    const markup = renderToStaticMarkup(createElement(MembersPage));
+
+    expectNextLinkWithLabel(markup, "/account/bank-accounts", "付款設定");
+  });
+
+  it("有可用匯款帳戶時仍提供管理付款帳戶入口", () => {
+    const markup = renderPaymentRequestsBoardWithUsableAccount();
+
+    expect(markup).toContain('id="member-payment-account"');
+    expect(markup).toContain('value="member-account-1"');
+    expect(markup).toContain("匯出匯款的會員帳戶");
+    expectNextLinkWithLabel(markup, "/account/bank-accounts", "管理付款帳戶");
+  });
+
+  it("沒有可用匯款帳戶時只提供一個管理付款帳戶入口", () => {
+    const markup = renderPaymentRequestsBoardWithAccounts([], "");
+
+    expect(markup).toContain("尚未登記匯款帳戶，請先新增自己的銀行帳戶。");
+    expectNextLinkWithLabel(markup, "/account/bank-accounts", "管理付款帳戶");
+    expect(markup.match(/href="\/account\/bank-accounts"/g)).toHaveLength(1);
   });
 });

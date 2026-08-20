@@ -18,6 +18,21 @@ import {
   validatePaymentReportIdempotencyKey,
 } from "@/lib/payment/reportIdempotency";
 
+const MAX_PAYMENT_REPORT_AMOUNT_TWD = 10_000_000;
+
+function isCanonicalCalendarDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
 function serializeTimestamp(value: unknown) {
   if (typeof value === "string") {
     return value;
@@ -123,10 +138,11 @@ export async function POST(request: Request) {
     if (
       uniquePaymentRequestIds.length === 0
       || uniquePaymentRequestIds.length > 20
-      || !receivedAt
+      || !isCanonicalCalendarDate(receivedAt)
       || typeof receivedAmountTwd !== "number"
-      || !Number.isInteger(receivedAmountTwd)
+      || !Number.isSafeInteger(receivedAmountTwd)
       || receivedAmountTwd <= 0
+      || receivedAmountTwd > MAX_PAYMENT_REPORT_AMOUNT_TWD
     ) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }

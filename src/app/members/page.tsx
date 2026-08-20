@@ -1,6 +1,7 @@
 const memberLinks = [
   { href: "/account/profile", label: "會員資料", detail: "更新姓名、手機與聯絡資訊" },
   { href: "/orders", label: "訂單與付款", detail: "查看訂單、付款請求與取消進度" },
+  { href: "/account/bank-accounts", label: "付款設定", detail: "管理付款回報使用的匯款帳戶" },
   { href: "/brand", label: "客服聯絡", detail: "查看品牌公告與客服資訊" },
 ];
 

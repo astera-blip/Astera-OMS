@@ -43,7 +43,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
   ).toBe(false);
 });
 
-test("helper mobile session cannot enter the workspace before its feature batch", async ({
+test("helper mobile session enters only the task workspace before its feature batch", async ({
   page,
 }, testInfo) => {
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
@@ -54,10 +54,8 @@ test("helper mobile session cannot enter the workspace before its feature batch"
   await page.getByLabel("Password").fill("Password123!");
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
-  await expect(page.getByText(
-    "目前角色為 Helper（小幫手）；搶購任務功能將在對應批次開放。",
-  )).toBeVisible();
+  await expect(page.getByRole("heading", { name: "小幫手工作區", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "目前沒有待處理任務" })).toBeVisible();
   await expect(page.getByRole("link", { name: "商品 Products" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "訂單 Orders" })).toHaveCount(0);
 });
@@ -72,5 +70,5 @@ test("member mobile session cannot enter the workspace", async ({ page }, testIn
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
-  await expect(page.getByText("請使用 Owner 帳號進入工作區。")).toBeVisible();
+  await expect(page.getByText("請使用具備工作區權限的帳號進入。")).toBeVisible();
 });

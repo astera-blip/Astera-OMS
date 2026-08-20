@@ -21,9 +21,26 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
 }));
 
+vi.mock("next/link", async () => {
+  const { createElement: createAnchor } = await import("react");
+
+  return {
+    default: (props: Record<string, unknown>) =>
+      createAnchor("a", { ...props, "data-next-link": "true" }),
+  };
+});
+
 import { AccountActions } from "@/components/auth/AccountActions";
 import WorkspaceHomePage from "@/app/workspace/page";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+
+function expectNextLinkWithLabel(markup: string, href: string, label: string) {
+  expect(markup).toMatch(
+    new RegExp(
+      `<a(?=[^>]*data-next-link="true")(?=[^>]*href="${href}")[^>]*>[\\s\\S]*?${label}[\\s\\S]*?</a>`,
+    ),
+  );
+}
 
 describe("AccountActions workspace entry", () => {
   beforeEach(() => {
@@ -82,5 +99,27 @@ describe("AccountActions workspace entry", () => {
 
     expect(markup).toContain('href="/workspace"');
     expect(markup).toContain("管理後台");
+  });
+
+  it("已登入會員直接進入付款設定", () => {
+    const markup = renderToStaticMarkup(createElement(AccountActions));
+
+    expectNextLinkWithLabel(markup, "/account/bank-accounts", "付款設定");
+  });
+
+  it("已登入會員可從行動版帳號選單直接進入付款設定", () => {
+    const markup = renderToStaticMarkup(createElement(AccountActions, { variant: "mobile" }));
+
+    expectNextLinkWithLabel(markup, "/account/bank-accounts", "付款設定");
+  });
+
+  it("在 Owner 後台導覽提供付款與收款入口", () => {
+    role = "owner";
+
+    const markup = renderToStaticMarkup(
+      createElement(WorkspaceShell, null, createElement("p", null, "Owner content")),
+    );
+
+    expectNextLinkWithLabel(markup, "/workspace/payments", "付款與收款");
   });
 });

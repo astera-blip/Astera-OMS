@@ -11,7 +11,7 @@ const navigation = [
   { href: "/workspace/catalog-reviews", label: "草稿審核 Catalog Reviews", roles: ["owner", "partner"] },
   { href: "/workspace/members", label: "會員 Members", roles: ["owner"] },
   { href: "/workspace/orders", label: "訂單 Orders", roles: ["owner"] },
-  { href: "/workspace/payments", label: "付款 Payments", roles: ["owner"] },
+  { href: "/workspace/payments", label: "付款與收款 Payments", roles: ["owner"] },
   { href: "/workspace/content", label: "內容 Content", roles: ["owner"] },
   { href: "/workspace/audit-logs", label: "稽核紀錄 Audit Logs", roles: ["owner"] },
 ];

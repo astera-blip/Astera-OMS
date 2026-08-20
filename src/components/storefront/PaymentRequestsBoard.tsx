@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { LocalPaymentRequest, MemberPaymentSummary } from "@/lib/payment/manualBankTransfer";
@@ -288,8 +289,18 @@ export function PaymentRequestsBoard() {
               </p>
             )}
           </label>
-          <label className="grid gap-2 text-sm md:col-span-2">
-            <span className="font-medium">匯出匯款的會員帳戶</span>
+          <div className="grid gap-2 text-sm md:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="member-payment-account" className="font-medium">
+                匯出匯款的會員帳戶
+              </label>
+              <Link
+                href="/account/bank-accounts"
+                className="inline-flex min-h-11 items-center rounded-lg bg-astera-service/10 px-4 py-3 text-sm font-semibold text-astera-service underline"
+              >
+                管理付款帳戶
+              </Link>
+            </div>
             {memberPaymentAccounts.length > 0 ? (
               <select
                 id="member-payment-account"
@@ -305,11 +316,11 @@ export function PaymentRequestsBoard() {
                 ))}
               </select>
             ) : (
-              <a href="/account/bank-accounts" className="min-h-11 rounded-lg bg-astera-service/10 px-4 py-3 text-sm font-semibold text-astera-service underline">
+              <p className="rounded-lg bg-astera-page px-4 py-3 text-sm text-astera-secondary">
                 尚未登記匯款帳戶，請先新增自己的銀行帳戶。
-              </a>
+              </p>
             )}
-          </label>
+          </div>
           <label className="grid gap-2 text-sm">
             <span className="font-medium">匯款日期</span>
             <input

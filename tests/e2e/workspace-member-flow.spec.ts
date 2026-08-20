@@ -67,7 +67,7 @@ test("member cannot open member operations workspace", async ({ page }) => {
   await expect(page.getByText("僅 Owner 可查看會員營運資料。")).not.toBeVisible();
 });
 
-test("Owner assigns and restores a role with audit, notice, and Workspace denial", async ({ page }, testInfo) => {
+test("Owner assigns and restores a role with audit, notice, and task-only Helper workspace", async ({ page }, testInfo) => {
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
   test.skip(testInfo.project.name !== "chromium-desktop", "Run the stateful role lifecycle once.");
 
@@ -108,7 +108,9 @@ test("Owner assigns and restores a role with audit, notice, and Workspace denial
   await page.waitForURL((url) => url.pathname === "/workspace");
   await expect(page.getByText(/你的帳號角色已更新為 Helper/)).toBeVisible();
   await page.getByRole("button", { name: "我知道了" }).click();
-  await expect(page.getByRole("heading", { name: "需要後台權限" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "小幫手工作區", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "商品 Products" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "訂單 Orders" })).toHaveCount(0);
 
   await page.goto("/e2e-auth?next=/workspace/members");
   await page.getByLabel("Email").fill("owner-e2e@example.test");
