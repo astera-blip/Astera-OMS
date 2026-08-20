@@ -9,7 +9,7 @@ test("Owner can reach the existing receiving-account manager from workspace navi
   test.skip(!useEmulatedAuth, "Requires Auth/Firestore emulator seed.");
   test.skip(testInfo.project.name !== "chromium-desktop", "Owner navigation runs once.");
 
-  await signIn(page, "owner-e2e@example.test", "/workspace");
+  await signIn(page, "owner-e2e@example.test", "/workspace", /\/workspace\/products$/);
   await page.getByRole("link", { name: "付款與收款 Payments" }).click();
 
   await expect(page).toHaveURL(/\/workspace\/payments$/);
@@ -57,10 +57,10 @@ test("Member can reach and manage payment accounts from normal desktop and mobil
   );
 });
 
-async function signIn(page: Page, email: string, next: string) {
+async function signIn(page: Page, email: string, next: string, expectedUrl?: RegExp) {
   await page.goto(`/e2e-auth?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(new RegExp(`${next.replaceAll("/", "\\/")}$`));
+  await expect(page).toHaveURL(expectedUrl ?? new RegExp(`${next.replaceAll("/", "\\/")}$`));
 }

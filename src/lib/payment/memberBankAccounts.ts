@@ -206,6 +206,7 @@ export function memberPaymentAccountErrorMessage(error: string): string {
     member_payment_account_limit_reached: "最多只能保存 5 筆匯款帳戶；請先申請封存舊帳戶。",
     member_payment_account_not_found: "找不到指定的匯款帳戶。",
     member_payment_account_not_active: "這個匯款帳戶目前無法使用。",
+    member_payment_account_reverification_not_allowed: "這個匯款帳戶目前無法重新驗證，請聯絡 Owner。",
   }[error] ?? "匯款帳戶資料無效。";
 }
 

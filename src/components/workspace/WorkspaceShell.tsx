@@ -6,7 +6,7 @@ import { ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 const navigation = [
-  { href: "/workspace", label: "工作區 Workspace", roles: ["owner", "partner", "helper"] },
+  { href: "/workspace", label: "工作區 Workspace", roles: ["partner", "helper"] },
   { href: "/workspace/products", label: "商品 Products", roles: ["owner", "partner"] },
   { href: "/workspace/catalog-reviews", label: "草稿審核 Catalog Reviews", roles: ["owner", "partner"] },
   { href: "/workspace/members", label: "會員 Members", roles: ["owner"] },

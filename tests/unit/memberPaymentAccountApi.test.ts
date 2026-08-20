@@ -27,6 +27,7 @@ vi.mock("@/lib/security/cloudKmsMac", () => ({
 }));
 
 import { GET, POST } from "@/app/api/member/payment-accounts/route";
+import { PATCH as reverify } from "@/app/api/member/payment-accounts/[id]/route";
 import { POST as requestDeletion } from "@/app/api/member/payment-accounts/[id]/deletion-request/route";
 
 type StoredDocument = { id: string; data: Record<string, unknown> };
@@ -479,6 +480,188 @@ describe("member payment account API contract", () => {
       deletionRequestedBy: "member-a",
       updatedBy: "member-a",
     }));
+  });
+
+  it("re-verifies an owned legacy account in place and returns a masked verified snapshot", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kms.signCanonicalAccount.mockResolvedValue({ mac: currentFingerprint, keyVersion: 7 });
+    const update = vi.fn();
+    const accountRef = { id: "account-a" };
+    const transaction = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        id: "account-a",
+        data: () => ({
+          memberUid: "member-a",
+          accountNumberLast5: "56789",
+          status: "active",
+          verificationStatus: "needsReverification",
+        }),
+      }),
+      update,
+      set: vi.fn(),
+    };
+    const candidateQuery = { kind: "candidate-query" };
+    transaction.get.mockImplementation(async (target) => target === accountRef
+      ? {
+          exists: true,
+          id: "account-a",
+          data: () => ({
+            memberUid: "member-a",
+            accountNumberLast5: "56789",
+            status: "active",
+            verificationStatus: "needsReverification",
+          }),
+        }
+      : documents([]));
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn((name: string) => name === "notificationEvents"
+        ? { doc: vi.fn() }
+        : {
+            doc: vi.fn(() => accountRef),
+            where: vi.fn(() => ({ where: vi.fn(() => candidateQuery) })),
+          }),
+      runTransaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
+    });
+
+    const response = await reverify(new Request("https://example.test/api/member/payment-accounts/account-a", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789", payerName: "王小明" }),
+    }), { params: Promise.resolve({ id: "account-a" }) });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      account: {
+        id: "account-a",
+        bankCode: "012",
+        accountNumberMasked: "***56789",
+        accountNumberLast5: "56789",
+        payerName: "王小明",
+        needsPayerName: false,
+        status: "active",
+        verificationStatus: "verified",
+      },
+    });
+    expect(update).toHaveBeenCalledWith(accountRef, expect.objectContaining({
+      bankCode: "012",
+      accountFingerprint: currentFingerprint,
+      status: "active",
+      verificationStatus: "verified",
+      updatedBy: "member-a",
+    }));
+    expect(update.mock.calls[0]?.[1]).not.toHaveProperty("accountNumberFull");
+  });
+
+  it("does not let another member re-verify an account", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-b" });
+    kms.signCanonicalAccount.mockResolvedValue({ mac: currentFingerprint, keyVersion: 7 });
+    const update = vi.fn();
+    const transaction = {
+      get: vi.fn().mockResolvedValue({
+        exists: true,
+        id: "account-a",
+        data: () => ({ memberUid: "member-a", status: "inactive", verificationStatus: "needsReverification" }),
+      }),
+      update,
+    };
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({ doc: vi.fn(() => ({ id: "account-a" })) })),
+      runTransaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
+    });
+
+    const response = await reverify(new Request("https://example.test/api/member/payment-accounts/account-a", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789", payerName: "王小明" }),
+    }), { params: Promise.resolve({ id: "account-a" }) });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({ error: "member_payment_account_not_found" });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("re-verifies a legacy account whose missing verification status is exposed as needing re-verification", async () => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kms.signCanonicalAccount.mockResolvedValue({ mac: currentFingerprint, keyVersion: 7 });
+    const update = vi.fn();
+    const accountRef = { id: "account-a" };
+    const transaction = {
+      get: vi.fn(async (target: unknown) => target === accountRef
+        ? {
+            exists: true,
+            id: "account-a",
+            data: () => ({ memberUid: "member-a", accountNumberLast5: "56789", status: "active" }),
+          }
+        : documents([])),
+      update,
+      set: vi.fn(),
+    };
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn((name: string) => name === "notificationEvents"
+        ? { doc: vi.fn() }
+        : {
+            doc: vi.fn(() => accountRef),
+            where: vi.fn(() => ({ where: vi.fn(() => ({ kind: "candidate-query" })) })),
+          }),
+      runTransaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
+    });
+
+    const response = await reverify(new Request("https://example.test/api/member/payment-accounts/account-a", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789", payerName: "王小明" }),
+    }), { params: Promise.resolve({ id: "account-a" }) });
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(accountRef, expect.objectContaining({
+      verificationStatus: "verified",
+    }));
+  });
+
+  it.each([
+    { label: "pending deletion", status: "pendingDeletion", deletionRequestedAt: new Date() },
+    { label: "archived", status: "inactive", archivedAt: new Date() },
+  ])("does not reactivate a $label legacy account", async ({ status, deletionRequestedAt, archivedAt }) => {
+    auth.requireFirebaseUser.mockResolvedValue({ uid: "member-a" });
+    kms.signCanonicalAccount.mockResolvedValue({ mac: currentFingerprint, keyVersion: 7 });
+    const update = vi.fn();
+    const accountRef = { id: "account-a" };
+    const transaction = {
+      get: vi.fn(async (target: unknown) => target === accountRef
+        ? {
+            exists: true,
+            id: "account-a",
+            data: () => ({
+              memberUid: "member-a",
+              accountNumberLast5: "56789",
+              status,
+              verificationStatus: "needsReverification",
+              ...(deletionRequestedAt ? { deletionRequestedAt } : {}),
+              ...(archivedAt ? { archivedAt } : {}),
+            }),
+          }
+        : documents([])),
+      update,
+      set: vi.fn(),
+    };
+    firestore.getAdminFirestore.mockReturnValue({
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => accountRef),
+        where: vi.fn(() => ({ where: vi.fn(() => ({ kind: "candidate-query" })) })),
+      })),
+      runTransaction: vi.fn(async (callback: (value: typeof transaction) => unknown) => callback(transaction)),
+    });
+
+    const response = await reverify(new Request("https://example.test/api/member/payment-accounts/account-a", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bankCode: "012", accountNumberFull: "00123456789", payerName: "王小明" }),
+    }), { params: Promise.resolve({ id: "account-a" }) });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "member_payment_account_reverification_not_allowed" });
+    expect(update).not.toHaveBeenCalled();
   });
 
   it.each([undefined, "", "王\n小明"])(

@@ -18,4 +18,14 @@ describe("Owner payment rejection UI", () => {
     expect(source).toContain('role="status"');
     expect(source).toContain('aria-live="polite"');
   });
+
+  it("groups rejected payments into a collapsed history section", () => {
+    expect(source).toContain('payment.status === "pendingReview"');
+    expect(source).toContain('payment.status === "rejected"');
+    expect(source).toContain("pendingPayments");
+    expect(source).toContain("rejectedPayments");
+    expect(source).toContain("已拒絕");
+    expect(source).toContain("<details");
+    expect(source).toContain("<summary");
+  });
 });

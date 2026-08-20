@@ -13,6 +13,7 @@ test("owner workspace pages do not overflow the Pixel 7 viewport", async ({
   await page.getByLabel("Email").fill("owner-e2e@example.test");
   await page.getByLabel("Password").fill("Password123!");
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/workspace\/products$/);
   await expect(page.getByRole("heading", { name: "Owner 營運工作區" })).toBeVisible();
 
   for (const path of [

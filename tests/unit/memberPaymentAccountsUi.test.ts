@@ -126,7 +126,7 @@ describe("member payment account UI contract", () => {
 
     expect(savedAccountMarkup).toContain("account.bankCode");
     expect(savedAccountMarkup).toContain("account.accountNumberMasked");
-    expect(savedAccountMarkup).not.toContain("accountNumberFull");
+    expect(savedAccountMarkup).not.toContain("account.accountNumberFull");
     expect(board).toContain("member_payment_account_duplicate_review_pending");
     expect(board).toContain("帳戶仍已新增");
   });
@@ -143,6 +143,22 @@ describe("member payment account UI contract", () => {
 
     expect(paymentBoard).toContain("isMemberPaymentAccountUsableForPayment");
     expect(accountBoard).toContain("需要重新驗證");
+  });
+
+  it("lets a member re-verify a legacy account in place", () => {
+    const board = readFileSync("src/components/account/MemberPaymentAccountsBoard.tsx", "utf8");
+    const legacyBranch = board.slice(
+      board.indexOf('account.verificationStatus === "needsReverification"'),
+      board.indexOf("</article>"),
+    );
+
+    expect(legacyBranch).toContain("銀行代碼");
+    expect(legacyBranch).toContain("完整銀行帳號");
+    expect(legacyBranch).toContain("匯款人姓名");
+    expect(board).toContain("method: \"PATCH\"");
+    expect(board).toContain("/api/member/payment-accounts/${encodeURIComponent(account.id)}");
+    expect(legacyBranch).toContain("重新驗證");
+    expect(legacyBranch).not.toContain("請重新新增帳戶");
   });
 
   it("does not offer an account with an unknown stored verification state", () => {

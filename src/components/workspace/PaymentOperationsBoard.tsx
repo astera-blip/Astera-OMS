@@ -49,6 +49,18 @@ export function PaymentOperationsBoard() {
     () => overpaidRequests.reduce((total, request) => total + (request.unallocatedAmountTwd ?? 0), 0),
     [overpaidRequests],
   );
+  const pendingPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "pendingReview"),
+    [payments],
+  );
+  const rejectedPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "rejected"),
+    [payments],
+  );
+  const historicalPayments = useMemo(
+    () => payments.filter((payment) => payment.status === "confirmed" || payment.status === "reversed"),
+    [payments],
+  );
 
   useEffect(() => {
     async function loadFirestoreData() {
@@ -90,7 +102,7 @@ export function PaymentOperationsBoard() {
       setRequests(firestoreRequests);
       setPayments(firestorePayments);
       setNotificationEvents(notificationPayload.notifications ?? []);
-      setSelectedPaymentId(firestorePayments.find((payment) => payment.status === "pendingReview")?.id ?? firestorePayments[0]?.id ?? "");
+      setSelectedPaymentId(firestorePayments.find((payment) => payment.status === "pendingReview")?.id ?? "");
       setStatus("ready");
     }
 
@@ -278,6 +290,9 @@ export function PaymentOperationsBoard() {
       if (!response.ok) {
         throw new Error("reject_failed");
       }
+      const nextPendingPayment = payments.find(
+        (payment) => payment.id !== selectedPayment.id && payment.status === "pendingReview",
+      );
       setPayments((current) => current.map((payment) => (
         payment.id === selectedPayment.id
           ? {
@@ -288,6 +303,7 @@ export function PaymentOperationsBoard() {
             }
           : payment
       )));
+      setSelectedPaymentId(nextPendingPayment?.id ?? "");
       setMessage("已拒絕付款回報，並建立稽核紀錄。");
       setReason("");
     } catch {
@@ -393,6 +409,50 @@ export function PaymentOperationsBoard() {
     );
   }
 
+  function renderPaymentCard(payment: LocalPayment) {
+    const request = requests.find((item) => item.id === payment.paymentRequestId);
+    const order = request ? orders.find((item) => item.order.id === request.orderId)?.order : undefined;
+
+    return (
+      <button
+        key={payment.id}
+        type="button"
+        onClick={() => selectPayment(payment)}
+        className={[
+          "w-full min-w-0 rounded-3xl border p-5 text-left shadow-sm transition-colors",
+          selectedPaymentId === payment.id
+            ? "border-slate-950 bg-slate-950 text-white"
+            : "border-slate-200 bg-white text-slate-900 hover:border-slate-300",
+        ].join(" ")}
+      >
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-lg font-semibold">
+              {order ? formatOperationsOrderReference(order) : "歷史付款回報"}
+            </p>
+            <p className="mt-1 text-sm opacity-80">
+              {order ? formatOperationsRecipientName(order.recipientName) : "找不到對應訂單"}
+            </p>
+          </div>
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium">
+            {paymentReviewStatusLabel(payment.status)}
+          </span>
+        </div>
+        <p className="mt-4 text-sm">
+          回報 NT$ {payment.receivedAmountTwd.toLocaleString()} / 應收 NT$ {request?.amountTwd.toLocaleString() ?? "?"}
+        </p>
+        {(request?.unallocatedAmountTwd ?? 0) > 0 ? (
+          <p className="mt-1 text-sm font-semibold text-amber-600">
+            未分配超額 NT$ {request?.unallocatedAmountTwd?.toLocaleString()}
+          </p>
+        ) : null}
+        <p className="mt-1 text-sm opacity-80">
+          末五碼 {getPaymentAccountLast5(payment) ?? "未填"} · 匯款人 {payment.payerName ?? "未填"}
+        </p>
+      </button>
+    );
+  }
+
   return (
     <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="grid min-w-0 gap-4">
@@ -411,49 +471,39 @@ export function PaymentOperationsBoard() {
             目前沒有會員付款回報。
           </div>
         ) : (
-          payments.map((payment) => {
-            const request = requests.find((item) => item.id === payment.paymentRequestId);
-            const order = request ? orders.find((item) => item.order.id === request.orderId)?.order : undefined;
-
-            return (
-            <button
-              key={payment.id}
-              type="button"
-              onClick={() => selectPayment(payment)}
-              className={[
-                "w-full min-w-0 rounded-3xl border p-5 text-left shadow-sm transition-colors",
-                selectedPaymentId === payment.id
-                  ? "border-slate-950 bg-slate-950 text-white"
-                  : "border-slate-200 bg-white text-slate-900 hover:border-slate-300",
-              ].join(" ")}
-            >
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-lg font-semibold">
-                    {order ? formatOperationsOrderReference(order) : "歷史付款回報"}
-                  </p>
-                  <p className="mt-1 text-sm opacity-80">
-                    {order ? formatOperationsRecipientName(order.recipientName) : "找不到對應訂單"}
-                  </p>
-                </div>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium">
-                  {paymentReviewStatusLabel(payment.status)}
-                </span>
+          <>
+            <div className="grid gap-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
+                <h3 className="text-lg font-semibold">待確認</h3>
+                <span className="text-sm text-slate-500">{pendingPayments.length} 筆</span>
               </div>
-              <p className="mt-4 text-sm">
-                回報 NT$ {payment.receivedAmountTwd.toLocaleString()} / 應收 NT$ {request?.amountTwd.toLocaleString() ?? "?"}
-              </p>
-              {(request?.unallocatedAmountTwd ?? 0) > 0 ? (
-                <p className="mt-1 text-sm font-semibold text-amber-600">
-                  未分配超額 NT$ {request?.unallocatedAmountTwd?.toLocaleString()}
-                </p>
-              ) : null}
-              <p className="mt-1 text-sm opacity-80">
-                末五碼 {getPaymentAccountLast5(payment) ?? "未填"} · 匯款人 {payment.payerName ?? "未填"}
-              </p>
-            </button>
-            );
-          })
+              {pendingPayments.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-600">
+                  目前沒有待確認付款。
+                </div>
+              ) : pendingPayments.map(renderPaymentCard)}
+            </div>
+
+            <details className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <summary className="cursor-pointer list-none text-lg font-semibold">
+                已拒絕（{rejectedPayments.length}）
+              </summary>
+              <div className="mt-4 grid gap-3">
+                {rejectedPayments.length === 0 ? (
+                  <p className="text-sm text-slate-600">目前沒有已拒絕付款。</p>
+                ) : rejectedPayments.map(renderPaymentCard)}
+              </div>
+            </details>
+
+            {historicalPayments.length > 0 ? (
+              <details className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <summary className="cursor-pointer list-none text-lg font-semibold">
+                  已處理紀錄（{historicalPayments.length}）
+                </summary>
+                <div className="mt-4 grid gap-3">{historicalPayments.map(renderPaymentCard)}</div>
+              </details>
+            ) : null}
+          </>
         )}
       </div>
 

@@ -14,6 +14,12 @@ type ApiPayload = {
   warning?: string;
 };
 
+type ReverificationDraft = {
+  bankCode: string;
+  accountNumberFull: string;
+  payerName: string;
+};
+
 export function MemberPaymentAccountsBoard() {
   const { user, status, signInWithGoogle } = useAuth();
   const [accounts, setAccounts] = useState<PublicMemberPaymentAccount[]>([]);
@@ -21,6 +27,7 @@ export function MemberPaymentAccountsBoard() {
   const [accountNumberFull, setAccountNumberFull] = useState("");
   const [payerName, setPayerName] = useState("");
   const [payerNameDrafts, setPayerNameDrafts] = useState<Record<string, string>>({});
+  const [reverificationDrafts, setReverificationDrafts] = useState<Record<string, ReverificationDraft>>({});
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -154,6 +161,41 @@ export function MemberPaymentAccountsBoard() {
     }
   }
 
+  async function reverifyAccount(
+    event: FormEvent<HTMLFormElement>,
+    account: PublicMemberPaymentAccount,
+  ) {
+    event.preventDefault();
+    if (!user || pendingId) {
+      return;
+    }
+    setPendingId(account.id);
+    setMessage("");
+    try {
+      const token = await user.getIdToken();
+      const draft = reverificationDrafts[account.id] ?? { bankCode: "", accountNumberFull: "", payerName: "" };
+      const response = await fetch(`/api/member/payment-accounts/${encodeURIComponent(account.id)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(draft),
+      });
+      const payload = await response.json() as ApiPayload;
+      if (!response.ok || !payload.account) {
+        throw new Error(payload.message ?? "匯款帳戶重新驗證失敗。");
+      }
+      setAccounts((current) => current.map((item) => item.id === account.id ? payload.account as PublicMemberPaymentAccount : item));
+      setReverificationDrafts((current) => ({ ...current, [account.id]: { bankCode: "", accountNumberFull: "", payerName: "" } }));
+      setMessage("匯款帳戶已重新驗證，現在可以用於付款回報。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "匯款帳戶重新驗證失敗，請稍後再試。");
+    } finally {
+      setPendingId("");
+    }
+  }
+
   if (status === "loading") {
     return <p className="rounded-3xl bg-white p-6 text-[#6C6B70]">帳戶資料載入中…</p>;
   }
@@ -194,7 +236,13 @@ export function MemberPaymentAccountsBoard() {
                     <>
                       <h3 className="font-semibold">舊匯款帳戶需要重新驗證</h3>
                       <p className="mt-1 text-sm text-[#6C6B70]">帳號 {account.accountNumberMasked}</p>
-                      <p className="mt-1 text-sm text-[#6C6B70]">此筆資料缺少目前驗證所需資訊，無法用於付款；請重新新增帳戶。</p>
+                      <p className="mt-1 text-sm text-[#6C6B70]">請重新輸入資料以恢復付款使用資格。</p>
+                      <form onSubmit={(event) => void reverifyAccount(event, account)} className="mt-3 grid gap-2">
+                        <label className="grid gap-1 text-sm font-medium">銀行代碼<input required inputMode="numeric" maxLength={3} value={reverificationDrafts[account.id]?.bankCode ?? ""} onChange={(event) => setReverificationDrafts((current) => ({ ...current, [account.id]: { ...(current[account.id] ?? { accountNumberFull: "", payerName: "" }), bankCode: event.target.value } }))} className="min-h-11 rounded-2xl border border-[#DED7D6] px-4" /></label>
+                        <label className="grid gap-1 text-sm font-medium">完整銀行帳號<input required inputMode="numeric" autoComplete="off" value={reverificationDrafts[account.id]?.accountNumberFull ?? ""} onChange={(event) => setReverificationDrafts((current) => ({ ...current, [account.id]: { ...(current[account.id] ?? { bankCode: "", payerName: "" }), accountNumberFull: event.target.value } }))} className="min-h-11 rounded-2xl border border-[#DED7D6] px-4" /></label>
+                        <label className="grid gap-1 text-sm font-medium">匯款人姓名<input required name="payerName" autoComplete="name" value={reverificationDrafts[account.id]?.payerName ?? ""} onChange={(event) => setReverificationDrafts((current) => ({ ...current, [account.id]: { ...(current[account.id] ?? { bankCode: "", accountNumberFull: "" }), payerName: event.target.value } }))} className="min-h-11 rounded-2xl border border-[#DED7D6] px-4" /></label>
+                        <button type="submit" disabled={Boolean(pendingId)} className="min-h-11 rounded-full bg-[#466060] px-4 text-sm font-semibold text-white disabled:opacity-50">{pendingId === account.id ? "驗證中…" : "重新驗證"}</button>
+                      </form>
                     </>
                   ) : (
                     <>

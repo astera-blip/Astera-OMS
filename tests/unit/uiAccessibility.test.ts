@@ -83,12 +83,19 @@ describe("shared UI accessibility contract", () => {
   });
 
   it("exposes a clear Owner payment-account settings entry", () => {
-    const workspace = read("src/app/workspace/page.tsx");
+    const shell = read("src/components/workspace/WorkspaceShell.tsx");
     const payments = read("src/components/workspace/PaymentAccountsBoard.tsx");
 
-    expect(workspace).toContain("收款帳戶設定");
-    expect(workspace).toContain("/workspace/payments#payment-accounts");
+    expect(shell).toContain("/workspace/payments");
     expect(payments).toContain('id="payment-accounts"');
+  });
+
+  it("does not render a duplicate Owner workspace overview", () => {
+    const workspace = read("src/app/workspace/page.tsx");
+
+    expect(workspace).toContain('router.replace("/workspace/products")');
+    expect(workspace).not.toContain("ownerCards");
+    expect(workspace).not.toContain("收款帳戶 Payment Accounts");
   });
 
   it("allows selecting multiple payment requests in one report", () => {

@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let role = "member";
@@ -19,6 +20,7 @@ vi.mock("@/components/auth/AuthProvider", () => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 
 vi.mock("next/link", async () => {
@@ -121,5 +123,22 @@ describe("AccountActions workspace entry", () => {
     );
 
     expectNextLinkWithLabel(markup, "/workspace/payments", "付款與收款");
+  });
+
+  it("removes the duplicate Owner workspace overview entry and redirects its landing page", () => {
+    role = "owner";
+
+    const shell = renderToStaticMarkup(
+      createElement(WorkspaceShell, null, createElement("p", null, "Owner content")),
+    );
+    const home = renderToStaticMarkup(createElement(WorkspaceHomePage));
+
+    expect(shell).not.toContain('href="/workspace"');
+    const source = readFileSync("src/app/workspace/page.tsx", "utf8");
+
+    expect(home).toContain("正在開啟商品工作區");
+    expect(source).toContain('router.replace("/workspace/products")');
+    expect(home).not.toContain("商品與活動 Products");
+    expect(home).not.toContain("收款帳戶 Payment Accounts");
   });
 });
